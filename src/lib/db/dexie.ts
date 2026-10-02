@@ -111,14 +111,25 @@ export class SportKompasDatabase extends Dexie {
   }
 }
 
-// Singleton instantie voor client-side gebruik
-let dbInstance: SportKompasDatabase | null = null;
+export const DB_NAME_REAL = "SportKompasDB";
+export const DB_NAME_DEMO = "SportKompasDemoDB";
 
-export function getDatabase(): SportKompasDatabase {
-  if (!dbInstance) {
-    dbInstance = new SportKompasDatabase();
+// Singleton instanties voor client-side gebruik (echt vs demo volledig gescheiden)
+let realDbInstance: SportKompasDatabase | null = null;
+let demoDbInstance: SportKompasDatabase | null = null;
+
+export function getDatabase(isDemo = false): SportKompasDatabase {
+  if (isDemo) {
+    if (!demoDbInstance) {
+      demoDbInstance = new SportKompasDatabase(DB_NAME_DEMO);
+    }
+    return demoDbInstance;
   }
-  return dbInstance;
+
+  if (!realDbInstance) {
+    realDbInstance = new SportKompasDatabase(DB_NAME_REAL);
+  }
+  return realDbInstance;
 }
 
-export const db = getDatabase();
+export const db = getDatabase(false);

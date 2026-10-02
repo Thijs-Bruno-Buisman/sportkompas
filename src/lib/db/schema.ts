@@ -14,7 +14,9 @@ export const ProvenanceSchema = z.object({
     "import_csv",
     "import_gpx",
     "strava",
+    "demo",
   ]),
+  isDemo: z.boolean().optional(),
   externalId: z.string().optional(),
   confidence: z.number().min(0).max(1).optional(),
   proposedAt: z.string().regex(isoDateRegex).optional(),
@@ -63,6 +65,7 @@ export const ProfileSchema = z.object({
   unitPreference: z.enum(["metric", "imperial"]),
   formulaPreference: z.enum(["mifflin_st_jeor", "katch_mcardle", "onbekend"]),
   onboardingCompleted: z.boolean(),
+  provenance: ProvenanceSchema.optional(),
   createdAt: z.string().regex(isoDateRegex),
   updatedAt: z.string().regex(isoDateRegex),
 });

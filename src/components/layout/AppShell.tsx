@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Home, Dumbbell, Activity, Utensils, User, ShieldCheck } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { useProfile } from "@/lib/hooks/useProfile";
+import { useDatabase } from "@/lib/db";
 import { OnboardingModal } from "@/components/modules/onboarding/OnboardingModal";
 
 interface NavItem {
@@ -25,6 +26,7 @@ const navItems: NavItem[] = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { needsOnboarding, saveProfile } = useProfile();
+  const { isDemoMode, toggleDemoMode, resetDemoData } = useDatabase();
 
   const isRouteActive = (href: string) => {
     return href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -32,8 +34,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-slate-50 dark:bg-[#090d16] text-slate-900 dark:text-slate-100 overflow-x-hidden max-w-full">
-      {/* Onboarding Wizard - Verschijnt uitsluitend als profielinstellingen ontbreken */}
-      {needsOnboarding && (
+      {/* Onboarding Wizard - Verschijnt uitsluitend als profielinstellingen ontbreken (en niet in demomodus) */}
+      {needsOnboarding && !isDemoMode && (
         <OnboardingModal
           isOpen={true}
           onComplete={async (data) => {
@@ -106,10 +108,39 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <ThemeToggle />
           </div>
 
-          <div className="flex items-center gap-2 px-2 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400">
-            <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
-            <span className="truncate">Lokale IndexedDB &bull; Offline-first</span>
-          </div>
+          {isDemoMode ? (
+            <div className="space-y-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs">
+              <div className="flex items-center gap-2 font-bold text-amber-700 dark:text-amber-400">
+                <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                <span>Demomodus Actief</span>
+              </div>
+              <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                Database: <br />
+                <span className="font-mono text-amber-600 dark:text-amber-300">SportKompasDemoDB</span>
+              </p>
+              <div className="flex items-center gap-1.5 pt-1">
+                <button
+                  type="button"
+                  onClick={resetDemoData}
+                  className="flex-1 text-center px-2 py-1 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-900 dark:text-amber-200 text-[11px] font-semibold transition-colors cursor-pointer"
+                >
+                  Reset
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleDemoMode(false)}
+                  className="flex-1 text-center px-2 py-1 rounded-md bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-[11px] font-semibold transition-colors cursor-pointer"
+                >
+                  Verlaten
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 px-2 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400">
+              <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+              <span className="truncate">Lokale IndexedDB &bull; Echte data</span>
+            </div>
+          )}
         </div>
       </aside>
 
@@ -127,16 +158,55 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </Link>
 
         <div className="flex items-center gap-2">
+          {isDemoMode && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500 text-slate-950">
+              DEMO
+            </span>
+          )}
           <ThemeToggle />
         </div>
       </header>
 
       {/* =========================================================================
-          HOOFD INHOUD CONTAINER (Responsive en overflow-veilig)
+          HOOFD INHOUD CONTAINER MET PERSISTENTE DEMO BANNER
       ========================================================================= */}
-      <main className="flex-1 w-full max-w-full min-w-0 px-4 sm:px-6 md:px-8 py-6 pb-28 md:pb-12 max-w-5xl mx-auto overflow-x-hidden">
-        {children}
-      </main>
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Zichtbare Demo-indicatie Banner */}
+        {isDemoMode && (
+          <div className="bg-amber-500/15 border-b border-amber-500/30 text-amber-950 dark:text-amber-200 px-4 py-2.5 text-xs sm:text-sm font-medium z-30 backdrop-blur-md">
+            <div className="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-amber-500 text-slate-950 shrink-0">
+                  Demomodus
+                </span>
+                <span className="text-xs text-slate-700 dark:text-slate-300 truncate">
+                  Voorbeeldgegevens actief in <code className="px-1 py-0.5 rounded bg-amber-500/10 font-mono text-[11px] font-bold">SportKompasDemoDB</code>. Echte records blijven 100% onaangetast.
+                </span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={resetDemoData}
+                  className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-950 dark:text-amber-200 border border-amber-500/30 transition-colors text-xs font-semibold cursor-pointer"
+                >
+                  Reset Demo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleDemoMode(false)}
+                  className="px-2.5 py-1 rounded-lg bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:opacity-90 transition-opacity text-xs font-semibold cursor-pointer"
+                >
+                  Sluit Demo
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <main className="flex-1 w-full max-w-full min-w-0 px-4 sm:px-6 md:px-8 py-6 pb-28 md:pb-12 max-w-5xl mx-auto overflow-x-hidden">
+          {children}
+        </main>
+      </div>
 
       {/* =========================================================================
           MOBIELE BOTTOM NAVIGATION (Vast onderaan met min 48px touch targets)

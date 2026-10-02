@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useTheme } from "@/lib/theme/ThemeProvider";
 import { useProfile } from "@/lib/hooks/useProfile";
+import { useDatabase } from "@/lib/db";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/Card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
@@ -49,6 +50,7 @@ export default function ProfielPage() {
   const { theme, setTheme } = useTheme();
   const { profile, settings, saveProfile, updateUnitPreference, isLoading } =
     useProfile();
+  const { isDemoMode, toggleDemoMode, resetDemoData } = useDatabase();
 
   // Form State
   const [name, setName] = useState("");
@@ -640,6 +642,93 @@ export default function ProfielPage() {
                   <Monitor className="w-4 h-4" />
                   <span>Systeem</span>
                 </button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Demomodus & Testomgeving Kaart */}
+          <Card className={isDemoMode ? "border-amber-500/40 bg-amber-500/5 dark:bg-amber-950/10" : ""}>
+            <CardHeader>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <span>Demomodus &amp; Testomgeving</span>
+                    {isDemoMode && (
+                      <Badge variant="warning" className="text-xs">
+                        Actief
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  <CardDescription>
+                    Verken SportKompas met realistische voorbeelddata in een afgeschermde database (SportKompasDemoDB).
+                  </CardDescription>
+                </div>
+                <Badge variant={isDemoMode ? "warning" : "default"}>
+                  {isDemoMode ? "SportKompasDemoDB" : "SportKompasDB (Echt)"}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="text-xs text-slate-600 dark:text-slate-400 space-y-2 leading-relaxed">
+                <p>
+                  In demomodus beschik je over een complete fictieve trainingsgeschiedenis (4 weken workouts met progressieve overload, PR&apos;s, duursport en voeding).
+                </p>
+                <p className="font-medium text-slate-700 dark:text-slate-300">
+                  🛡️ <strong>Dataveiligheid:</strong> Wisselen tussen modi raakt nooit je echte gegevens. Nieuwe gebruikers starten altijd 100% leeg en schoon in de echte database.
+                </p>
+              </div>
+
+              <div className="pt-2 flex flex-wrap items-center gap-3">
+                {isDemoMode ? (
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="border-amber-500/40 text-amber-900 dark:text-amber-200 hover:bg-amber-500/10"
+                      onClick={async () => {
+                        if (confirm("Weet je zeker dat je alle demodata wilt herstellen naar de beginwaarden?")) {
+                          await resetDemoData();
+                          setFeedbackMessage({
+                            type: "success",
+                            text: "Demodata succesvol gereset naar de schone voorbeeldstatus!",
+                          });
+                        }
+                      }}
+                      leftIcon={<RotateCcw className="w-4 h-4" />}
+                    >
+                      Reset Demodata
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="primary"
+                      onClick={async () => {
+                        await toggleDemoMode(false);
+                        setFeedbackMessage({
+                          type: "success",
+                          text: "Demomodus uitgeschakeld. Je bevindt je nu in je eigen echte database (SportKompasDB).",
+                        });
+                      }}
+                    >
+                      Demomodus Uitschakelen
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-emerald-500 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+                    onClick={async () => {
+                      await toggleDemoMode(true);
+                      setFeedbackMessage({
+                        type: "success",
+                        text: "Demomodus ingeschakeld! Je verkent nu SportKompas met de voorbeelddata van Alex.",
+                      });
+                    }}
+                    leftIcon={<Sparkles className="w-4 h-4" />}
+                  >
+                    Demomodus Inschakelen (Voorbeelddata)
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>

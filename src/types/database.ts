@@ -13,7 +13,15 @@ export type EntityId = string;
 
 // Herkomst van een entiteit of voorstel
 export interface Provenance {
-  source: "user" | "system" | "ai" | "import_csv" | "import_gpx" | "strava";
+  source:
+    | "user"
+    | "system"
+    | "ai"
+    | "import_csv"
+    | "import_gpx"
+    | "strava"
+    | "demo";
+  isDemo?: boolean;
   externalId?: string;
   confidence?: number; // 0..1 voor AI-voorstellen
   proposedAt?: string; // UTC ISO timestamp
@@ -69,6 +77,7 @@ export interface Profile {
   unitPreference: UnitPreference;
   formulaPreference: EnergyFormulaPreference;
   onboardingCompleted: boolean;
+  provenance?: Provenance;
   createdAt: string; // UTC ISO
   updatedAt: string; // UTC ISO
 }

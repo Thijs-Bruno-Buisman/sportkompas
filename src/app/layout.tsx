@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/lib/theme/ThemeProvider";
+import { DatabaseProvider } from "@/lib/db";
 import { AppShell } from "@/components/layout/AppShell";
 
 export const metadata: Metadata = {
@@ -26,7 +27,9 @@ export default function RootLayout({
     <html lang="nl" suppressHydrationWarning className="dark">
       <body className="min-h-screen bg-slate-50 dark:bg-[#090d16] text-slate-900 dark:text-slate-100 antialiased selection:bg-emerald-500/20 selection:text-emerald-300 overflow-x-hidden">
         <ThemeProvider>
-          <AppShell>{children}</AppShell>
+          <DatabaseProvider>
+            <AppShell>{children}</AppShell>
+          </DatabaseProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -1,4 +1,4 @@
-import { db, SportKompasDatabase } from "./dexie";
+import { db, SportKompasDatabase, getDatabase } from "./dexie";
 import { ProfileRepository } from "./repositories/profile.repository";
 import { ExerciseRepository } from "./repositories/exercise.repository";
 import { WorkoutRepository } from "./repositories/workout.repository";
@@ -31,9 +31,30 @@ export function createRepositories(database: SportKompasDatabase = db) {
   };
 }
 
+export type Repositories = ReturnType<typeof createRepositories>;
+
+let realRepos: Repositories | null = null;
+let demoRepos: Repositories | null = null;
+
+export function getRepositories(isDemo = false): Repositories {
+  if (isDemo) {
+    if (!demoRepos) {
+      demoRepos = createRepositories(getDatabase(true));
+    }
+    return demoRepos;
+  }
+  if (!realRepos) {
+    realRepos = createRepositories(getDatabase(false));
+  }
+  return realRepos;
+}
+
 export const repositories = createRepositories(db);
 
 export * from "./dexie";
 export * from "./errors";
 export * from "./capacity";
 export * from "./schema";
+export * from "./DatabaseContext";
+export * from "./demo/seedDemo";
+export * from "./demo/demoData";

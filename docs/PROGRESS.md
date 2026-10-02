@@ -21,7 +21,7 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 | **02** | **Design System, Theming & Hoofdnavigatie Shell** | `[x] KLAAR` | Herbruikbare UI suite, dark/light theme persistence, bottom nav + desktop zijbalk. |
 | **03** | **Lokale Opslag & Dexie Database Core** | `[x] KLAAR` | Versioned Dexie v1/v2, canonieke eenheden, snapshotting, provenance & 13 tests. |
 | **04** | **Profiel en eerste gebruik (Onboarding & Eenheden)** | `[x] KLAAR` | 3-staps onboarding, profielbeheer, weergave-eenheden (kg/lb, km/mi) & invoervalidatie. |
-| **05** | Demomodus & Realistische Voorbeelddata | `[ ] OPEN` | Veilige demomodus schakelaar in profiel zonder echte data te raken. |
+| **05** | **Demomodus en lege toestanden** | `[x] KLAAR` | Volledig gescheiden SportKompasDemoDB, 13 workouts, cardio, voeding, reset & 40 tests. |
 | **06** | Profiel: Gebruikersprofiel Beheer | `[ ] OPEN` | Persoonlijke gegevens, leeftijd, lengte, geslacht, activiteitsniveau. |
 | **07** | Profiel: Lichaamsmetingen & Gewichtstracking | `[ ] OPEN` | Gewichtslogboek, omtrekken, tijdstempels en notities. |
 | **08** | Profiel: Voortgangsmetingen Visualisatie | `[ ] OPEN` | Recharts gewichtsverloop, trends en doelindicatie. |
@@ -204,4 +204,49 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 - **Beperkingen & Notities:**
   - De onboarding wizard is gekoppeld aan de browser-IndexedDB en verdwijnt na de eerste succesvolle opslag; op het Profielscherm kunnen alle parameters te allen tijde worden herzien.
 - **Volgende Stap:**
-  - Prompt 05: Stap 05 — Demomodus & Realistische Voorbeelddata (Demomodus toggle in profiel zonder overschrijven van echte data).
+  - Prompt 05: Stap 05 — Demomodus en lege toestanden (Afgerond).
+
+### Stap 05: Demomodus en lege toestanden
+- **Datum:** 2026-10-02
+- **Status:** `[x] KLAAR`
+- **Uitgevoerde Acties:**
+  - **Fysiek & Opslag Gescheiden Database:**
+    - Volledige scheiding geïmplementeerd tussen de echte gebruikersdatabase (`SportKompasDB`) en de demodatabase (`SportKompasDemoDB`) via `getDatabase(isDemo)` en `getRepositories(isDemo)` in [src/lib/db/dexie.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/lib/db/dexie.ts) en [src/lib/db/index.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/lib/db/index.ts).
+    - React `DatabaseProvider` en `useDatabase()` hook gebouwd in [src/lib/db/DatabaseContext.tsx](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/lib/db/DatabaseContext.tsx) met mount-guard ter voorkoming van SSR/hydration mismatches.
+  - **Zichtbare Persistente Demo-indicatie:**
+    - Sticky amber meldingsbalk bovenaan de applicatie in `AppShell` met contextweergave (`SportKompasDemoDB`), knop "Reset Demo" en knop "Sluit Demo".
+    - Geanimeerde amber badge en databaselabel in de desktop zijbalk.
+    - Prominente "DEMO" pill-badge in de mobiele top-balk.
+    - Demomodus & Testomgeving Beheerkaart op de Profielpagina (`/profiel`) met statusbadges, resetmogelijkheid en duidelijke privacy- en data-integriteitstoelichting.
+  - **Realistische, Reproduceerbare & Intern Consistente Demodata:**
+    - Generator gebouwd in [src/lib/db/demo/demoData.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/lib/db/demo/demoData.ts) en seeder in [src/lib/db/demo/seedDemo.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/lib/db/demo/seedDemo.ts).
+    - Profiel: Alex (gevorderd, 184 cm, 82.5 kg startgewicht naar 81.0 kg streefgewicht, 4x kracht, 2x cardio).
+    - 12 Functionele oefeningen met apparatuur, spiergroepen en instructies.
+    - 4-daags split trainingsprogramma ("Upper / Lower Kracht & Massa").
+    - 13 Historische workoutsessies met progressieve overbelasting over 4 weken (Bankdrukken stijgt naar 87.5 kg x 6 reps met berekende 1RM van 105 kg; Back Squat stijgt naar 110 kg; Deadlift stijgt naar 135 kg).
+    - 6 Voltooide cardiosessies (72.5 km totaal: 5k, 7.5k, 10k hardlopen, 20k & 25k wielrennen, 5k roeien) met afstanden, tempo's, hartslagen en calorieën.
+    - Voedingslogboek: Vandaag 2050 kcal, 158g eiwit, 194g koolhydraten, 64g vet en 2250 ml water.
+    - 5 Wekelijkse lichaamsmetingen met dalende trend en vetpercentage.
+    - 5 Herstellogs met slaapduur, kwaliteit en spierpijnscores.
+    - Alle demorecords expliciet gemarkeerd met `provenance: { source: 'demo', isDemo: true }`.
+  - **Volledige Isolatie & Demo-reset:**
+    - `resetDemoDatabase()` wist uitsluitend tabellen van `SportKompasDemoDB` en herbevolkt deze met de schone beginset. Echte records in `SportKompasDB` worden 0% geraakt.
+  - **Eerlijke Lege App & Geen Fictieve Overerving:**
+    - Alle vijf schermen (`/`, `/training`, `/cardio`, `/voeding`, `/profiel`) dynamisch gekoppeld aan de actieve database.
+    - In echte modus krijgt een nieuwe gebruiker uitsluitend zijn eigen data te zien; de app toont overal 0 totalen en duidelijke acties ("Maak je eerste schema", "Start Krachttraining", "Sessie Toevoegen", "Voeding Invoeren").
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): 0 fouten.
+  - Linting (`npm run lint`): 0 fouten of waarschuwingen.
+  - Vitest testsuite ([tests/demomode.test.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/tests/demomode.test.ts)): 40 van de 40 tests geslaagd in 5 testsuites.
+    - Test op fysieke scheiding tussen echte DB en demodatabase.
+    - Test op reproduceerbare en intern consistente demodata.
+    - Test op dynamische 1RM- en kilometertotalen berekend uit logs (105 kg bench 1RM, 72.5 km cardio).
+    - Test op garanderen dat nieuwe gebruikers in echte modus geen data of records erven uit de demo.
+    - Test op behoud van echte gegevens bij wisselen tussen demomodus en echte modus.
+    - Test op demo-reset: herstelt alleen de demodatabase; echte records van gebruikers blijven 100% onaangetast.
+  - Productiebuild (`npm run build`): Succesvol gecompileerd in 7.8s, alle 8 routes statisch gegenereerd.
+- **Beperkingen & Notities:**
+  - Demomodus is uitsluitend bedoeld als vrijblijvende preview/verkenning en raakt op geen enkel moment de actieve `SportKompasDB`.
+- **Volgende Stap:**
+  - Prompt 06: Stap 06 — Profiel: Gebruikersprofiel Beheer (Persoonlijke gegevens, leeftijd, lengte, geslacht, activiteitsniveau).
+

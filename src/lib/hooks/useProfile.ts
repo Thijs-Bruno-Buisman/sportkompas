@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { repositories } from "@/lib/db";
+import { useDatabase } from "@/lib/db";
 import type { Profile, AppSettings, UnitPreference } from "@/types/database";
 
 export function useProfile() {
+  const { repositories, isDemoMode, dataVersion } = useDatabase();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -21,12 +22,12 @@ export function useProfile() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [repositories]);
 
   useEffect(() => {
     setIsMounted(true);
     loadData();
-  }, [loadData]);
+  }, [loadData, isDemoMode, dataVersion]);
 
   const saveProfile = async (
     data: Omit<Profile, "id" | "createdAt" | "updatedAt">
@@ -68,6 +69,7 @@ export function useProfile() {
   return {
     profile,
     settings,
+    isDemoMode,
     isLoading: !isMounted || isLoading,
     needsOnboarding,
     saveProfile,
