@@ -24,6 +24,7 @@ interface DatabaseContextValue {
   repositories: Repositories;
   toggleDemoMode: (enable: boolean) => Promise<void>;
   resetDemoData: () => Promise<void>;
+  refreshData: () => void;
 }
 
 const DatabaseContext = createContext<DatabaseContextValue | null>(null);
@@ -102,6 +103,11 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Handmatig dataversie verhogen om componenten te triggeren
+  const refreshData = useCallback(() => {
+    setDataVersion((v) => v + 1);
+  }, []);
+
   const value = useMemo(
     () => ({
       isDemoMode,
@@ -111,6 +117,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
       repositories: activeRepos,
       toggleDemoMode,
       resetDemoData,
+      refreshData,
     }),
     [
       isDemoMode,
@@ -120,6 +127,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
       activeRepos,
       toggleDemoMode,
       resetDemoData,
+      refreshData,
     ]
   );
 
@@ -146,6 +154,7 @@ export function useDatabase(): DatabaseContextValue {
       repositories: createRepositories(realDb),
       toggleDemoMode: async () => {},
       resetDemoData: async () => {},
+      refreshData: () => {},
     };
   }
   return context;

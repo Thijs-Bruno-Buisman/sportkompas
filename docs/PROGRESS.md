@@ -26,7 +26,7 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 | **08** | Profiel: Voortgangsmetingen Visualisatie | `[ ] OPEN` | Recharts gewichtsverloop, trends en doelindicatie. |
 | **09** | Profiel: BMR & TDEE Berekeningen | `[ ] OPEN` | Mifflin-St Jeor & Katch-McArdle formules met Vitest tests. |
 | **10** | Krachttraining: Oefeningenbibliotheek | `[ ] OPEN` | Spiergroepen, apparatuur, filters, aangepaste oefeningen toevoegen. |
-| **11** | Krachttraining: Schema's & Routines Creator | `[ ] OPEN` | Workoutsamensteller, sets/reps/rpe configuratie per routine. |
+| **11 / P07** | **Krachttraining: Schema's & Routines Creator (Mijn Schema's)** | `[x] KLAAR` | Schema's maken, bewerken, dupliceren, archiveren, templates, versiebeheer en validatie. |
 | **12** | Krachttraining: Actieve Workout Tracker Core | `[ ] OPEN` | Grote touchbediening, sets loggen, gewicht/reps invoer, afvinken. |
 | **13** | Krachttraining: Geïntegreerde Rusttimer | `[ ] OPEN` | Grote visuele timer, instelbare rustduur, audio/visuele feedback. |
 | **14** | Krachttraining: Vorige Prestaties Inline | `[ ] OPEN` | Direct inzicht in eerdere gewichten en reps tijdens de oefening. |
@@ -289,5 +289,76 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 - **Beperkingen & Notities:**
   - Standaard oefeningen kunnen veilig worden gearchiveerd om ze uit de weergave te houden, maar worden niet definitief gewist zodat standaard trainingsvoorbeelden consistent blijven.
 - **Volgende Stap:**
-  - Prompt 07: Stap 07 / Volgende geplande prompt.
+  - Prompt 07: Schema's maken (Afgerond).
+
+### Stap 07: Krachttraining: Schema's maken & Routines Creator (Prompt 07)
+- **Datum:** 2026-10-02
+- **Status:** `[x] KLAAR`
+- **Uitgevoerde Acties:**
+  - **Datamodel & Dexie Versie 4 Migratie:**
+    - `WorkoutRoutine` uitgebreid met `isArchived?: boolean` in [src/types/database.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/types/database.ts).
+    - `PlannedExerciseInDay` verrijkt met `measurementType?: ExerciseMeasurementType`, `targetDurationSeconds?: number`, `targetWeightKg?: number | null`, `effortScale?: "geen" | "rpe" | "rir"`, `targetRpe?: number | null`, `targetRir?: number | null`.
+    - `WorkoutExerciseSnapshot` en `WorkoutExerciseSnapshotSchema` flexibel gemaakt voor tijdsduur-oefeningen (optionele repbereiken en optionele `targetDurationSeconds`).
+    - Dexie gemigreerd naar Versie 4 in [src/lib/db/dexie.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/lib/db/dexie.ts) met index op `workoutRoutines: "id, name, version, isActive, isArchived, createdAt"` en automatische upgrade-functie.
+  - **Domeinvalidatie & Onveranderlijk Versiebeheer:**
+    - [src/domain/strength/routineValidation.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/domain/strength/routineValidation.ts) geïmplementeerd:
+      - Validatie op schemanaam en minimaal 1 trainingsdag.
+      - Weigert lege trainingsdagen (elke dag vereist minimaal 1 oefening).
+      - Repbereik-validatie (`targetRepsMin <= targetRepsMax` en beiden `>= 1`).
+      - Duur-validatie voor tijd-gebaseerde oefeningen (`measurementType === "tijd"` vereist `targetDurationSeconds >= 1`).
+      - Optionele inspanningsschaal: gebruiker kiest zelf `"geen"`, `"rpe"` (1.0-10.0) of `"rir"` (0-10); nooit verplicht gekoppeld aan kracht of hypertrofie.
+      - Doelgewicht (optioneel, niet-negatief) en rusttijd (niet-negatief).
+    - [src/lib/db/repositories/workout.repository.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/lib/db/repositories/workout.repository.ts) uitgebreid met:
+      - `getRoutines(includeArchived)`: haalt schema's gesorteerd op (actief schema bovenaan, daarna recentste).
+      - `getRoutineWithDays(routineId)`: haalt schema op met alle gekoppelde dagen gesorteerd op `dayIndex`.
+      - `saveRoutineWithDays(routine, days)`: valideert via domeinregels en verhoogt automatisch het versienummer (`routine.version + 1`) zodra bestaande workoutsessies al naar de huidige versie verwijzen, zodat eerdere workout-snapshots intact en onveranderlijk blijven.
+      - `duplicateRoutine(routineId, customName)`: kloont het schema en alle bijbehorende dagen met nieuwe unieke UUIDs en versie 1 (`isActive: false`, `isArchived: false`).
+      - `archiveRoutine(routineId)` & `unarchiveRoutine(routineId)`: veilige zachte archivering zonder gegevensverlies.
+      - `setActiveRoutine(routineId)`: stelt één schema in als het actieve trainingsprogramma en deactiveert eerdere actieve schema's.
+  - **Bewezen Voorbeeldsjablonen (Templates):**
+    - [src/domain/strength/routineTemplates.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/domain/strength/routineTemplates.ts) met 3 complete templates:
+      1. Full Body Basis (3 Dagen)
+      2. Upper / Lower Split (4 Dagen)
+      3. Push / Pull / Legs (3 Dagen)
+    - `instantiateTemplate()`: converteert een sjabloon in het geheugen naar een bewerkbaar concept. Wordt **nooit** stilzwijgend opgeslagen in de database totdat de gebruiker op Opslaan klikt.
+  - **Gebruikersinterface & Ergonomie:**
+    - [src/components/modules/routines/ExerciseSelectorDialog.tsx](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/components/modules/routines/ExerciseSelectorDialog.tsx): snelle zoek- en selectiedialoog met spiergroep-filter.
+    - [src/components/modules/routines/TemplateSelectorDialog.tsx](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/components/modules/routines/TemplateSelectorDialog.tsx): sjabloonkiezer met dag- en oefeningenoverzicht.
+    - [src/components/modules/routines/RoutineEditor.tsx](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/components/modules/routines/RoutineEditor.tsx):
+      - Dagen toevoegen, hernoemen en verwijderen.
+      - Oefeningen toevoegen via selector.
+      - **Herordenen zonder drag-and-drop:** toegankelijke "Omhoog" en "Omlaag" knoppen.
+      - **Oefening vervangen:** "Vervangen" knop wisselt de oefening en het meettype om met behoud van de door de gebruiker ingestelde sets, repbereik, gewicht en rusttijd.
+      - Dynamische invoervelden op basis van meettype (reps vs tijd in sec), optioneel doelgewicht, selecteerbare rusttijd en keuze voor RPE/RIR.
+      - Duidelijke validatiemeldingen bij foute invoer.
+    - [src/components/modules/routines/RoutineList.tsx](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/components/modules/routines/RoutineList.tsx):
+      - Schemakaarten met actieve programma-badge, versienummer, aantal dagen en oefeningen.
+      - Knoppen voor Activeren, Bewerken, Kopiëren (dupliceren) en Archiveren/Herstellen.
+      - Schakelaar voor het inzien van gearchiveerde schema's.
+      - Geïntegreerd in het Schema's-tabblad op de Trainingspagina ([src/app/training/page.tsx](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/app/training/page.tsx)).
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): 0 fouten.
+  - Linting (`npm run lint`): 0 waarschuwingen of fouten.
+  - Vitest testsuite (`npm test`): **68 van de 68 tests geslaagd** over 7 testsuites:
+    - [tests/routines.test.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/tests/routines.test.ts) (14 tests):
+      - Test op aanmaken, bewaren en heropenen van een 3-daags schema na database reload.
+      - Test op dupliceren met unieke IDs, versie 1 en ongewijzigd bronschema.
+      - Test op activatiebeheer (slechts 1 actief schema tegelijk).
+      - Test op zachte archivering en dearchivering.
+      - Test op domeinvalidatie: lege schema's, lege trainingsdagen, rep min > max, tijdmeting zonder seconden, RPE/RIR grenzen.
+      - Test op automatische versie-ophoging wanneer voltooide sessies al naar de huidige versie verwijzen met behoud van eerdere sessie-snapshots.
+      - Test op sjabloon-integriteit en het garanderen dat sjablonen nooit stilzwijgend in IndexedDB terechtkomen.
+    - [tests/database.test.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/tests/database.test.ts) (8 tests inclusief v4 Dexie migratie).
+    - [tests/exercises.test.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/tests/exercises.test.ts) (14 tests).
+    - [tests/demomode.test.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/tests/demomode.test.ts) (6 tests).
+    - [tests/onboarding.test.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/tests/onboarding.test.ts) (8 tests).
+    - [src/domain/units.test.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/domain/units.test.ts) (13 tests).
+    - [src/domain/health.test.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/domain/health.test.ts) (5 tests).
+  - Productiebuild (`npm run build`): Succesvol gecompileerd in 9.1s, alle 8 routes statisch gegenereerd.
+- **Beperkingen & Notities:**
+  - Sjablonen worden uitsluitend als in-memory concept ingeladen in de editor; pas na expliciet opslaan door de gebruiker worden ze vastgelegd in IndexedDB.
+  - Bij aanpassing van een schema waarnaar al historische workoutsessies verwijzen, wordt automatisch een nieuwe schemaversie (`v + 1`) aangemaakt zodat eerdere logs 100% onveranderlijk blijven.
+- **Volgende Stap:**
+  - Prompt 08 / Volgende geplande prompt.
+
 

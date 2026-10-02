@@ -150,6 +150,42 @@ export class SportKompasDatabase extends Dexie {
             }
           });
       });
+
+    // =========================================================================
+    // VERSIE 4: Schema- en Routinebeheer (isArchived indexering op workoutRoutines)
+    // =========================================================================
+    this.version(4)
+      .stores({
+        profiles: "id, name, createdAt",
+        exercises:
+          "id, name, category, primaryMuscleGroup, equipment, measurementType, isCustom, isArchived, createdAt",
+        workoutRoutines: "id, name, version, isActive, isArchived, createdAt",
+        routineDays: "id, routineId, dayIndex",
+        scheduledSessions:
+          "id, calendarDate, routineId, status, [calendarDate+status]",
+        workoutSessions:
+          "id, calendarDate, startTime, status, routineId, [calendarDate+status]",
+        workoutSets:
+          "id, sessionId, exerciseId, setNumber, [sessionId+exerciseId]",
+        cardioSessions: "id, calendarDate, startTime, activityType",
+        goals: "id, category, status, targetDate",
+        foodItems: "id, name, isCustom, createdAt",
+        mealLogs: "id, calendarDate, mealType, loggedAt",
+        waterLogs: "id, calendarDate, loggedAt",
+        bodyMeasurements: "id, calendarDate, measuredAt",
+        recoveryLogs: "id, calendarDate, loggedAt",
+        appSettings: "id",
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table("workoutRoutines")
+          .toCollection()
+          .modify((routine) => {
+            if (routine.isArchived === undefined) {
+              routine.isArchived = false;
+            }
+          });
+      });
   }
 }
 

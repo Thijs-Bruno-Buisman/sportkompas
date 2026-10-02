@@ -126,10 +126,15 @@ export const ExerciseSchema = z.object({
 export const PlannedExerciseSchema = z.object({
   exerciseId: z.string().uuid(),
   exerciseName: z.string(),
+  measurementType: ExerciseMeasurementTypeSchema.optional(),
   targetSets: z.number().int().min(1).max(20),
-  targetRepsMin: z.number().int().min(1).max(100),
-  targetRepsMax: z.number().int().min(1).max(100),
-  targetRpe: z.number().min(1).max(10).optional(),
+  targetRepsMin: z.number().int().min(1).max(100).optional(),
+  targetRepsMax: z.number().int().min(1).max(100).optional(),
+  targetDurationSeconds: z.number().int().min(1).max(3600).optional(),
+  targetWeightKg: z.number().min(0).max(1000).nullable().optional(),
+  effortScale: z.enum(["geen", "rpe", "rir"]).optional(),
+  targetRpe: z.number().min(1).max(10).nullable().optional(),
+  targetRir: z.number().int().min(0).max(10).nullable().optional(),
   restSeconds: z.number().int().min(0).max(600),
   notes: z.string().optional(),
 });
@@ -146,9 +151,10 @@ export const RoutineDaySchema = z.object({
 export const WorkoutRoutineSchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1, "Schemanaam is verplicht"),
-  description: z.string(),
+  description: z.string().optional().default(""),
   version: z.number().int().min(1),
   isActive: z.boolean(),
+  isArchived: z.boolean().optional().default(false),
   provenance: ProvenanceSchema,
   createdAt: z.string().regex(isoDateRegex),
   updatedAt: z.string().regex(isoDateRegex),
@@ -170,8 +176,9 @@ export const WorkoutExerciseSnapshotSchema = z.object({
   exerciseName: z.string(),
   primaryMuscleGroup: z.string(),
   targetSets: z.number().int(),
-  targetRepsMin: z.number().int(),
-  targetRepsMax: z.number().int(),
+  targetRepsMin: z.number().int().optional(),
+  targetRepsMax: z.number().int().optional(),
+  targetDurationSeconds: z.number().int().optional(),
   restSeconds: z.number().int(),
 });
 

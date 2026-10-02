@@ -143,6 +143,7 @@ export interface WorkoutRoutine {
   description: string;
   version: number;
   isActive: boolean;
+  isArchived?: boolean;
   provenance: Provenance;
   createdAt: string; // UTC ISO
   updatedAt: string; // UTC ISO
@@ -152,10 +153,15 @@ export interface WorkoutRoutine {
 export interface PlannedExerciseInDay {
   exerciseId: EntityId;
   exerciseName: string;
+  measurementType?: ExerciseMeasurementType;
   targetSets: number;
-  targetRepsMin: number;
-  targetRepsMax: number;
-  targetRpe?: number;
+  targetRepsMin?: number;
+  targetRepsMax?: number;
+  targetDurationSeconds?: number;
+  targetWeightKg?: number | null;
+  effortScale?: "geen" | "rpe" | "rir";
+  targetRpe?: number | null;
+  targetRir?: number | null;
   restSeconds: number;
   notes?: string;
 }
@@ -186,8 +192,9 @@ export interface WorkoutExerciseSnapshot {
   exerciseName: string;
   primaryMuscleGroup: string;
   targetSets: number;
-  targetRepsMin: number;
-  targetRepsMax: number;
+  targetRepsMin?: number;
+  targetRepsMax?: number;
+  targetDurationSeconds?: number;
   restSeconds: number;
 }
 

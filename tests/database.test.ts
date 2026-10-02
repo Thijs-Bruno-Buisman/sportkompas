@@ -236,9 +236,9 @@ describe("IndexedDB & Repository Layer (SportKompas)", () => {
       const modernDb = new SportKompasDatabase(migrationDbName);
       await modernDb.open();
 
-      expect(modernDb.verno).toBe(3);
+      expect(modernDb.verno).toBe(4);
 
-      // Controleer dat de oude data behouden is en correct gemigreerd via v2 en v3
+      // Controleer dat de oude data behouden is en correct gemigreerd via v2, v3 en v4
       const migratedExercise = await modernDb.exercises.get(exerciseId);
       expect(migratedExercise).toBeDefined();
       expect(migratedExercise?.name).toBe("Oude Squat Oefening");

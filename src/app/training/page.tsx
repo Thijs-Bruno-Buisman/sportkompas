@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Alert } from "@/components/ui/Alert";
 import { useDatabase } from "@/lib/db";
 import { ExerciseLibrary } from "@/components/modules/exercises/ExerciseLibrary";
+import { RoutineList } from "@/components/modules/routines/RoutineList";
 import type { WorkoutSession, WorkoutRoutine, RoutineDay, Exercise } from "@/types/database";
 
 export default function TrainingPage() {
@@ -205,73 +206,7 @@ export default function TrainingPage() {
 
         {/* Tab 2: Schema's & Routines */}
         <TabsContent value="schemas" className="space-y-4">
-          {routines.length > 0 ? (
-            <div className="space-y-4">
-              {routines.map((routine) => (
-                <Card key={routine.id} className="p-5">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h2 className="font-bold text-lg text-slate-900 dark:text-white">
-                          {routine.name}
-                        </h2>
-                        {routine.isActive && <Badge variant="success">Actief Programma</Badge>}
-                      </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                        {routine.description}
-                      </p>
-                    </div>
-                    <Button
-                      size="sm"
-                      onClick={() => setIsDialogOpen(true)}
-                      leftIcon={<Play className="w-3.5 h-3.5 fill-current" />}
-                    >
-                      Start Training
-                    </Button>
-                  </div>
-
-                  {/* Routine Dagen */}
-                  {routineDays.length > 0 && (
-                    <div className="pt-4 space-y-3">
-                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                        Schemadagen ({routineDays.length})
-                      </h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {routineDays.map((day) => (
-                          <div
-                            key={day.id}
-                            className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 space-y-2"
-                          >
-                            <span className="font-semibold text-sm text-slate-900 dark:text-white">
-                              {day.name}
-                            </span>
-                            <div className="space-y-1">
-                              {day.plannedExercises.map((pe, pIdx) => (
-                                <p key={pIdx} className="text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between">
-                                  <span>{pe.exerciseName}</span>
-                                  <span className="font-mono text-[11px] text-slate-400">
-                                    {pe.targetSets}x{pe.targetRepsMin}-{pe.targetRepsMax}
-                                  </span>
-                                </p>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <EmptyState
-              icon={<Layers className="w-6 h-6" />}
-              title="Nog geen schema's aangemaakt"
-              description="Stel trainingsroutines samen (zoals Push/Pull/Legs of Upper/Lower) om gestructureerd progressieve overload te behalen."
-              actionLabel="Maak je eerste schema"
-              onAction={() => setIsDialogOpen(true)}
-            />
-          )}
+          <RoutineList />
         </TabsContent>
 
         {/* Tab 3: Oefeningenbibliotheek */}
