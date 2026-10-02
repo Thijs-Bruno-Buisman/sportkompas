@@ -82,10 +82,18 @@ export interface Profile {
   updatedAt: string; // UTC ISO
 }
 
+export type ExerciseMeasurementType =
+  | "gewicht_herhalingen"
+  | "lichaamsgewicht"
+  | "extra_gewicht"
+  | "assisted"
+  | "tijd";
+
 // 2. Oefeningen
 export interface Exercise {
   id: EntityId;
   name: string;
+  alternativeNames?: string[];
   category: "kracht" | "cardio" | "lichaamsgewicht" | "stretching";
   primaryMuscleGroup:
     | "borst"
@@ -94,20 +102,38 @@ export interface Exercise {
     | "schouders"
     | "armen"
     | "core"
+    | "kuiten"
+    | "cardio"
     | "full_body";
-  secondaryMuscleGroups: string[];
+  secondaryMuscleGroups: (
+    | "borst"
+    | "rug"
+    | "benen"
+    | "schouders"
+    | "armen"
+    | "core"
+    | "kuiten"
+    | "cardio"
+    | "full_body"
+  )[];
   equipment:
+    | "geen"
+    | "lichaamsgewicht"
     | "barbell"
     | "dumbbell"
+    | "kettlebell"
     | "kabel"
     | "machine"
-    | "lichaamsgewicht"
     | "elastiek"
     | "overig";
+  measurementType: ExerciseMeasurementType;
   isCustom: boolean;
+  isArchived: boolean;
   instructions: string;
+  videoUrl?: string | null;
   provenance: Provenance;
   createdAt: string; // UTC ISO
+  updatedAt?: string; // UTC ISO
 }
 
 // 3. Trainingsschema's (Routines)

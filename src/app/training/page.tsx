@@ -13,6 +13,7 @@ import { Select } from "@/components/ui/Select";
 import { Badge } from "@/components/ui/Badge";
 import { Alert } from "@/components/ui/Alert";
 import { useDatabase } from "@/lib/db";
+import { ExerciseLibrary } from "@/components/modules/exercises/ExerciseLibrary";
 import type { WorkoutSession, WorkoutRoutine, RoutineDay, Exercise } from "@/types/database";
 
 export default function TrainingPage() {
@@ -23,7 +24,6 @@ export default function TrainingPage() {
   const [routines, setRoutines] = useState<WorkoutRoutine[]>([]);
   const [routineDays, setRoutineDays] = useState<RoutineDay[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
   // Dialog State
@@ -111,13 +111,6 @@ export default function TrainingPage() {
     }
   };
 
-  const filteredExercises = exercises.filter(
-    (ex) =>
-      ex.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ex.primaryMuscleGroup.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ex.equipment.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
   return (
     <div className="space-y-6 max-w-full overflow-x-hidden">
       {/* Pagina Header met Primaire Actie */}
@@ -151,7 +144,7 @@ export default function TrainingPage() {
             Schema&apos;s &amp; Routines ({routines.length})
           </TabsTrigger>
           <TabsTrigger value="oefeningen">
-            Oefeningen ({exercises.length})
+            Oefeningen
           </TabsTrigger>
         </TabsList>
 
@@ -283,64 +276,7 @@ export default function TrainingPage() {
 
         {/* Tab 3: Oefeningenbibliotheek */}
         <TabsContent value="oefeningen" className="space-y-4">
-          <div className="relative">
-            <Input
-              placeholder="Zoek oefening op naam, spiergroep of materiaal..."
-              className="pl-10"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5 pointer-events-none" />
-          </div>
-
-          {filteredExercises.length > 0 ? (
-            <div className="space-y-3">
-              {filteredExercises.map((exercise) => (
-                <Card
-                  key={exercise.id}
-                  className="p-4 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-w-0">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-sm sm:text-base text-slate-900 dark:text-white break-words">
-                          {exercise.name}
-                        </h3>
-                        {exercise.isCustom && <Badge variant="outline">Aangepast</Badge>}
-                      </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 break-words">
-                        Primaire spiergroep: <span className="capitalize font-medium text-slate-700 dark:text-slate-300">{exercise.primaryMuscleGroup}</span>
-                        {exercise.secondaryMuscleGroups.length > 0 &&
-                          ` &bull; Secundair: ${exercise.secondaryMuscleGroups.join(", ")}`}
-                      </p>
-                      {exercise.instructions && (
-                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
-                          {exercise.instructions}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Badge variant="outline" className="capitalize">
-                        {exercise.equipment}
-                      </Badge>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <EmptyState
-              icon={<Dumbbell className="w-6 h-6" />}
-              title={exercises.length === 0 ? "Geen oefeningen in bibliotheek" : "Geen overeenkomende oefeningen"}
-              description={
-                exercises.length === 0
-                  ? "Er zijn nog geen oefeningen aanwezig in deze database. Schakel eventueel de demomodus in voor een complete set basisoefeningen."
-                  : `Geen resultaten gevonden voor "${searchQuery}".`
-              }
-              actionLabel="Oefening Toevoegen"
-              onAction={() => alert("Eigen oefeningen toevoegen wordt uitgebreid in Stap 10.")}
-            />
-          )}
+          <ExerciseLibrary />
         </TabsContent>
       </Tabs>
 

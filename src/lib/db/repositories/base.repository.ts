@@ -1,5 +1,5 @@
 import { type Table } from "dexie";
-import { type ZodSchema } from "zod";
+import { type ZodType } from "zod";
 import {
   StorageError,
   EntityNotFoundError,
@@ -14,7 +14,7 @@ export interface Identifiable {
 export abstract class BaseRepository<T extends Identifiable> {
   constructor(
     protected readonly table: Table<T, string>,
-    protected readonly schema?: ZodSchema<T>
+    protected readonly schema?: ZodType<T, any, any>
   ) {}
 
   protected validate(item: unknown): T {

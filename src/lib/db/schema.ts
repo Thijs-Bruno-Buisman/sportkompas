@@ -70,34 +70,56 @@ export const ProfileSchema = z.object({
   updatedAt: z.string().regex(isoDateRegex),
 });
 
+// Exercise Measurement Type Schema
+export const ExerciseMeasurementTypeSchema = z.enum([
+  "gewicht_herhalingen",
+  "lichaamsgewicht",
+  "extra_gewicht",
+  "assisted",
+  "tijd",
+]);
+
+export const MuscleGroupSchema = z.enum([
+  "borst",
+  "rug",
+  "benen",
+  "schouders",
+  "armen",
+  "core",
+  "kuiten",
+  "cardio",
+  "full_body",
+]);
+
+export const EquipmentEnumSchema = z.enum([
+  "geen",
+  "lichaamsgewicht",
+  "barbell",
+  "dumbbell",
+  "kettlebell",
+  "kabel",
+  "machine",
+  "elastiek",
+  "overig",
+]);
+
 // Exercise Schema
 export const ExerciseSchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1, "Oefeningnaam is verplicht"),
+  alternativeNames: z.array(z.string()).default([]),
   category: z.enum(["kracht", "cardio", "lichaamsgewicht", "stretching"]),
-  primaryMuscleGroup: z.enum([
-    "borst",
-    "rug",
-    "benen",
-    "schouders",
-    "armen",
-    "core",
-    "full_body",
-  ]),
-  secondaryMuscleGroups: z.array(z.string()),
-  equipment: z.enum([
-    "barbell",
-    "dumbbell",
-    "kabel",
-    "machine",
-    "lichaamsgewicht",
-    "elastiek",
-    "overig",
-  ]),
+  primaryMuscleGroup: MuscleGroupSchema,
+  secondaryMuscleGroups: z.array(MuscleGroupSchema),
+  equipment: EquipmentEnumSchema,
+  measurementType: ExerciseMeasurementTypeSchema.default("gewicht_herhalingen"),
   isCustom: z.boolean(),
+  isArchived: z.boolean().default(false),
   instructions: z.string(),
+  videoUrl: z.string().url().or(z.literal("")).nullable().optional(),
   provenance: ProvenanceSchema,
   createdAt: z.string().regex(isoDateRegex),
+  updatedAt: z.string().regex(isoDateRegex).optional(),
 });
 
 // Routine & Day Schemas

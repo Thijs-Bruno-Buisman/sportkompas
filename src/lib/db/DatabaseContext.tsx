@@ -37,16 +37,29 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
 
   // Mount guard & hydration safety: lees pas na client mount
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored === "true") {
-        setIsDemoMode(true);
+    let isCancelled = false;
+    async function init() {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored === "true") {
+          setIsDemoMode(true);
+        }
+        // Initialiseer standaard oefeningen in de echte DB indien leeg
+        const realDb = getDatabase(false);
+        const realRepos = createRepositories(realDb);
+        await realRepos.exercises.ensureDefaultExercises();
+      } catch (err) {
+        console.warn("Kon localStorage of basisdata niet initialiseren:", err);
+      } finally {
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
       }
-    } catch (err) {
-      console.warn("Kon localStorage niet lezen voor demomodus status:", err);
-    } finally {
-      setIsLoading(false);
     }
+    init();
+    return () => {
+      isCancelled = true;
+    };
   }, []);
 
   // Bepaal de actieve database en repository set
@@ -137,3 +150,4 @@ export function useDatabase(): DatabaseContextValue {
   }
   return context;
 }
+

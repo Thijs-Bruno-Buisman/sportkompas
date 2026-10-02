@@ -21,8 +21,7 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 | **02** | **Design System, Theming & Hoofdnavigatie Shell** | `[x] KLAAR` | Herbruikbare UI suite, dark/light theme persistence, bottom nav + desktop zijbalk. |
 | **03** | **Lokale Opslag & Dexie Database Core** | `[x] KLAAR` | Versioned Dexie v1/v2, canonieke eenheden, snapshotting, provenance & 13 tests. |
 | **04** | **Profiel en eerste gebruik (Onboarding & Eenheden)** | `[x] KLAAR` | 3-staps onboarding, profielbeheer, weergave-eenheden (kg/lb, km/mi) & invoervalidatie. |
-| **05** | **Demomodus en lege toestanden** | `[x] KLAAR` | Volledig gescheiden SportKompasDemoDB, 13 workouts, cardio, voeding, reset & 40 tests. |
-| **06** | Profiel: Gebruikersprofiel Beheer | `[ ] OPEN` | Persoonlijke gegevens, leeftijd, lengte, geslacht, activiteitsniveau. |
+| **06** | **Krachttraining: Oefeningenbibliotheek** | `[x] KLAAR` | 42 standaard oefeningen, 5 meettypes, synoniemen, filters, custom oefeningen & archivering. |
 | **07** | Profiel: Lichaamsmetingen & Gewichtstracking | `[ ] OPEN` | Gewichtslogboek, omtrekken, tijdstempels en notities. |
 | **08** | Profiel: Voortgangsmetingen Visualisatie | `[ ] OPEN` | Recharts gewichtsverloop, trends en doelindicatie. |
 | **09** | Profiel: BMR & TDEE Berekeningen | `[ ] OPEN` | Mifflin-St Jeor & Katch-McArdle formules met Vitest tests. |
@@ -248,5 +247,47 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 - **Beperkingen & Notities:**
   - Demomodus is uitsluitend bedoeld als vrijblijvende preview/verkenning en raakt op geen enkel moment de actieve `SportKompasDB`.
 - **Volgende Stap:**
-  - Prompt 06: Stap 06 — Profiel: Gebruikersprofiel Beheer (Persoonlijke gegevens, leeftijd, lengte, geslacht, activiteitsniveau).
+  - Prompt 06: Stap 06 — Krachttraining: Oefeningenbibliotheek (Afgerond).
+
+### Stap 06: Krachttraining: Oefeningenbibliotheek
+- **Datum:** 2026-10-02
+- **Status:** `[x] KLAAR`
+- **Uitgevoerde Acties:**
+  - **Oefeningencatalogus & Datamodel:**
+    - Catalogus van 42 standaard oefeningen gedefinieerd in [src/domain/strength/defaultExercises.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/domain/strength/defaultExercises.ts) met Nederlandse namen, meertalige alternatieve namen/synoniemen, primaire en secundaire spiergroepen, apparatuur, meettypes en techniekbeschrijvingen.
+    - Ondersteuning voor alle 5 vereiste meetmethodes (`gewicht_herhalingen`, `lichaamsgewicht`, `extra_gewicht`, `assisted`, `tijd`).
+    - Dexie schema gemigreerd naar Versie 3 in [src/lib/db/dexie.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/lib/db/dexie.ts) met non-destructieve upgrade-functie voor `isArchived`, `measurementType` en `alternativeNames`.
+    - Zod schema's uitgebreid in [src/lib/db/schema.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/lib/db/schema.ts) met `MuscleGroupSchema`, `EquipmentEnumSchema`, `ExerciseMeasurementTypeSchema` en `ExerciseSchema`.
+  - **Repositorylaag Uitbreiding:**
+    - [src/lib/db/repositories/exercise.repository.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/lib/db/repositories/exercise.repository.ts) uitgerust met:
+      - `ensureDefaultExercises`: automatische veilige vulling bij eerste initialisatie zonder duplicaten.
+      - `getAll(includeArchived)`: standaard uitsluiting van gearchiveerde oefeningen in actieve weergaven.
+      - `searchAndFilter`: meertalig zoeken (naam, synoniemen, spiergroep, materiaal), multi-filters en archieffilter.
+      - `archiveExercise` & `unarchiveExercise`: statusbeheer met behoud van referentiële integriteit.
+      - `save`: automatische `updatedAt` tijdstempeling.
+  - **UI Modules & Schermen:**
+    - [src/components/modules/exercises/ExerciseCard.tsx](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/components/modules/exercises/ExerciseCard.tsx): interactieve kaart met spiergroep-, materiaal-, meettype- en statusbadges met min. 48px touch targets.
+    - [src/components/modules/exercises/ExerciseDetailDialog.tsx](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/components/modules/exercises/ExerciseDetailDialog.tsx): modale detailweergave met techniekinstructies, meetmethode-uitleg, externe geverifieerde videolink (`rel="noopener noreferrer"`) en acties voor bewerken en archiveren/dearchiveren.
+    - [src/components/modules/exercises/ExerciseFormDialog.tsx](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/components/modules/exercises/ExerciseFormDialog.tsx): formulier voor het aanmaken en bewerken van eigen aangepaste oefeningen met volledige validatie.
+    - [src/components/modules/exercises/ExerciseLibrary.tsx](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/components/modules/exercises/ExerciseLibrary.tsx): centrale component met realtime zoeken, 3 filterdropdowns, archiefschakelaar, resultaatenteller en lege toestand integratie.
+    - Geïntegreerd in het Oefeningen-tabblad van de trainingspagina ([src/app/training/page.tsx](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/app/training/page.tsx)).
+  - **Data-integriteit & Veiligheid:**
+    - Gearchiveerde oefeningen worden nooit hard verwijderd (`isArchived: true`), waardoor eerdere trainingslogs, snapshots en routines altijd hun referentie behouden.
+    - Geen neppe videospelers of fictieve embedded bronnen; alleen optionele, door de gebruiker ingevoerde of geverifieerde web-URLs.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): 0 fouten.
+  - Linting (`npm run lint`): 0 waarschuwingen of fouten.
+  - Vitest testsuite (`npm test`): 54 van de 54 tests geslaagd over 6 testsuites ([tests/exercises.test.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/tests/exercises.test.ts), [tests/database.test.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/tests/database.test.ts), [tests/demomode.test.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/tests/demomode.test.ts), [tests/onboarding.test.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/tests/onboarding.test.ts), [src/domain/units.test.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/domain/units.test.ts), [src/domain/health.test.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/domain/health.test.ts)).
+    - Test op catalogus initialisatie van 42 oefeningen met correcte UUIDs.
+    - Test op de 5 meetmethodes.
+    - Test op meertalig zoeken (Nederlandse namen en Engelse synoniemen zoals "Bench Press", "Squat", "OHP").
+    - Test op meervoudige combinatiefilters.
+    - Test op opslaan en persistentie van eigen oefeningen na database reload (sluiten en heropenen).
+    - Test op archiveren en dearchiveren met behoud van `getById` integriteit voor eerdere logs.
+    - Test op Zod validatie bij ongeldige velden en foute URL-formaten.
+  - Productiebuild (`npm run build`): Succesvol gecompileerd in 15.7s, alle 8 routes statisch gegenereerd.
+- **Beperkingen & Notities:**
+  - Standaard oefeningen kunnen veilig worden gearchiveerd om ze uit de weergave te houden, maar worden niet definitief gewist zodat standaard trainingsvoorbeelden consistent blijven.
+- **Volgende Stap:**
+  - Prompt 07: Stap 07 / Volgende geplande prompt.
 

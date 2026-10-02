@@ -96,11 +96,14 @@ describe("IndexedDB & Repository Layer (SportKompas)", () => {
       await repos.exercises.save({
         id: exerciseId,
         name: "Incline Barbell Bench Press",
+        alternativeNames: [],
         category: "kracht",
         primaryMuscleGroup: "borst",
         secondaryMuscleGroups: ["schouders", "armen"],
         equipment: "barbell",
+        measurementType: "gewicht_herhalingen",
         isCustom: false,
+        isArchived: false,
         instructions: "Stel de bank in op circa 30 graden.",
         provenance: { source: "system" },
         createdAt: new Date().toISOString(),
@@ -233,13 +236,15 @@ describe("IndexedDB & Repository Layer (SportKompas)", () => {
       const modernDb = new SportKompasDatabase(migrationDbName);
       await modernDb.open();
 
-      expect(modernDb.verno).toBe(2);
+      expect(modernDb.verno).toBe(3);
 
-      // Controleer dat de oude data behouden is en correct gemigreerd
+      // Controleer dat de oude data behouden is en correct gemigreerd via v2 en v3
       const migratedExercise = await modernDb.exercises.get(exerciseId);
       expect(migratedExercise).toBeDefined();
       expect(migratedExercise?.name).toBe("Oude Squat Oefening");
       expect(migratedExercise?.provenance).toEqual({ source: "system" });
+      expect(migratedExercise?.isArchived).toBe(false);
+      expect(migratedExercise?.measurementType).toBe("gewicht_herhalingen");
 
       const migratedSession = await modernDb.workoutSessions.get(sessionId);
       expect(migratedSession).toBeDefined();
