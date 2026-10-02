@@ -17,7 +17,7 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 | Stap | Titel | Status | Notities / Resultaat |
 |---|---|---|---|
 | **00** | **Instructie- en Documentatiebestanden** | `[x] KLAAR` | AGENTS.md, PRODUCT.md, ARCHITECTURE.md, PROGRESS.md opgesteld. Git geïnitialiseerd. |
-| **01** | Project Setup (Next.js, TypeScript, Tailwind, Lucide, Vitest) | `[ ] OPEN` | Fundament met stabiele configuraties en lockbestand. |
+| **01** | **Project Setup (Next.js, TypeScript, Tailwind, Lucide, Vitest)** | `[x] KLAAR` | App Router, 5 routes, scripts, Vitest testbasis, build en server getest. |
 | **02** | Design System, Theming & Hoofdnavigatie Shell | `[ ] OPEN` | Dark/Light mode, groen accent, mobile-first navigatie (5 tabs). |
 | **03** | Lokale Opslag & Dexie Database Core | `[ ] OPEN` | IndexedDB opzet, singleton, useLiveQuery wrapper, schema v1. |
 | **04** | Validatie & Domain Core Framework | `[ ] OPEN` | Zod schema's, types, veilige ID generator, testsuite setup. |
@@ -89,3 +89,25 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
   - Applicatiecode wordt conform opdracht gestart in Prompt 01.
 - **Volgende Stap:**
   - Prompt 01: Project Setup met Next.js App Router, React, TypeScript, Tailwind CSS, Lucide en Vitest.
+
+### Stap 01: Project dat werkelijk start (Setup, Routing & Tests)
+- **Datum:** 2026-10-02
+- **Status:** `[x] KLAAR`
+- **Uitgevoerde Acties:**
+  - `package.json` ingericht met Next.js 15, React 19, TypeScript, Tailwind CSS, Lucide React, Vitest, Zod en Dexie.
+  - Scriptaanroepen geoptimaliseerd met directe Node-uitvoering om pad-parsing problemen in Windows te vermijden.
+  - `tsconfig.json`, `tailwind.config.ts`, `postcss.config.js`, `next.config.ts`, `vitest.config.ts` en `.eslintrc.json` geconfigureerd.
+  - De vijf afgesproken routes aangemaakt: Home (`/`), Training (`/training`), Cardio (`/cardio`), Voeding (`/voeding`), Profiel (`/profiel`).
+  - Responsieve navigatie geïmplementeerd: mobiele vaste balk (onderaan) en desktop header met actieve route-markering in emerald groen.
+  - Vitest testbasis opgezet met domeinberekeningen (`src/domain/health.ts` & `src/domain/health.test.ts`).
+  - `README.md` opgesteld met instructies voor installatie, starten, bouwen en testen.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): 0 fouten.
+  - Linting (`npm run lint`): 0 fouten of waarschuwingen (alle unescaped entities gecorrigeerd).
+  - Vitest unit tests (`npm run test`): 5 van de 5 tests geslaagd.
+  - Productiebuild (`npm run build`): Succesvol afgerond, alle 8 pagina's correct gegenereerd.
+  - Lokale server HTTP controle: Server gestart op poort 3000; geautomatiseerde GET-requests naar `/`, `/training`, `/cardio`, `/voeding` en `/profiel` geretourneerd met HTTP status 200 OK.
+- **Beperkingen & Notities:**
+  - Geautomatiseerde interactieve browsertools (browser rendering inspectie) zijn momenteel niet beschikbaar in de shell agent tools. Handmatige controle: `npm run dev` starten, ga naar `http://localhost:3000`, inspecteer met DevTools console (F12) op runtimefouten en wissel tussen de 5 tabbladen.
+- **Volgende Stap:**
+  - Prompt 02: Stap 02 — Design System, Theming (Dark/Light mode) & Hoofdnavigatie Shell verdiepen.
