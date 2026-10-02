@@ -15,6 +15,7 @@ import { Alert } from "@/components/ui/Alert";
 import { useDatabase } from "@/lib/db";
 import { ExerciseLibrary } from "@/components/modules/exercises/ExerciseLibrary";
 import { RoutineList } from "@/components/modules/routines/RoutineList";
+import { WeekPlanner } from "@/components/modules/planning/WeekPlanner";
 import type { WorkoutSession, WorkoutRoutine, RoutineDay, Exercise } from "@/types/database";
 
 export default function TrainingPage() {
@@ -70,6 +71,17 @@ export default function TrainingPage() {
       isCancelled = true;
     };
   }, [repositories, isDemoMode, dataVersion]);
+
+  // Synchroniseer optioneel actieve tab uit URL query (bv. ?tab=schemas of ?tab=planning)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get("tab");
+      if (tabParam && ["planning", "sessies", "schemas", "oefeningen"].includes(tabParam)) {
+        setActiveTab(tabParam);
+      }
+    }
+  }, []);
 
   const handleStartWorkout = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -136,8 +148,11 @@ export default function TrainingPage() {
       </div>
 
       {/* Tabs Navigatie */}
-      <Tabs defaultValue="sessies" value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="w-full justify-start">
+      <Tabs defaultValue="planning" value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="w-full justify-start overflow-x-auto">
+          <TabsTrigger value="planning">
+            Planning
+          </TabsTrigger>
           <TabsTrigger value="sessies">
             Workouts ({sessions.length})
           </TabsTrigger>
@@ -148,6 +163,11 @@ export default function TrainingPage() {
             Oefeningen
           </TabsTrigger>
         </TabsList>
+
+        {/* Tab 0: Planning */}
+        <TabsContent value="planning" className="space-y-4">
+          <WeekPlanner />
+        </TabsContent>
 
         {/* Tab 1: Sessies */}
         <TabsContent value="sessies" className="space-y-4">

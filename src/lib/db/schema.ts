@@ -160,14 +160,24 @@ export const WorkoutRoutineSchema = z.object({
   updatedAt: z.string().regex(isoDateRegex),
 });
 
+export const ScheduledSessionStatusSchema = z.enum([
+  "gepland",
+  "afgerond",
+  "geannuleerd",
+  "overgeslagen",
+]);
+
 export const ScheduledSessionSchema = z.object({
   id: z.string().uuid(),
   calendarDate: z.string().regex(calendarDateRegex),
   routineId: z.string().uuid(),
   routineDayId: z.string().uuid(),
-  status: z.enum(["gepland", "afgerond", "geannuleerd"]),
-  notes: z.string(),
+  routineVersion: z.number().int().optional(),
+  status: ScheduledSessionStatusSchema,
+  completedSessionId: z.string().uuid().nullable().optional(),
+  notes: z.string().optional().default(""),
   createdAt: z.string().regex(isoDateRegex),
+  updatedAt: z.string().regex(isoDateRegex).optional(),
 });
 
 // Workout Session & Set Schemas
@@ -326,6 +336,7 @@ export const AppSettingsSchema = z.object({
   hapticFeedbackEnabled: z.boolean(),
   demoModeActive: z.boolean(),
   activeProgramRoutineId: z.string().uuid().nullable(),
+  weekStartsOn: z.enum(["maandag", "zondag"]).default("maandag"),
   lastBackupAt: z.string().regex(isoDateRegex).nullable(),
   updatedAt: z.string().regex(isoDateRegex),
 });

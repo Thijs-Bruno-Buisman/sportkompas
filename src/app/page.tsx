@@ -22,6 +22,8 @@ import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useDatabase } from "@/lib/db";
 import { useProfile } from "@/lib/hooks/useProfile";
+import { TodayTrainingCard } from "@/components/modules/planning/TodayTrainingCard";
+import { getLocalDateString } from "@/domain/dates/calendar";
 import type { MealLog, WorkoutSession, CardioSession } from "@/types/database";
 
 export default function HomePage() {
@@ -34,7 +36,7 @@ export default function HomePage() {
   const [recentCardio, setRecentCardio] = useState<CardioSession | null>(null);
   const [isLoadingData, setIsLoadingData] = useState<boolean>(true);
 
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = getLocalDateString();
 
   useEffect(() => {
     let isCancelled = false;
@@ -137,6 +139,9 @@ export default function HomePage() {
             })}
           </span>
         </div>
+
+        {/* Geplande Training van Vandaag Widget */}
+        <TodayTrainingCard />
 
         {hasActivityToday ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

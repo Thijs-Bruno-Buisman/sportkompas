@@ -176,14 +176,23 @@ export interface RoutineDay {
 }
 
 // 5. Geplande Sessies
+export type ScheduledSessionStatus =
+  | "gepland"
+  | "afgerond"
+  | "geannuleerd"
+  | "overgeslagen";
+
 export interface ScheduledSession {
   id: EntityId;
   calendarDate: string; // YYYY-MM-DD
   routineId: EntityId;
   routineDayId: EntityId;
-  status: "gepland" | "afgerond" | "geannuleerd";
+  routineVersion?: number;
+  status: ScheduledSessionStatus;
+  completedSessionId?: EntityId | null; // Id van de gestarte/afgeronde WorkoutSession
   notes: string;
   createdAt: string; // UTC ISO
+  updatedAt?: string; // UTC ISO
 }
 
 // 6. Workout Snapshot & Sessie
@@ -363,6 +372,7 @@ export interface AppSettings {
   hapticFeedbackEnabled: boolean;
   demoModeActive: boolean;
   activeProgramRoutineId: EntityId | null;
+  weekStartsOn?: "maandag" | "zondag";
   lastBackupAt: string | null; // UTC ISO
   updatedAt: string; // UTC ISO
 }

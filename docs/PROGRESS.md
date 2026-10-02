@@ -27,7 +27,8 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 | **09** | Profiel: BMR & TDEE Berekeningen | `[ ] OPEN` | Mifflin-St Jeor & Katch-McArdle formules met Vitest tests. |
 | **10** | Krachttraining: Oefeningenbibliotheek | `[ ] OPEN` | Spiergroepen, apparatuur, filters, aangepaste oefeningen toevoegen. |
 | **11 / P07** | **Krachttraining: Schema's & Routines Creator (Mijn Schema's)** | `[x] KLAAR` | Schema's maken, bewerken, dupliceren, archiveren, templates, versiebeheer en validatie. |
-| **12** | Krachttraining: Actieve Workout Tracker Core | `[ ] OPEN` | Grote touchbediening, sets loggen, gewicht/reps invoer, afvinken. |
+| **12 / P08** | **Actief Programma & Weekplanning (Prompt 08)** | `[x] KLAAR` | Actief schema selecteren, interactieve weekplanning, verschuiven, overslaan, datumverwerking en Home widget. |
+| **13** | Krachttraining: Actieve Workout Tracker Core | `[ ] OPEN` | Grote touchbediening, sets loggen, gewicht/reps invoer, afvinken. |
 | **13** | Krachttraining: Geïntegreerde Rusttimer | `[ ] OPEN` | Grote visuele timer, instelbare rustduur, audio/visuele feedback. |
 | **14** | Krachttraining: Vorige Prestaties Inline | `[ ] OPEN` | Direct inzicht in eerdere gewichten en reps tijdens de oefening. |
 | **15** | Krachttraining: Trainingshistoriek & Detailweergave | `[ ] OPEN` | Historisch logboek, sessies inzien, bewerken en statusbeheer. |
@@ -359,6 +360,74 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
   - Sjablonen worden uitsluitend als in-memory concept ingeladen in de editor; pas na expliciet opslaan door de gebruiker worden ze vastgelegd in IndexedDB.
   - Bij aanpassing van een schema waarnaar al historische workoutsessies verwijzen, wordt automatisch een nieuwe schemaversie (`v + 1`) aangemaakt zodat eerdere logs 100% onveranderlijk blijven.
 - **Volgende Stap:**
-  - Prompt 08 / Volgende geplande prompt.
+  - Prompt 08: Actief programma, weekplanning, datumverwerking en Home training-widget.
+
+### Stap 08: Actief programma en planning (Weekplanning, Kalender & Home Widget)
+- **Datum:** 2026-10-02
+- **Status:** `[x] KLAAR`
+- **Uitgevoerde Acties:**
+  - **Domein & Datumverwerking (`src/domain/dates/calendar.ts`):**
+    - `getLocalDateString()`: Pure lokale datumopbouw (`YYYY-MM-DD`) via `getFullYear()`, `getMonth()`, `getDate()`. Voorkomt de bekende UTC-middernacht bug waarbij tijden rond middernacht in West-Europa (UTC+1/UTC+2) per abuis als gisteren geëvalueerd worden.
+    - `parseLocalDate()`: Parset `YYYY-MM-DD` naar een Date op het middaguur (`12:00:00`), wat voorkomt dat zomertijd-/wintertijdoverschrijdingen (±1 uur) over een datumgrens springen.
+    - `getWeekStartDate()`: Configureerbare weekstart (`"maandag"` of `"zondag"`).
+    - `getWeekDays()`: Genereert 7 kalenderdagen met lokale datum, weekdag-index, dag van de maand, Nederlandse korte en volledige dagnaam, en `isToday` status.
+    - `formatFriendlyDate()`: Geeft Nederlandse gebruiksvriendelijke weergave ("Vandaag", "Morgen", "Gisteren" of bv. "Ma 5 okt").
+    - `addDaysToDateString()` & `isSameDateString()`: Veilige datum-aritmetiek over maand- en jaargrenzen heen.
+  - **Datamodel & Repositories (`src/lib/db/repositories/workout.repository.ts`, `src/types/database.ts`, `src/lib/db/schema.ts`):**
+    - `ScheduledSessionStatus`: Formele statusafhandeling (`"gepland" | "afgerond" | "geannuleerd" | "overgeslagen"`).
+    - `getActiveRoutine()`: Haalt het geselecteerde actieve schema en de geordende trainingsdagen op.
+    - `getScheduledSessionsForDateRange(startDate, endDate)`: Haalt geplande sessies op verrijkt met schemanaam, dagnaam, aantal oefeningen en oefeningenlijst.
+    - `getScheduledSessionForDate(calendarDate)`: Geeft de actieve geplande training voor een specifieke dag terug.
+    - `scheduleSession()`: Plant een schemadag in op een kalenderdatum; vervangt eventuele eerdere niet-afgeronde sessies op dezelfde dag.
+    - `scheduleWeek()`: Snelle weektoewijzing; ondersteunt rustdagen (`routineDayId: null`) en ruimt oude niet-afgeronde sessies op.
+    - `moveScheduledSession()`: Verplaatst een geplande sessie interactief naar een andere datum.
+    - `skipScheduledSession()` & `unskipScheduledSession()`: Markeert sessies als overgeslagen of herstelt ze zonder dataverlies.
+    - `deleteScheduledSession()`: Verwijdert geplande sessie en herstelt de dag als rustdag.
+    - `startWorkoutFromScheduledSession()`: Creëert een onveranderlijke `WorkoutSession` snapshot, markeert `ScheduledSession` als afgerond en koppelt `completedSessionId`.
+    - `startWorkoutFromDay()`: Start een ad-hoc training direct vanuit een schemadag met bevroren snapshot en logging.
+    - `AppSettings`: Configureerbare `weekStartsOn` voorkeur (`"maandag"` | `"zondag"`).
+  - **Gebruikersinterface & Planning Modules:**
+    - `src/components/modules/planning/MoveSessionDialog.tsx`: Modal om geplande sessies te verplaatsen met datumkiezer en snelle knoppen (+1 dag, +2 dagen, +7 dagen).
+    - `src/components/modules/planning/ScheduleDayDialog.tsx`: Modal om een schemadag aan een datum toe te wijzen of in te stellen als rustdag.
+    - `src/components/modules/planning/PlanWeekWizardDialog.tsx`: 1-klik wizard om alle trainingsdagen van het actieve programma over de 7 dagen van de week te verdelen, inclusief presets (3 dagen Ma/Wo/Vr, 4 dagen Ma/Di/Do/Vr).
+    - `src/components/modules/planning/WeekPlanner.tsx`:
+      - Actief programmacard met actieve schemanaam en directe knop naar de wizard.
+      - Weeknavigatiebalk met Vorige Week, Vandaag, Volgende Week en wisselknop voor Weekstart (Maandag / Zondag).
+      - 7 responsieve dagkaarten: toont datum, statusbadge (`Gepland`, `Voltooid`, `Overgeslagen`), oefeningenoverzicht, grote 48px actieknoppen voor direct Starten (emerald), Verplaatsen, Overslaan/Herstellen en Wijzigen.
+      - Rustdagen worden direct en rustig aangeduid (`Rustdag 🧘`) met een knop om ad-hoc toch een training te plannen.
+    - `src/components/modules/planning/TodayTrainingCard.tsx`:
+      - Geïntegreerd in de Home cockpit (`src/app/page.tsx`).
+      - Toont direct de training van vandaag met de exacte geplande dagnaam, schemanaam en aantal oefeningen.
+      - Grote primaire actieknop: `Start Training (48px touch-target)` met play-icoon.
+      - Secundaire knoppen om vandaag over te slaan of naar morgen te verplaatsen.
+      - Toont een rustige rustdagmelding of een directe link naar schema-configuratie indien er nog geen actief programma is.
+    - `src/app/training/page.tsx`:
+      - Tabbladen uitgebreid naar: `Planning` (standaard wanneer er een schema bestaat), `Mijn Schema's` en `Oefeningen`.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): 0 fouten.
+  - Linting (`npm run lint`): 0 waarschuwingen of fouten.
+  - Vitest testsuite (`npm test`): **86 van de 86 tests geslaagd** over 8 testbestanden:
+    - `tests/planning.test.ts` (18 tests):
+      - Lokale datumverwerking (`YYYY-MM-DD`) en preventie van UTC-middernacht verschuiving.
+      - Midday parsing (`12:00:00`) tegen zomertijdsprongen.
+      - Weekstartberekening en dagnummering voor zowel Maandag als Zondag weekstart.
+      - Nederlandse datumformattering (`formatFriendlyDate`).
+      - Actief programma selecteren, ophalen en overschakelen.
+      - Sessie plannen op een concrete kalenderdatum en ophalen met verrijkte gegevens.
+      - Vervangen van ongeplande sessies bij herplanning.
+      - Volledige week plannen met `scheduleWeek` inclusief correcte rustdagafhandeling.
+      - Verplaatsen van geplande sessies naar een andere datum.
+      - Overslaan (`skip`) en herstellen (`unskip`) van geplande sessies.
+      - Verwijderen van een sessie (reset naar rustdag).
+      - Starten van een workout vanuit een geplande sessie met onveranderlijke snapshot en statusovergang naar `afgerond`.
+      - Garanderen dat latere schemawijzigingen reeds gestarte workout-snapshots niet beïnvloeden.
+      - Ad-hoc training starten direct vanuit een schemadag.
+      - Ondersteuning voor meerdere geplande sessies van hetzelfde schema met eigen unieke identifiers.
+  - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 8 routes statisch gegenereerd (`/`, `/training`, `/cardio`, `/voeding`, `/profiel`, `/_not-found`).
+- **Beperkingen & Notities:**
+  - De weekplanner ondersteunt naadloos het wisselen tussen weekstart op Maandag of Zondag; deze instelling wordt persistent onthouden.
+  - Geen nepdata of gefingeerde synchronisaties; alle planningen berusten 100% op IndexedDB via Dexie.
+- **Volgende Stap:**
+  - Prompt 09 / Volgende geplande prompt.
 
 

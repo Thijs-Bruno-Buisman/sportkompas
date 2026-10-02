@@ -6,6 +6,7 @@ import type {
   WorkoutSession,
   WorkoutSet,
   WorkoutRoutineSnapshot,
+  PlannedExerciseInDay,
 } from "@/types/database";
 import {
   WorkoutRoutineSchema,
@@ -27,6 +28,7 @@ export class WorkoutRepository {
 
   private readonly routinesTable: Table<WorkoutRoutine, string>;
   private readonly routineDaysTable: Table<RoutineDay, string>;
+  private readonly scheduledSessionsTable: Table<ScheduledSession, string>;
 
   constructor(
     routinesTable: Table<WorkoutRoutine, string>,
@@ -37,6 +39,7 @@ export class WorkoutRepository {
   ) {
     this.routinesTable = routinesTable;
     this.routineDaysTable = routineDaysTable;
+    this.scheduledSessionsTable = scheduledSessionsTable;
 
     this.routines = new (class extends BaseRepository<WorkoutRoutine> {})(
       routinesTable,
@@ -285,6 +288,338 @@ export class WorkoutRepository {
     };
 
     return await this.routines.save(updated);
+  }
+
+  // =========================================================================
+  // PLANNING & ACTIEF PROGRAMMA (PROMPT 08)
+  // =========================================================================
+
+  /**
+   * Haalt het actieve trainingsschema op met al zijn geordende trainingsdagen.
+   */
+  async getActiveRoutine(): Promise<{ routine: WorkoutRoutine; days: RoutineDay[] } | null> {
+    const allRoutines = await this.routinesTable.toArray();
+    const active = allRoutines.find((r) => r.isActive && !r.isArchived);
+    if (!active) return null;
+    return await this.getRoutineWithDays(active.id);
+  }
+
+  /**
+   * Haalt alle geplande sessies op binnen een datumbereik (inclusief start en eind).
+   * Verrijkt elk record met de naam van het schema en de schemadag.
+   */
+  async getScheduledSessionsForDateRange(
+    startDate: string,
+    endDate: string
+  ): Promise<
+    (ScheduledSession & {
+      routineName: string;
+      routineDayName: string;
+      exerciseCount: number;
+      plannedExercises: PlannedExerciseInDay[];
+    })[]
+  > {
+    const sessions = await this.scheduledSessionsTable
+      .where("calendarDate")
+      .between(startDate, endDate, true, true)
+      .toArray();
+
+    const enriched = await Promise.all(
+      sessions.map(async (ss) => {
+        const routine = await this.routines.getById(ss.routineId);
+        const day = await this.routineDays.getById(ss.routineDayId);
+        return {
+          ...ss,
+          routineName: routine?.name || "Trainingsschema",
+          routineDayName: day?.name || "Workout Dag",
+          dayName: day?.name || "Workout Dag",
+          exerciseCount: day?.plannedExercises.length || 0,
+          plannedExercises: day?.plannedExercises || [],
+        };
+      })
+    );
+
+    return enriched.sort((a, b) => a.calendarDate.localeCompare(b.calendarDate));
+  }
+
+  /**
+   * Haalt de geplande sessie op voor een specifieke kalenderdatum ('YYYY-MM-DD').
+   */
+  async getScheduledSessionForDate(
+    calendarDate: string
+  ): Promise<
+    | (ScheduledSession & {
+        routineName: string;
+        routineDayName: string;
+        dayName: string;
+        exerciseCount: number;
+        plannedExercises: PlannedExerciseInDay[];
+      })
+    | null
+  > {
+    const list = await this.scheduledSessionsTable
+      .where("calendarDate")
+      .equals(calendarDate)
+      .toArray();
+
+    if (list.length === 0) return null;
+
+    // Pak bij voorkeur een niet-geannuleerde sessie
+    const target = list.find((s) => s.status !== "geannuleerd") || list[0];
+    const routine = await this.routines.getById(target.routineId);
+    const day = await this.routineDays.getById(target.routineDayId);
+
+    return {
+      ...target,
+      routineName: routine?.name || "Trainingsschema",
+      routineDayName: day?.name || "Workout Dag",
+      dayName: day?.name || "Workout Dag",
+      exerciseCount: day?.plannedExercises.length || 0,
+      plannedExercises: day?.plannedExercises || [],
+    };
+  }
+
+  /**
+   * Plant één schemadag op een specifieke kalenderdatum.
+   */
+  async scheduleSession(data: {
+    calendarDate: string;
+    routineId: string;
+    routineDayId: string;
+    notes?: string;
+  }): Promise<ScheduledSession> {
+    const routine = await this.routines.getById(data.routineId);
+    if (!routine) {
+      throw new Error(`Schema met ID ${data.routineId} niet gevonden.`);
+    }
+
+    const day = await this.routineDays.getById(data.routineDayId);
+    if (!day) {
+      throw new Error(`Schemadag met ID ${data.routineDayId} niet gevonden.`);
+    }
+
+    const now = new Date().toISOString();
+
+    // Verwijder eventuele bestaande geplande (niet afgeronde) sessie op die datum
+    const existingOnDate = await this.scheduledSessionsTable
+      .where("calendarDate")
+      .equals(data.calendarDate)
+      .filter((s) => s.status === "gepland")
+      .toArray();
+
+    if (existingOnDate.length > 0) {
+      await this.scheduledSessionsTable.bulkDelete(existingOnDate.map((s) => s.id));
+    }
+
+    const sessionToSave: ScheduledSession = {
+      id: crypto.randomUUID(),
+      calendarDate: data.calendarDate,
+      routineId: data.routineId,
+      routineDayId: data.routineDayId,
+      routineVersion: routine.version,
+      status: "gepland",
+      completedSessionId: null,
+      notes: data.notes || "",
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    return await this.scheduledSessions.save(sessionToSave);
+  }
+
+  /**
+   * Plant een complete week voor een schema op basis van opgegeven toewijzingen.
+   */
+  async scheduleWeek(
+    routineId: string,
+    assignments: { routineDayId: string | null; calendarDate: string; notes?: string }[]
+  ): Promise<ScheduledSession[]> {
+    const saved: ScheduledSession[] = [];
+    for (const item of assignments) {
+      if (!item.routineDayId) {
+        // Rustdag: verwijder eventuele bestaande niet-afgeronde geplande sessie op die datum
+        const existingOnDate = await this.scheduledSessionsTable
+          .where("calendarDate")
+          .equals(item.calendarDate)
+          .filter((s) => s.status === "gepland")
+          .toArray();
+        if (existingOnDate.length > 0) {
+          await this.scheduledSessionsTable.bulkDelete(existingOnDate.map((s) => s.id));
+        }
+        continue;
+      }
+      const s = await this.scheduleSession({
+        routineId,
+        routineDayId: item.routineDayId,
+        calendarDate: item.calendarDate,
+        notes: item.notes,
+      });
+      saved.push(s);
+    }
+    return saved;
+  }
+
+  /**
+   * Verplaatst een geplande sessie naar een andere datum.
+   */
+  async moveScheduledSession(
+    sessionId: string,
+    newCalendarDate: string
+  ): Promise<ScheduledSession> {
+    const session = await this.scheduledSessions.getById(sessionId);
+    if (!session) {
+      throw new Error(`Geplande sessie met ID ${sessionId} niet gevonden.`);
+    }
+
+    const updated: ScheduledSession = {
+      ...session,
+      calendarDate: newCalendarDate,
+      updatedAt: new Date().toISOString(),
+    };
+
+    return await this.scheduledSessions.save(updated);
+  }
+
+  /**
+   * Markeert een geplande sessie als 'overgeslagen' zonder eerdere geschiedenis te wissen.
+   */
+  async skipScheduledSession(sessionId: string): Promise<ScheduledSession> {
+    const session = await this.scheduledSessions.getById(sessionId);
+    if (!session) {
+      throw new Error(`Geplande sessie met ID ${sessionId} niet gevonden.`);
+    }
+
+    const updated: ScheduledSession = {
+      ...session,
+      status: "overgeslagen",
+      updatedAt: new Date().toISOString(),
+    };
+
+    return await this.scheduledSessions.save(updated);
+  }
+
+  /**
+   * Herstelt een overgeslagen sessie terug naar 'gepland'.
+   */
+  async unskipScheduledSession(sessionId: string): Promise<ScheduledSession> {
+    const session = await this.scheduledSessions.getById(sessionId);
+    if (!session) {
+      throw new Error(`Geplande sessie met ID ${sessionId} niet gevonden.`);
+    }
+
+    const updated: ScheduledSession = {
+      ...session,
+      status: "gepland",
+      updatedAt: new Date().toISOString(),
+    };
+
+    return await this.scheduledSessions.save(updated);
+  }
+
+  /**
+   * Verwijdert een geplande sessie (maakt van de dag weer een rustdag).
+   */
+  async deleteScheduledSession(sessionId: string): Promise<void> {
+    await this.scheduledSessionsTable.delete(sessionId);
+  }
+
+  /**
+   * Start een workout vanuit een geplande sessie.
+   * Maakt een onveranderlijke snapshot van de schemadag op dit exacte moment.
+   * Markeert de geplande sessie als 'afgerond' en koppelt het completedSessionId.
+   */
+  async startWorkoutFromScheduledSession(
+    scheduledSessionId: string
+  ): Promise<WorkoutSession> {
+    const scheduled = await this.scheduledSessions.getById(scheduledSessionId);
+    if (!scheduled) {
+      throw new Error(`Geplande sessie ${scheduledSessionId} niet gevonden.`);
+    }
+
+    const routine = await this.routines.getById(scheduled.routineId);
+    const routineDay = await this.routineDays.getById(scheduled.routineDayId);
+
+    const now = new Date().toISOString();
+
+    const snapshot: WorkoutRoutineSnapshot = {
+      routineName: routine?.name || "Geplande Workout",
+      routineDayName: routineDay?.name || "Trainingsdag",
+      exercises:
+        routineDay?.plannedExercises.map((e) => ({
+          exerciseId: e.exerciseId,
+          exerciseName: e.exerciseName,
+          primaryMuscleGroup: "onbekend",
+          targetSets: e.targetSets,
+          targetRepsMin: e.targetRepsMin,
+          targetRepsMax: e.targetRepsMax,
+          targetDurationSeconds: e.targetDurationSeconds,
+          restSeconds: e.restSeconds,
+        })) ?? [],
+    };
+
+    const newSession: WorkoutSession = {
+      id: crypto.randomUUID(),
+      calendarDate: scheduled.calendarDate,
+      startTime: now,
+      endTime: null,
+      status: "actief",
+      routineId: routine ? routine.id : null,
+      routineDayId: routineDay ? routineDay.id : null,
+      routineVersion: routine ? routine.version : null,
+      snapshot,
+      overallRpe: null,
+      notes: scheduled.notes || "",
+      provenance: { source: "user" },
+    };
+
+    const savedWorkout = await this.sessions.save(newSession);
+
+    // Koppel de gestarte workout aan de geplande sessie en zet status op 'afgerond'
+    const updatedScheduled: ScheduledSession = {
+      ...scheduled,
+      status: "afgerond",
+      completedSessionId: savedWorkout.id,
+      updatedAt: now,
+    };
+    await this.scheduledSessions.save(updatedScheduled);
+
+    return savedWorkout;
+  }
+
+  /**
+   * Start direct een workout vanuit een willekeurige schemadag (bv. ad-hoc training).
+   */
+  async startWorkoutFromDay(
+    routineId: string,
+    routineDayId: string,
+    calendarDate: string
+  ): Promise<WorkoutSession> {
+    const routine = await this.routines.getById(routineId);
+    const routineDay = await this.routineDays.getById(routineDayId);
+
+    const workout = await this.startSessionWithSnapshot({
+      calendarDate,
+      routine,
+      routineDay,
+    });
+
+    // Registreer ook een voltooide ScheduledSession zodat weekplanning en agenda de sessie tonen
+    const now = new Date().toISOString();
+    const scheduledToSave: ScheduledSession = {
+      id: crypto.randomUUID(),
+      calendarDate,
+      routineId,
+      routineDayId,
+      routineVersion: routine?.version ?? 1,
+      status: "afgerond",
+      completedSessionId: workout.id,
+      notes: "",
+      createdAt: now,
+      updatedAt: now,
+    };
+    await this.scheduledSessions.save(scheduledToSave);
+
+    return workout;
   }
 
   // =========================================================================
