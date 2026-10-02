@@ -1,0 +1,124 @@
+import Dexie, { type Table } from "dexie";
+import type {
+  Profile,
+  Exercise,
+  WorkoutRoutine,
+  RoutineDay,
+  ScheduledSession,
+  WorkoutSession,
+  WorkoutSet,
+  CardioSession,
+  Goal,
+  FoodItem,
+  MealLog,
+  WaterLog,
+  BodyMeasurement,
+  RecoveryLog,
+  AppSettings,
+} from "@/types/database";
+
+export class SportKompasDatabase extends Dexie {
+  // Tabellen
+  profiles!: Table<Profile, string>;
+  exercises!: Table<Exercise, string>;
+  workoutRoutines!: Table<WorkoutRoutine, string>;
+  routineDays!: Table<RoutineDay, string>;
+  scheduledSessions!: Table<ScheduledSession, string>;
+  workoutSessions!: Table<WorkoutSession, string>;
+  workoutSets!: Table<WorkoutSet, string>;
+  cardioSessions!: Table<CardioSession, string>;
+  goals!: Table<Goal, string>;
+  foodItems!: Table<FoodItem, string>;
+  mealLogs!: Table<MealLog, string>;
+  waterLogs!: Table<WaterLog, string>;
+  bodyMeasurements!: Table<BodyMeasurement, string>;
+  recoveryLogs!: Table<RecoveryLog, string>;
+  appSettings!: Table<AppSettings, string>;
+
+  constructor(databaseName = "SportKompasDB") {
+    super(databaseName);
+
+    // =========================================================================
+    // VERSIE 1: Initiële schema-opzet
+    // =========================================================================
+    this.version(1).stores({
+      profiles: "id, name, createdAt",
+      exercises: "id, name, category, primaryMuscleGroup, isCustom, createdAt",
+      workoutRoutines: "id, name, version, isActive, createdAt",
+      routineDays: "id, routineId, dayIndex",
+      scheduledSessions: "id, calendarDate, routineId, status",
+      workoutSessions: "id, calendarDate, startTime, status, routineId",
+      workoutSets: "id, sessionId, exerciseId, setNumber",
+      cardioSessions: "id, calendarDate, startTime, activityType",
+      goals: "id, category, status, targetDate",
+      foodItems: "id, name, isCustom, createdAt",
+      mealLogs: "id, calendarDate, mealType, loggedAt",
+      waterLogs: "id, calendarDate, loggedAt",
+      bodyMeasurements: "id, calendarDate, measuredAt",
+      recoveryLogs: "id, calendarDate, loggedAt",
+      appSettings: "id",
+    });
+
+    // =========================================================================
+    // VERSIE 2: Geoptimaliseerde samengestelde indexen & migratie
+    // Behoudt 100% van de bestaande gebruikersdata zonder dataverlies
+    // =========================================================================
+    this.version(2)
+      .stores({
+        profiles: "id, name, createdAt",
+        exercises: "id, name, category, primaryMuscleGroup, isCustom, createdAt",
+        workoutRoutines: "id, name, version, isActive, createdAt",
+        routineDays: "id, routineId, dayIndex",
+        scheduledSessions:
+          "id, calendarDate, routineId, status, [calendarDate+status]",
+        workoutSessions:
+          "id, calendarDate, startTime, status, routineId, [calendarDate+status]",
+        workoutSets:
+          "id, sessionId, exerciseId, setNumber, [sessionId+exerciseId]",
+        cardioSessions: "id, calendarDate, startTime, activityType",
+        goals: "id, category, status, targetDate",
+        foodItems: "id, name, isCustom, createdAt",
+        mealLogs: "id, calendarDate, mealType, loggedAt",
+        waterLogs: "id, calendarDate, loggedAt",
+        bodyMeasurements: "id, calendarDate, measuredAt",
+        recoveryLogs: "id, calendarDate, loggedAt",
+        appSettings: "id",
+      })
+      .upgrade(async (tx) => {
+        // Upgrade logica: garandeer dat alle records een provenance-object hebben
+        // indien ze gemigreerd zijn vanuit een oudere versie
+        await tx
+          .table("exercises")
+          .toCollection()
+          .modify((exercise) => {
+            if (!exercise.provenance) {
+              exercise.provenance = { source: "system" };
+            }
+          });
+
+        await tx
+          .table("workoutSessions")
+          .toCollection()
+          .modify((session) => {
+            if (!session.provenance) {
+              session.provenance = { source: "user" };
+            }
+            if (!session.snapshot) {
+              session.snapshot = { exercises: [] };
+            }
+          });
+      });
+  }
+}
+
+// Singleton instantie voor client-side gebruik
+let dbInstance: SportKompasDatabase | null = null;
+
+export function getDatabase(): SportKompasDatabase {
+  if (!dbInstance) {
+    dbInstance = new SportKompasDatabase();
+  }
+  return dbInstance;
+}
+
+export const db = getDatabase();

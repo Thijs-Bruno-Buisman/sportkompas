@@ -19,7 +19,7 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 | **00** | **Instructie- en Documentatiebestanden** | `[x] KLAAR` | AGENTS.md, PRODUCT.md, ARCHITECTURE.md, PROGRESS.md opgesteld. Git geïnitialiseerd. |
 | **01** | **Project Setup (Next.js, TypeScript, Tailwind, Lucide, Vitest)** | `[x] KLAAR` | App Router, 5 routes, scripts, Vitest testbasis, build en server getest. |
 | **02** | **Design System, Theming & Hoofdnavigatie Shell** | `[x] KLAAR` | Herbruikbare UI suite, dark/light theme persistence, bottom nav + desktop zijbalk. |
-| **03** | Lokale Opslag & Dexie Database Core | `[ ] OPEN` | IndexedDB opzet, singleton, useLiveQuery wrapper, schema v1. |
+| **03** | **Lokale Opslag & Dexie Database Core** | `[x] KLAAR` | Versioned Dexie v1/v2, canonieke eenheden, snapshotting, provenance & 13 tests. |
 | **04** | Validatie & Domain Core Framework | `[ ] OPEN` | Zod schema's, types, veilige ID generator, testsuite setup. |
 | **05** | Demomodus & Realistische Voorbeelddata | `[ ] OPEN` | Veilige demomodus schakelaar in profiel zonder echte data te raken. |
 | **06** | Profiel: Gebruikersprofiel Beheer | `[ ] OPEN` | Persoonlijke gegevens, leeftijd, lengte, geslacht, activiteitsniveau. |
@@ -140,3 +140,34 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
   - Handmatige controle: Start `npm run dev`, open `http://localhost:3000` op desktop én via responsive simulator (bv. 360px breedte in DevTools), test de Dark/Light thema toggle, open modals in Training/Cardio/Voeding en wissel tussen tabs.
 - **Volgende Stap:**
   - Prompt 03: Stap 03 — Lokale Opslag & Dexie Database Core (IndexedDB schema v1, Singleton instance, useLiveQuery wrappers en migratiebasis).
+
+### Stap 03: Datamodel en opslag (IndexedDB, Dexie, Repositories & Migraties)
+- **Datum:** 2026-10-02
+- **Status:** `[x] KLAAR`
+- **Uitgevoerde Acties:**
+  - Volledig canoniek datamodel gedefinieerd in [src/types/database.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/types/database.ts):
+    - Entiteiten: `Profile`, `Exercise`, `WorkoutRoutine`, `RoutineDay`, `ScheduledSession`, `WorkoutSession`, `WorkoutSet`, `CardioSession`, `Goal`, `FoodItem`, `MealLog`, `WaterLog`, `BodyMeasurement`, `RecoveryLog`, `AppSettings`.
+    - Canonieke eenheden toegepast: `kg` voor gewicht, `meters` voor afstand en lichaamsafmetingen, `seconden` voor tijden/rust, `grammen`/`kcal` voor voeding.
+    - Datums gestructureerd: lokale kalenderdagen als `YYYY-MM-DD` en tijdstippen als UTC ISO-8601 strings.
+    - `Provenance` object op alle relevante entiteiten ter voorbereiding op AI-voorstellen en externe imports (met `source`, `confidence`, `proposedAt`, `acceptedAt`).
+    - Workout snapshotting: een gestarte `WorkoutSession` slaat een onveranderlijke momentopname van de routine en oefeningen op (`snapshot`), zodat latere schemawijzigingen voltooide trainingen nooit retroactief veranderen.
+  - Runtime validatieschema's gebouwd met Zod in [src/lib/db/schema.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/lib/db/schema.ts).
+  - Versioned Dexie database geïmplementeerd in [src/lib/db/dexie.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/lib/db/dexie.ts) met versie 1 en versie 2 (inclusief defensieve migratie-upgrade logica zonder dataverlies).
+  - Volledige repositorylaag geïmplementeerd in [src/lib/db/repositories/](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/lib/db/repositories/): `BaseRepository`, `ProfileRepository`, `ExerciseRepository`, `WorkoutRepository`, `CardioRepository`, `NutritionRepository`, `MeasurementRepository`, `RecoveryRepository`, `SettingsRepository`.
+  - Opslagfouten en capaciteitsbewaking geïmplementeerd in [src/lib/db/errors.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/lib/db/errors.ts) en [src/lib/db/capacity.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/lib/db/capacity.ts) (waarschuwing bij > 80% browser quota verbruik).
+  - Geen persoonsgegevens in `localStorage`: alle sport-, voedings- en lichaamsdata bevindt zich strikt in IndexedDB; alleen niet-gevoelige UI-voorkeuren (`sportkompas_theme`) in `localStorage`.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): 0 fouten.
+  - Linting (`npm run lint`): 0 fouten of waarschuwingen.
+  - Vitest testsuite ([tests/database.test.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/tests/database.test.ts)): 13 van de 13 tests geslaagd, waaronder:
+    - Verificatie van typed CRUD en canonieke eenheden.
+    - Persistentietest na herladen (databaseverbinding sluiten en opnieuw openen).
+    - Workout snapshot onveranderlijkheidstest (schema naderhand aanpassen tast voltooide workout niet aan).
+    - Databasemigratietest (v1 -> v2 upgrade zonder dataverlies en met automatische provenance-verrijking).
+    - Zod schema validatiefouten afhandeling.
+    - Opslagcapaciteitscontrole fallback.
+  - Productiebuild (`npm run build`): Succesvol gecompileerd.
+- **Beperkingen & Notities:**
+  - Browser storage estimation (`navigator.storage.estimate`) werkt lokaal in browsers met quota-ondersteuning; een veilige fallback is ingebouwd voor unsupported contexts.
+- **Volgende Stap:**
+  - Prompt 04: Stap 04 — Validatie & Domain Core Framework (Domain utilities, pure berekeningen en verdere testsuite verrijking).
