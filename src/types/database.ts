@@ -200,6 +200,8 @@ export interface WorkoutExerciseSnapshot {
   exerciseId: EntityId;
   exerciseName: string;
   primaryMuscleGroup: string;
+  measurementType?: ExerciseMeasurementType;
+  effortScale?: "geen" | "rpe" | "rir";
   targetSets: number;
   targetRepsMin?: number;
   targetRepsMax?: number;
@@ -248,10 +250,15 @@ export interface WorkoutSet {
   setType: "warmup" | "normal" | "drop" | "failure";
   weightKg: number;
   reps: number;
+  durationSeconds?: number | null;
   targetRpe: number | null;
   actualRpe: number | null;
+  targetRir?: number | null;
+  actualRir?: number | null;
+  isAssisted?: boolean;
   restTimeSeconds: number;
   completed: boolean;
+  completedAt?: string | null;
   loggedAt: string; // UTC ISO
 }
 

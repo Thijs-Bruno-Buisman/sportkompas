@@ -28,10 +28,14 @@ import {
   History,
   Timer as TimerIcon,
   Flame,
+  Copy,
+  Info,
 } from "lucide-react";
 import { ExerciseSelectorDialog } from "../routines/ExerciseSelectorDialog";
 import { ExitWorkoutDialog } from "./ExitWorkoutDialog";
 import { FinishWorkoutDialog } from "./FinishWorkoutDialog";
+import { SetRow } from "./SetRow";
+import { duplicateSetValues } from "@/domain/strength/setParser";
 import { formatFriendlyDate } from "@/domain/dates/calendar";
 
 interface ActiveWorkoutTrackerProps {
@@ -217,18 +221,23 @@ export function ActiveWorkoutTracker({
     }
   };
 
+  // Dubbelklikbeveiliging voor set operaties
+  const [isOperatingSet, setIsOperatingSet] = useState(false);
+
   // ---------------------------------------------------------------------------
   // 5. OEFENING TOEVOEGEN TIJDENS TRAINING
   // ---------------------------------------------------------------------------
   const handleAddExerciseToWorkout = async (selected: Exercise) => {
     try {
+      const isTimeBased = selected.measurementType === "tijd";
       const newSnapshotItem: WorkoutExerciseSnapshot = {
         exerciseId: selected.id,
         exerciseName: selected.name,
         primaryMuscleGroup: selected.primaryMuscleGroup,
+        measurementType: selected.measurementType,
         targetSets: 3,
-        targetRepsMin: 8,
-        targetRepsMax: 10,
+        targetRepsMin: isTimeBased ? 30 : 8,
+        targetRepsMax: isTimeBased ? 60 : 10,
         targetWeightKg: null,
         targetRpe: null,
         targetRir: null,
@@ -281,7 +290,7 @@ export function ActiveWorkoutTracker({
   };
 
   // ---------------------------------------------------------------------------
-  // 6. SETS MANAGEMENT (GEWICHT, REPS, VOLTOOIEN, TOEVOEGEN)
+  // 6. SETS MANAGEMENT (GEWICHT, REPS, VOLTOOIEN, TOEVOEGEN, KOPIËREN)
   // ---------------------------------------------------------------------------
   const handleUpdateSetValue = async (
     setId: string,
@@ -310,10 +319,12 @@ export function ActiveWorkoutTracker({
 
   const handleToggleCompleteSet = async (set: WorkoutSet) => {
     const nextCompleted = !set.completed;
+    const nowIso = new Date().toISOString();
     const updatedSet: WorkoutSet = {
       ...set,
       completed: nextCompleted,
-      loggedAt: new Date().toISOString(),
+      loggedAt: nowIso,
+      completedAt: nextCompleted ? nowIso : null,
     };
 
     // Optimistic UI update
@@ -338,42 +349,91 @@ export function ActiveWorkoutTracker({
   };
 
   const handleAddSet = async () => {
-    if (!currentExercise) return;
-
-    const nextSetNumber = sets.length + 1;
-    const lastSet = sets[sets.length - 1];
-
-    const newSet: WorkoutSet = {
-      id: crypto.randomUUID(),
-      sessionId: session.id,
-      exerciseId: currentExercise.exerciseId,
-      setNumber: nextSetNumber,
-      setType: "normal",
-      weightKg: lastSet?.weightKg ?? currentExercise.targetWeightKg ?? 0,
-      reps: lastSet?.reps ?? currentExercise.targetRepsMin ?? 8,
-      targetRpe: currentExercise.targetRpe ?? null,
-      actualRpe: null,
-      restTimeSeconds: currentExercise.restSeconds || 90,
-      completed: false,
-      loggedAt: new Date().toISOString(),
-    };
-
-    setSets((prev) => [...prev, newSet]);
-    setAllSessionSets((prev) => [...prev, newSet]);
+    if (!currentExercise || isOperatingSet) return;
+    setIsOperatingSet(true);
 
     try {
+      const nextSetNumber = sets.length + 1;
+      const lastSet = sets[sets.length - 1];
+      const isTimeBased = currentExercise.measurementType === "tijd";
+      const isAssisted = currentExercise.measurementType === "assisted";
+
+      const newSet: WorkoutSet = {
+        id: crypto.randomUUID(),
+        sessionId: session.id,
+        exerciseId: currentExercise.exerciseId,
+        setNumber: nextSetNumber,
+        setType: "normal",
+        weightKg: lastSet?.weightKg ?? currentExercise.targetWeightKg ?? 0,
+        reps: isTimeBased ? 0 : (lastSet?.reps ?? currentExercise.targetRepsMin ?? 8),
+        durationSeconds: isTimeBased
+          ? (lastSet?.durationSeconds ?? currentExercise.targetRepsMin ?? 30)
+          : null,
+        isAssisted,
+        targetRpe: currentExercise.targetRpe ?? null,
+        actualRpe: null,
+        restTimeSeconds: currentExercise.restSeconds || 90,
+        completed: false,
+        loggedAt: new Date().toISOString(),
+        completedAt: null,
+      };
+
+      setSets((prev) => [...prev, newSet]);
+      setAllSessionSets((prev) => [...prev, newSet]);
+
       await repositories.workout.saveWorkoutSet(newSet);
     } catch (err) {
       console.error("Fout bij toevoegen set:", err);
+    } finally {
+      setIsOperatingSet(false);
+    }
+  };
+
+  const handleCopyPreviousSet = async () => {
+    if (!currentExercise || sets.length === 0 || isOperatingSet) return;
+    setIsOperatingSet(true);
+
+    try {
+      const lastSet = sets[sets.length - 1];
+      const nextSetNumber = sets.length + 1;
+      const newSet = duplicateSetValues(
+        lastSet,
+        nextSetNumber,
+        crypto.randomUUID()
+      );
+
+      setSets((prev) => [...prev, newSet]);
+      setAllSessionSets((prev) => [...prev, newSet]);
+
+      await repositories.workout.saveWorkoutSet(newSet);
+    } catch (err) {
+      console.error("Fout bij kopiëren vorige set:", err);
+    } finally {
+      setIsOperatingSet(false);
     }
   };
 
   const handleDeleteSet = async (setId: string) => {
-    setSets((prev) => prev.filter((s) => s.id !== setId));
-    setAllSessionSets((prev) => prev.filter((s) => s.id !== setId));
+    const remainingSets = sets.filter((s) => s.id !== setId);
+    const renumbered = remainingSets.map((s, idx) => ({
+      ...s,
+      setNumber: idx + 1,
+    }));
+
+    setSets(renumbered);
+    setAllSessionSets((prev) => {
+      const filtered = prev.filter((s) => s.id !== setId);
+      return filtered.map((s) => {
+        const found = renumbered.find((r) => r.id === s.id);
+        return found ? found : s;
+      });
+    });
 
     try {
       await repositories.workout.deleteWorkoutSet(setId);
+      for (const s of renumbered) {
+        await repositories.workout.saveWorkoutSet(s);
+      }
     } catch (err) {
       console.error("Fout bij verwijderen set:", err);
     }
@@ -745,22 +805,48 @@ export function ActiveWorkoutTracker({
           </div>
 
           {/* ------------------------------------------------------------------- */}
+          {/* ASSISTED OEFENING NOTIFICATIE */}
+          {/* ------------------------------------------------------------------- */}
+          {currentExercise.measurementType === "assisted" && (
+            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs flex items-start gap-2.5">
+              <Info className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
+              <div>
+                <span className="font-bold">Assisted oefening:</span> Het ingevoerde gewicht is de tegengewicht-hulp van het apparaat. <strong>Minder tegengewicht</strong> betekent dat je meer van je eigen lichaamsgewicht tilt en is dus een <strong>betere prestatie</strong>!
+              </div>
+            </div>
+          )}
+
+          {/* ------------------------------------------------------------------- */}
           {/* SETS INVOERTABEL MET GROTE TOUCH-TARGETS (>= 48px) */}
           {/* ------------------------------------------------------------------- */}
           <div className="space-y-3 pt-2">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
               <h4 className="text-sm font-bold text-foreground">
                 Werkelijk Uitgevoerde Sets
               </h4>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleAddSet}
-                leftIcon={<Plus className="w-4 h-4 text-emerald-500" />}
-                className="h-9 text-xs font-semibold"
-              >
-                + Set toevoegen
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCopyPreviousSet}
+                  disabled={sets.length === 0 || isOperatingSet}
+                  leftIcon={<Copy className="w-3.5 h-3.5 text-emerald-500" />}
+                  className="h-9 text-xs font-semibold"
+                  title="Kopieer waarden van de vorige set naar een nieuwe niet-voltooide set"
+                >
+                  Kopieer vorige
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddSet}
+                  disabled={isOperatingSet}
+                  leftIcon={<Plus className="w-4 h-4 text-emerald-500" />}
+                  className="h-9 text-xs font-semibold"
+                >
+                  + Set toevoegen
+                </Button>
+              </div>
             </div>
 
             {/* Desktop & Tablet Tabel / Mobiele Kaarten */}
@@ -776,162 +862,35 @@ export function ActiveWorkoutTracker({
               <div className="space-y-2">
                 {/* Tabel Headers (Desktop) */}
                 <div className="hidden sm:grid grid-cols-12 gap-2 px-3 py-1.5 text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                  <div className="col-span-1 text-center">Set</div>
-                  <div className="col-span-2">Type</div>
-                  <div className="col-span-3">Gewicht (kg)</div>
-                  <div className="col-span-3">Herhalingen</div>
+                  <div className="col-span-3 text-left">Set & Type</div>
+                  <div className="col-span-3">
+                    {currentExercise.measurementType === "assisted"
+                      ? "Tegengewicht (-kg)"
+                      : currentExercise.measurementType === "lichaamsgewicht"
+                      ? "Extra gewicht (kg)"
+                      : "Gewicht (kg)"}
+                  </div>
+                  <div className="col-span-3">
+                    {currentExercise.measurementType === "tijd"
+                      ? "Duur (sec)"
+                      : "Herhalingen"}
+                  </div>
                   <div className="col-span-1 text-center">RPE</div>
                   <div className="col-span-2 text-right">Voltooid</div>
                 </div>
 
-                {/* Set Rijen */}
-                {sets.map((set, sIdx) => {
-                  const isCompleted = set.completed;
-                  return (
-                    <div
-                      key={set.id}
-                      className={`grid grid-cols-1 sm:grid-cols-12 gap-2 p-2.5 sm:px-3 sm:py-2 rounded-xl border transition-all items-center ${
-                        isCompleted
-                          ? "bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-500/40"
-                          : "bg-card border-border hover:border-slate-300 dark:hover:border-slate-700"
-                      }`}
-                    >
-                      {/* Set Nummer & Type */}
-                      <div className="flex sm:col-span-3 items-center justify-between sm:justify-start gap-2">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold ${
-                              isCompleted
-                                ? "bg-emerald-500 text-white"
-                                : "bg-muted text-foreground"
-                            }`}
-                          >
-                            {set.setNumber}
-                          </span>
-
-                          {/* Set Type Selector */}
-                          <select
-                            value={set.setType}
-                            onChange={(e) =>
-                              handleUpdateSetValue(set.id, {
-                                setType: e.target.value as any,
-                              })
-                            }
-                            className="h-10 text-xs rounded-lg border border-border bg-background px-2 font-medium focus:ring-2 focus:ring-emerald-500 outline-none"
-                          >
-                            <option value="normal">Werkset</option>
-                            <option value="warmup">Opwarmen</option>
-                            <option value="drop">Dropset</option>
-                            <option value="failure">Tot falen</option>
-                          </select>
-                        </div>
-
-                        {/* Mobiele delete knop */}
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteSet(set.id)}
-                          className="sm:hidden p-2 text-muted-foreground hover:text-red-500"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      {/* Gewicht Invoer (min 48px touch target) */}
-                      <div className="col-span-3 flex items-center gap-1.5">
-                        <span className="sm:hidden text-xs text-muted-foreground w-16">
-                          Gewicht:
-                        </span>
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0"
-                          value={set.weightKg === 0 ? "" : set.weightKg}
-                          placeholder="0"
-                          onChange={(e) =>
-                            handleUpdateSetValue(set.id, {
-                              weightKg: parseFloat(e.target.value) || 0,
-                            })
-                          }
-                          className="h-12 w-full rounded-xl border border-border bg-background px-3 text-center text-base font-bold focus:ring-2 focus:ring-emerald-500 outline-none min-h-[48px]"
-                        />
-                        <span className="text-xs text-muted-foreground">kg</span>
-                      </div>
-
-                      {/* Reps Invoer (min 48px touch target) */}
-                      <div className="col-span-3 flex items-center gap-1.5">
-                        <span className="sm:hidden text-xs text-muted-foreground w-16">
-                          Reps:
-                        </span>
-                        <input
-                          type="number"
-                          step="1"
-                          min="0"
-                          value={set.reps === 0 ? "" : set.reps}
-                          placeholder="0"
-                          onChange={(e) =>
-                            handleUpdateSetValue(set.id, {
-                              reps: parseInt(e.target.value, 10) || 0,
-                            })
-                          }
-                          className="h-12 w-full rounded-xl border border-border bg-background px-3 text-center text-base font-bold focus:ring-2 focus:ring-emerald-500 outline-none min-h-[48px]"
-                        />
-                        <span className="text-xs text-muted-foreground">reps</span>
-                      </div>
-
-                      {/* RPE (Optioneel) */}
-                      <div className="col-span-1 hidden sm:block">
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="1"
-                          max="10"
-                          value={set.actualRpe ?? ""}
-                          placeholder="RPE"
-                          onChange={(e) =>
-                            handleUpdateSetValue(set.id, {
-                              actualRpe: e.target.value
-                                ? parseFloat(e.target.value)
-                                : null,
-                            })
-                          }
-                          className="h-12 w-full rounded-xl border border-border bg-background px-1 text-center text-xs font-semibold focus:ring-2 focus:ring-emerald-500 outline-none min-h-[48px]"
-                        />
-                      </div>
-
-                      {/* Voltooid Checkmark Knop (Grote 48px touch target!) */}
-                      <div className="col-span-2 flex items-center justify-end gap-1.5 pt-1 sm:pt-0">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleCompleteSet(set)}
-                          className={`min-h-[48px] min-w-[48px] w-full sm:w-auto px-4 py-2.5 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all ${
-                            isCompleted
-                              ? "bg-emerald-500 text-white shadow-md shadow-emerald-500/25 ring-2 ring-emerald-500"
-                              : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border border-border"
-                          }`}
-                          title={isCompleted ? "Set afvinken ongedaan maken" : "Set voltooien"}
-                        >
-                          <Check
-                            className={`w-5 h-5 ${
-                              isCompleted ? "stroke-[3]" : "text-muted-foreground"
-                            }`}
-                          />
-                          <span className="sm:hidden text-xs">
-                            {isCompleted ? "Voltooid" : "Afvinken"}
-                          </span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteSet(set.id)}
-                          className="hidden sm:inline-flex p-2 text-muted-foreground hover:text-red-500 transition-colors"
-                          title="Set verwijderen"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+                {/* Set Rijen met SetRow component */}
+                {sets.map((set, sIdx) => (
+                  <SetRow
+                    key={set.id}
+                    set={set}
+                    index={sIdx}
+                    measurementType={currentExercise.measurementType ?? "gewicht_herhalingen"}
+                    onUpdateSetValue={handleUpdateSetValue}
+                    onToggleComplete={handleToggleCompleteSet}
+                    onDeleteSet={handleDeleteSet}
+                  />
+                ))}
               </div>
             )}
           </div>

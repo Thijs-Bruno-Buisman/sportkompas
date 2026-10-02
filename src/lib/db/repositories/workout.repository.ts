@@ -602,6 +602,8 @@ export class WorkoutRepository {
           exerciseId: e.exerciseId,
           exerciseName: e.exerciseName,
           primaryMuscleGroup: "onbekend",
+          measurementType: e.measurementType,
+          effortScale: e.effortScale,
           targetSets: e.targetSets,
           targetRepsMin: e.targetRepsMin,
           targetRepsMax: e.targetRepsMax,
@@ -639,6 +641,8 @@ export class WorkoutRepository {
     // Initialiseer voorgeplande sets voor elke oefening in de snapshot
     for (const ex of snapshot.exercises) {
       const numSets = ex.targetSets || 3;
+      const isAssisted = ex.measurementType === "assisted";
+      const isTimeBased = ex.measurementType === "tijd";
       for (let s = 1; s <= numSets; s++) {
         const newSet: WorkoutSet = {
           id: crypto.randomUUID(),
@@ -647,9 +651,13 @@ export class WorkoutRepository {
           setNumber: s,
           setType: "normal",
           weightKg: ex.targetWeightKg ?? 0,
-          reps: ex.targetRepsMin ?? 8,
+          reps: isTimeBased ? 0 : (ex.targetRepsMin ?? 8),
+          durationSeconds: isTimeBased ? (ex.targetDurationSeconds ?? 60) : null,
           targetRpe: ex.targetRpe ?? null,
           actualRpe: null,
+          targetRir: ex.targetRir ?? null,
+          actualRir: null,
+          isAssisted,
           restTimeSeconds: ex.restSeconds || 90,
           completed: false,
           loggedAt: now,
@@ -696,6 +704,8 @@ export class WorkoutRepository {
           exerciseId: e.exerciseId,
           exerciseName: e.exerciseName,
           primaryMuscleGroup: "onbekend",
+          measurementType: e.measurementType,
+          effortScale: e.effortScale,
           targetSets: e.targetSets,
           targetRepsMin: e.targetRepsMin,
           targetRepsMax: e.targetRepsMax,
@@ -732,6 +742,8 @@ export class WorkoutRepository {
     // Initialiseer sets
     for (const ex of snapshot.exercises) {
       const numSets = ex.targetSets || 3;
+      const isAssisted = ex.measurementType === "assisted";
+      const isTimeBased = ex.measurementType === "tijd";
       for (let s = 1; s <= numSets; s++) {
         const newSet: WorkoutSet = {
           id: crypto.randomUUID(),
@@ -740,9 +752,13 @@ export class WorkoutRepository {
           setNumber: s,
           setType: "normal",
           weightKg: ex.targetWeightKg ?? 0,
-          reps: ex.targetRepsMin ?? 8,
+          reps: isTimeBased ? 0 : (ex.targetRepsMin ?? 8),
+          durationSeconds: isTimeBased ? (ex.targetDurationSeconds ?? 60) : null,
           targetRpe: ex.targetRpe ?? null,
           actualRpe: null,
+          targetRir: ex.targetRir ?? null,
+          actualRir: null,
+          isAssisted,
           restTimeSeconds: ex.restSeconds || 90,
           completed: false,
           loggedAt: now,
@@ -872,6 +888,8 @@ export class WorkoutRepository {
 
     // Initialiseer sets voor de toegevoegde oefening
     const numSets = exerciseData.targetSets || 3;
+    const isAssisted = exerciseData.measurementType === "assisted";
+    const isTimeBased = exerciseData.measurementType === "tijd";
     const now = new Date().toISOString();
     for (let s = 1; s <= numSets; s++) {
       const newSet: WorkoutSet = {
@@ -881,9 +899,13 @@ export class WorkoutRepository {
         setNumber: s,
         setType: "normal",
         weightKg: exerciseData.targetWeightKg ?? 0,
-        reps: exerciseData.targetRepsMin ?? 8,
+        reps: isTimeBased ? 0 : (exerciseData.targetRepsMin ?? 8),
+        durationSeconds: isTimeBased ? (exerciseData.targetDurationSeconds ?? 60) : null,
         targetRpe: exerciseData.targetRpe ?? null,
         actualRpe: null,
+        targetRir: exerciseData.targetRir ?? null,
+        actualRir: null,
+        isAssisted,
         restTimeSeconds: exerciseData.restSeconds || 90,
         completed: false,
         loggedAt: now,

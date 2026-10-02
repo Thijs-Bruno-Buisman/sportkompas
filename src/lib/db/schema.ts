@@ -185,6 +185,16 @@ export const WorkoutExerciseSnapshotSchema = z.object({
   exerciseId: z.string().uuid(),
   exerciseName: z.string(),
   primaryMuscleGroup: z.string(),
+  measurementType: z
+    .enum([
+      "gewicht_herhalingen",
+      "lichaamsgewicht",
+      "extra_gewicht",
+      "assisted",
+      "tijd",
+    ])
+    .optional(),
+  effortScale: z.enum(["geen", "rpe", "rir"]).optional(),
   targetSets: z.number().int(),
   targetRepsMin: z.number().int().optional(),
   targetRepsMax: z.number().int().optional(),
@@ -230,10 +240,15 @@ export const WorkoutSetSchema = z.object({
   setType: z.enum(["warmup", "normal", "drop", "failure"]),
   weightKg: z.number().min(0).max(1000),
   reps: z.number().int().min(0).max(500),
+  durationSeconds: z.number().int().min(0).max(86400).nullable().optional(),
   targetRpe: z.number().min(1).max(10).nullable(),
   actualRpe: z.number().min(1).max(10).nullable(),
+  targetRir: z.number().int().min(0).max(10).nullable().optional(),
+  actualRir: z.number().int().min(0).max(10).nullable().optional(),
+  isAssisted: z.boolean().optional(),
   restTimeSeconds: z.number().int().min(0).max(1200),
   completed: z.boolean(),
+  completedAt: z.string().regex(isoDateRegex).nullable().optional(),
   loggedAt: z.string().regex(isoDateRegex),
 });
 

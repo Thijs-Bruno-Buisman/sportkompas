@@ -471,6 +471,48 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
     - `tests/activeWorkout.test.ts` (15 gerichte tests voor actieve sessies, persistentie, sets, eerdere prestaties en afbreekopties).
   - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 8 pagina's correct gegenereerd.
 - **Volgende Stap:**
-  - Prompt 10: Sets registreren (snelle setregistratie, decimalen, vorige set kopiëren, assisted oefeningen).
+  - Prompt 10: Sets registreren (snelle setregistratie, decimalen, vorige set kopiëren, assisted oefeningen) [AFGEROND].
+
+### Stap 10: Sets registreren (Prompt 10)
+- **Datum:** 2026-10-02
+- **Status:** `[x] KLAAR`
+- **Uitgevoerde Acties:**
+  - **Domein & Set Parsing (`src/domain/strength/setParser.ts`):**
+    - `parseDecimalInput(raw, max, min)`: Flexibele decimaalinvoer met ondersteuning voor zowel komma als punt (`"72,5"` en `"72.5"` -> `72.5`) zonder focusverlies, sprongen of NaN. Beveiligd tegen negatieve invoer en absurde uitschieters (max 1000 kg).
+    - `parseRepsInput(raw, max, min)`: Veilige gehele getallen parsing voor herhalingen (0 tot 500).
+    - `parseDurationInput(raw)`: Ondersteunt zowel seconden (`"45"` -> 45) als `mm:ss` formaat (`"1:30"` -> 90) voor tijdgebaseerde oefeningen.
+    - `formatDurationSeconds(seconds)`: Duidelijke Nederlandse tijdnotatie (`"45s"`, `"1m 30s"`).
+    - `parseRpeInput` & `parseRirInput`: Invoer en afronding van RPE (1-10 in stappen van 0.5) en RIR (0-10).
+    - `duplicateSetValues(previousSet, nextSetNumber, newId)`: Kopieerfunctie die gewicht, herhalingen/duur, setType, targetRpe en assisted-status overneemt, maar **strikt** `completed: false`, `actualRpe: null` en `completedAt: null` initialiseert conform specificatie.
+    - `compareSetPerformance(a, b)`: Behandelt assisted-oefeningen expliciet met omgekeerde progressie: **minder tegengewicht = meer eigen lichaamsgewicht getild = betere prestatie** (20 kg machinehulp wint van 30 kg machinehulp).
+    - `getWeightFieldLabel(measurementType, isAssisted)`: Retourneert contextuele labels en placeholders per meettype ("Tegengewicht (hulp)", "Extra gewicht (+/-)", "Gewicht").
+  - **Geavanceerde Set Component (`src/components/modules/tracker/SetRow.tsx`):**
+    - Modulaire rij met lokale tekst-states (`inputMode="decimal"` en `inputMode="numeric"`) voor vloeiend typen op mobiele schermen zonder hapering.
+    - Directe autosave op `onBlur` en `Enter`.
+    - SetType badges voor werkset, opwarmen, dropset en tot falen (`normal`, `warmup`, `drop`, `failure`).
+    - Grote touch-targets (>= 48x48px) voor afvinken en setbediening met bezwete handen.
+    - Visuele indicatie voor tegengewicht (`-kg`) en behulpzame contextuele hint voor assisted oefeningen.
+  - **Actieve Tracker Uitbreidingen (`src/components/modules/tracker/ActiveWorkoutTracker.tsx`):**
+    - Toevoegen van "Kopieer vorige set" knop naast "+ Set toevoegen".
+    - Dubbelklikbeveiliging (`isOperatingSet`) op toevoeg- en kopieeracties ter preventie van dubbele sets.
+    - Automatische hernummering (1..N) en opslag bij het verwijderen van een tussenliggende set.
+    - Prominente waarschuwingsbanner bij assisted oefeningen met uitleg over de omgekeerde progressielogica.
+    - Kolomtitels in de desktopweergave passen zich dynamisch aan op het meettype van de actieve oefening (Tegengewicht, Extra gewicht, Duur in sec).
+  - **Database & Repositories (`src/types/database.ts`, `src/lib/db/schema.ts`, `src/lib/db/repositories/workout.repository.ts`):**
+    - `WorkoutExerciseSnapshot` en `WorkoutSet` verrijkt met `measurementType`, `effortScale`, `durationSeconds`, `targetRir`, `actualRir`, `isAssisted` en `completedAt`.
+    - Zod schema validatie afgestemd met nullable types en constraints.
+    - Onvoltooide sets worden in `getPreviousPerformanceForExercise` strikt uitgesloten van eerdere prestaties en progressieve overload.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): 0 fouten.
+  - Linting (`npm run lint`): 0 waarschuwingen of fouten.
+  - Vitest testsuite (`npm test`): **124 van de 124 tests geslaagd** over 11 testbestanden:
+    - `src/domain/strength/setParser.test.ts` (14 tests voor komma/punt decimaalparsing, reps, tijdsduur, duplicaat en assisted vergelijking).
+    - `tests/setRegistration.test.ts` (9 integratietests voor 3 sets registreren, 1 wijzigen, herladen uit IndexedDB, decimalen, kopiëren, assisted ranking, uncompleted set filtering, hernummering en Zod validatie).
+  - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 8 pagina's correct gegenereerd.
+- **Beperkingen & Notities:**
+  - Invoer met komma en punt werkt consistent over alle platformen dankzij gecontroleerde `inputMode="decimal"` inputs.
+  - Geen neppe data; alle gewichten, herhalingen en sets worden direct persistent opgeslagen in IndexedDB.
+- **Volgende Stap:**
+  - Prompt 11: Stap 11 — Rusttimer en trainingsnotities (Geïntegreerde rusttimer met audio/vibratie fallback, achtergrondbestendigheid en oefen- en sessienotities).
 
 
