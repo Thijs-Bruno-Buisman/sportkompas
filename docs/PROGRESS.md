@@ -18,7 +18,7 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 |---|---|---|---|
 | **00** | **Instructie- en Documentatiebestanden** | `[x] KLAAR` | AGENTS.md, PRODUCT.md, ARCHITECTURE.md, PROGRESS.md opgesteld. Git geïnitialiseerd. |
 | **01** | **Project Setup (Next.js, TypeScript, Tailwind, Lucide, Vitest)** | `[x] KLAAR` | App Router, 5 routes, scripts, Vitest testbasis, build en server getest. |
-| **02** | Design System, Theming & Hoofdnavigatie Shell | `[ ] OPEN` | Dark/Light mode, groen accent, mobile-first navigatie (5 tabs). |
+| **02** | **Design System, Theming & Hoofdnavigatie Shell** | `[x] KLAAR` | Herbruikbare UI suite, dark/light theme persistence, bottom nav + desktop zijbalk. |
 | **03** | Lokale Opslag & Dexie Database Core | `[ ] OPEN` | IndexedDB opzet, singleton, useLiveQuery wrapper, schema v1. |
 | **04** | Validatie & Domain Core Framework | `[ ] OPEN` | Zod schema's, types, veilige ID generator, testsuite setup. |
 | **05** | Demomodus & Realistische Voorbeelddata | `[ ] OPEN` | Veilige demomodus schakelaar in profiel zonder echte data te raken. |
@@ -111,3 +111,32 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
   - Geautomatiseerde interactieve browsertools (browser rendering inspectie) zijn momenteel niet beschikbaar in de shell agent tools. Handmatige controle: `npm run dev` starten, ga naar `http://localhost:3000`, inspecteer met DevTools console (F12) op runtimefouten en wissel tussen de 5 tabbladen.
 - **Volgende Stap:**
   - Prompt 02: Stap 02 — Design System, Theming (Dark/Light mode) & Hoofdnavigatie Shell verdiepen.
+
+### Stap 02: Ontwerp en navigatie (App-Shell, Theming & UI-Componenten)
+- **Datum:** 2026-10-02
+- **Status:** `[x] KLAAR`
+- **Uitgevoerde Acties:**
+  - App-shell geïmplementeerd (`AppShell.tsx`): responsieve vaste mobiele bottom navigation met grote touch targets (min. 48px) en een desktop zijbalk met logo, route-indicatie (emerald pills), thema-kiezer en offline statusbadge.
+  - Complete herbruikbare UI-componentenset ontwikkeld in `src/components/ui/`:
+    - `Button.tsx`: Primaire (emerald), secundaire, outline, ghost en gevaar varianten; touch-targets >= 44px; zichtbare focus-ringen (`focus-visible:ring-emerald-500`).
+    - `Card.tsx`: Modulaire kaarten (`Card`, `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter`).
+    - `FormField.tsx`, `Input.tsx`, `Textarea.tsx`, `Select.tsx`, `Label.tsx`: Toegankelijke invoervelden met foutstatus, helperteksten, `inputMode` voor mobiele toetsenborden en touch-hoogte >= 44px.
+    - `Dialog.tsx`: Toegankelijke modale vensters met Escape-toets afhandeling, backdrop-blur, veilige overflow en sluitknoppen (44px).
+    - `Tabs.tsx`: Tab-systeem (`Tabs`, `TabsList`, `TabsTrigger`, `TabsContent`) voor sub-navigatie binnen modules.
+    - `EmptyState.tsx`: Reusbare lege toestanden met iconen, duidelijke instructietekst en actieknoppen die direct naar de juiste invoer leiden (geen fictieve dashboards).
+    - `Alert.tsx`: Status- en foutmeldingen (`info`, `success`, `warning`, `error`).
+    - `Badge.tsx`: Labels en statusindicatoren.
+    - `ThemeToggle.tsx` & `ThemeProvider.tsx`: Thema-ondersteuning (donker, licht, systeem) met persistente opslag in `localStorage` en hydration-veilige mount-guards.
+  - Alle vijf routes (`/`, `/training`, `/cardio`, `/voeding`, `/profiel`) geüpgraded naar de nieuwe consistente designtaal met eerlijke lege toestanden en actieknoppen.
+  - Safe-area insets (`pb-safe`, `mb-safe`) en zero horizontale overflow op 360px schermen gegarandeerd (`break-words`, `min-w-0`, `overflow-x-hidden`).
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): 0 fouten.
+  - Linting (`npm run lint`): 0 fouten of waarschuwingen.
+  - Vitest unit tests (`npm run test`): 5/5 tests geslaagd.
+  - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 8 routes statisch gegenereerd.
+  - Lokale server HTTP validatie: Alle 5 routes (`/`, `/training`, `/cardio`, `/voeding`, `/profiel`) geverifieerd met HTTP status 200 OK.
+- **Beperkingen & Notities:**
+  - Browsertools voor geautomatiseerde visuele screenshots/DOM-tests ontbreken in de huidige CLI runtime.
+  - Handmatige controle: Start `npm run dev`, open `http://localhost:3000` op desktop én via responsive simulator (bv. 360px breedte in DevTools), test de Dark/Light thema toggle, open modals in Training/Cardio/Voeding en wissel tussen tabs.
+- **Volgende Stap:**
+  - Prompt 03: Stap 03 — Lokale Opslag & Dexie Database Core (IndexedDB schema v1, Singleton instance, useLiveQuery wrappers en migratiebasis).
