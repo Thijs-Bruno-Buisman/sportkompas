@@ -17,6 +17,7 @@ export class SettingsRepository extends BaseRepository<AppSettings> {
     const defaultSettings: AppSettings = {
       id: SETTINGS_ID,
       theme: "dark",
+      unitPreference: "metric",
       restTimerSeconds: 90,
       soundEnabled: true,
       hapticFeedbackEnabled: true,

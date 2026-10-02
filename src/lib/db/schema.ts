@@ -25,13 +25,44 @@ export const ProvenanceSchema = z.object({
 // Profile Schema
 export const ProfileSchema = z.object({
   id: z.string().uuid(),
-  name: z.string().min(1, "Naam is verplicht"),
-  birthDate: z.string().regex(calendarDateRegex, "Ongeldige geboortedatum (YYYY-MM-DD)"),
-  gender: z.enum(["man", "vrouw", "anders"]),
-  heightMeters: z.number().min(0.5).max(2.8),
-  startWeightKg: z.number().min(20).max(400),
+  name: z.string(),
+  birthDate: z.string().regex(calendarDateRegex).nullable(),
+  gender: z.enum(["man", "vrouw", "anders", "onbekend"]),
+  heightMeters: z.number().min(0.5).max(2.8).nullable(),
+  startWeightKg: z.number().min(20).max(400).nullable(),
   targetWeightKg: z.number().min(20).max(400).nullable(),
-  activityLevel: z.enum(["sedentair", "licht", "gemiddeld", "zeer"]),
+  activityLevel: z.enum([
+    "sedentair",
+    "licht",
+    "gemiddeld",
+    "zeer",
+    "onbekend",
+  ]),
+  primaryGoal: z.enum([
+    "kracht",
+    "spieropbouw",
+    "conditie",
+    "afvallen",
+    "fit_blijven",
+    "onbekend",
+  ]),
+  experienceLevel: z.enum(["beginner", "gemiddeld", "gevorderd", "onbekend"]),
+  strengthDaysPerWeek: z.number().int().min(0).max(7),
+  cardioDaysPerWeek: z.number().int().min(0).max(7),
+  availableEquipment: z.array(
+    z.enum([
+      "barbell",
+      "dumbbell",
+      "kabel",
+      "machine",
+      "lichaamsgewicht",
+      "elastiek",
+      "cardio_apparatuur",
+    ])
+  ),
+  unitPreference: z.enum(["metric", "imperial"]),
+  formulaPreference: z.enum(["mifflin_st_jeor", "katch_mcardle", "onbekend"]),
+  onboardingCompleted: z.boolean(),
   createdAt: z.string().regex(isoDateRegex),
   updatedAt: z.string().regex(isoDateRegex),
 });
@@ -257,6 +288,7 @@ export const RecoveryLogSchema = z.object({
 export const AppSettingsSchema = z.object({
   id: z.literal("app_settings"),
   theme: z.enum(["dark", "light", "system"]),
+  unitPreference: z.enum(["metric", "imperial"]),
   restTimerSeconds: z.number().int().min(10).max(600),
   soundEnabled: z.boolean(),
   hapticFeedbackEnabled: z.boolean(),

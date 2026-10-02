@@ -5,6 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Dumbbell, Activity, Utensils, User, ShieldCheck } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { useProfile } from "@/lib/hooks/useProfile";
+import { OnboardingModal } from "@/components/modules/onboarding/OnboardingModal";
 
 interface NavItem {
   name: string;
@@ -22,6 +24,7 @@ const navItems: NavItem[] = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { needsOnboarding, saveProfile } = useProfile();
 
   const isRouteActive = (href: string) => {
     return href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -29,6 +32,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-slate-50 dark:bg-[#090d16] text-slate-900 dark:text-slate-100 overflow-x-hidden max-w-full">
+      {/* Onboarding Wizard - Verschijnt uitsluitend als profielinstellingen ontbreken */}
+      {needsOnboarding && (
+        <OnboardingModal
+          isOpen={true}
+          onComplete={async (data) => {
+            await saveProfile(data);
+          }}
+        />
+      )}
+
       {/* =========================================================================
           DESKTOP ZIJBALK (Zichtbaar vanaf md: 768px)
       ========================================================================= */}
@@ -167,4 +180,3 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
-

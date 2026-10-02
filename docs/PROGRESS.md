@@ -20,7 +20,7 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 | **01** | **Project Setup (Next.js, TypeScript, Tailwind, Lucide, Vitest)** | `[x] KLAAR` | App Router, 5 routes, scripts, Vitest testbasis, build en server getest. |
 | **02** | **Design System, Theming & Hoofdnavigatie Shell** | `[x] KLAAR` | Herbruikbare UI suite, dark/light theme persistence, bottom nav + desktop zijbalk. |
 | **03** | **Lokale Opslag & Dexie Database Core** | `[x] KLAAR` | Versioned Dexie v1/v2, canonieke eenheden, snapshotting, provenance & 13 tests. |
-| **04** | Validatie & Domain Core Framework | `[ ] OPEN` | Zod schema's, types, veilige ID generator, testsuite setup. |
+| **04** | **Profiel en eerste gebruik (Onboarding & Eenheden)** | `[x] KLAAR` | 3-staps onboarding, profielbeheer, weergave-eenheden (kg/lb, km/mi) & invoervalidatie. |
 | **05** | Demomodus & Realistische Voorbeelddata | `[ ] OPEN` | Veilige demomodus schakelaar in profiel zonder echte data te raken. |
 | **06** | Profiel: Gebruikersprofiel Beheer | `[ ] OPEN` | Persoonlijke gegevens, leeftijd, lengte, geslacht, activiteitsniveau. |
 | **07** | Profiel: Lichaamsmetingen & Gewichtstracking | `[ ] OPEN` | Gewichtslogboek, omtrekken, tijdstempels en notities. |
@@ -171,3 +171,37 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
   - Browser storage estimation (`navigator.storage.estimate`) werkt lokaal in browsers met quota-ondersteuning; een veilige fallback is ingebouwd voor unsupported contexts.
 - **Volgende Stap:**
   - Prompt 04: Stap 04 — Validatie & Domain Core Framework (Domain utilities, pure berekeningen en verdere testsuite verrijking).
+
+### Stap 04: Profiel en eerste gebruik (Onboarding, Eenheden & Invoervalidatie)
+- **Datum:** 2026-10-02
+- **Status:** `[x] KLAAR`
+- **Uitgevoerde Acties:**
+  - 3-staps onboarding wizard gebouwd in [src/components/modules/onboarding/OnboardingModal.tsx](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/components/modules/onboarding/OnboardingModal.tsx):
+    - **Stap 1: Doel & Ervaring:** Naam (optioneel), primair doel (kracht, spieropbouw, conditie, afvallen, fit blijven, onbekend), ervaring (beginner, gemiddeld, gevorderd, onbekend).
+    - **Stap 2: Ritme & Apparatuur:** Dagen krachttraining en cardio per week (0..7), interactieve uitrustingsselectie (halters, dumbbells, kabels, apparaten, lichaamsgewicht, elastiek, cardio-apparatuur).
+    - **Stap 3: Eenheden & Lichaamsmetingen:** Eenhedenvoorkeur (Metrisch kg/km vs Imperiaal lbs/mi), optionele lengte, optioneel lichaamsgewicht (met komma/punt ondersteuning), optionele geboortedatum, geslacht en energieformulevoorkeur (Mifflin-St Jeor, Katch-McArdle, onbekend).
+    - Duidelijke toelichting opgenomen bij elk veld waarom gegevens worden gevraagd en dat alles optioneel is.
+  - Onboarding guard geïmplementeerd via [src/lib/hooks/useProfile.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/lib/hooks/useProfile.ts) in [src/components/layout/AppShell.tsx](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/components/layout/AppShell.tsx): de wizard toont uitsluitend als het profiel of de basisinstellingen ontbreken; na afronding start direct de volledige applicatie.
+  - Profielpagina ([src/app/profiel/page.tsx](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/app/profiel/page.tsx)) geüpgraded met realtime bewerkingsmogelijkheden voor alle onboardingparameters, directe IndexedDB-persistentie en een interactieve eenhedenschakelaar.
+  - Eenhedendomein en invoerparsers gebouwd in [src/domain/units.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/domain/units.ts):
+    - Parsing met normalisatie van zowel komma's als punten (`"82,5"` en `"82.5"`).
+    - Weigering van negatieve getallen met duidelijke foutmeldingen.
+    - Strikte datumvalidatie (geen onmogelijke kalenderdagen zoals 30 februari, geen datums in de toekomst, geen jaren vóór 1900).
+    - Weergavewijziging naar lbs of miles verandert de canonieke opgeslagen waarden (kg en meters) in de database niet.
+  - App functioneert 100% zonder calorieadvies en zonder lichaamsmetingen (lege profielwaarden toegestaan).
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): 0 fouten.
+  - Linting (`npm run lint`): 0 fouten of waarschuwingen.
+  - Vitest testsuite ([tests/onboarding.test.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/tests/onboarding.test.ts) & [src/domain/units.test.ts](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/domain/units.test.ts)): 34 van de 34 tests geslaagd.
+    - Test op minimale onboarding zonder lichaamsmetingen.
+    - Test op volledige onboarding en persistente opslag.
+    - Test op herladen (database close & reopen behoudt profiel en `onboardingCompleted`).
+    - Test op profielaanpassingen.
+    - Test op canoniek behoud van waarden bij wisselen tussen kg en lbs.
+    - Test op komma-invoer en datumvalidatie.
+  - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 8 routes statisch gegenereerd.
+  - Lokale server HTTP validatie: Alle 5 routes geretourneerd met HTTP status 200 OK.
+- **Beperkingen & Notities:**
+  - De onboarding wizard is gekoppeld aan de browser-IndexedDB en verdwijnt na de eerste succesvolle opslag; op het Profielscherm kunnen alle parameters te allen tijde worden herzien.
+- **Volgende Stap:**
+  - Prompt 05: Stap 05 — Demomodus & Realistische Voorbeelddata (Demomodus toggle in profiel zonder overschrijven van echte data).

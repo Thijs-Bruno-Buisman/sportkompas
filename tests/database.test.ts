@@ -33,6 +33,14 @@ describe("IndexedDB & Repository Layer (SportKompas)", () => {
         startWeightKg: 82.5, // kg
         targetWeightKg: 78.0,
         activityLevel: "gemiddeld",
+        primaryGoal: "kracht",
+        experienceLevel: "gevorderd",
+        strengthDaysPerWeek: 4,
+        cardioDaysPerWeek: 2,
+        availableEquipment: ["barbell", "dumbbell"],
+        unitPreference: "metric",
+        formulaPreference: "mifflin_st_jeor",
+        onboardingCompleted: true,
       });
 
       expect(profile.id).toBeDefined();

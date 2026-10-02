@@ -21,16 +21,54 @@ export interface Provenance {
   notes?: string;
 }
 
+export type TrainingGoal =
+  | "kracht"
+  | "spieropbouw"
+  | "conditie"
+  | "afvallen"
+  | "fit_blijven"
+  | "onbekend";
+
+export type ExperienceLevel =
+  | "beginner"
+  | "gemiddeld"
+  | "gevorderd"
+  | "onbekend";
+
+export type EquipmentType =
+  | "barbell"
+  | "dumbbell"
+  | "kabel"
+  | "machine"
+  | "lichaamsgewicht"
+  | "elastiek"
+  | "cardio_apparatuur";
+
+export type UnitPreference = "metric" | "imperial";
+
+export type EnergyFormulaPreference =
+  | "mifflin_st_jeor"
+  | "katch_mcardle"
+  | "onbekend";
+
 // 1. Gebruikersprofiel
 export interface Profile {
   id: EntityId;
-  name: string;
-  birthDate: string; // YYYY-MM-DD
-  gender: "man" | "vrouw" | "anders";
-  heightMeters: number; // bv. 1.82 voor 182 cm
-  startWeightKg: number; // bv. 80.0
-  targetWeightKg: number | null;
-  activityLevel: "sedentair" | "licht" | "gemiddeld" | "zeer";
+  name: string; // Optioneel (mag leeg zijn "")
+  birthDate: string | null; // YYYY-MM-DD (optioneel)
+  gender: "man" | "vrouw" | "anders" | "onbekend";
+  heightMeters: number | null; // Optioneel (bv. 1.82 voor 182 cm)
+  startWeightKg: number | null; // Optioneel (bv. 80.0)
+  targetWeightKg: number | null; // Optioneel
+  activityLevel: "sedentair" | "licht" | "gemiddeld" | "zeer" | "onbekend";
+  primaryGoal: TrainingGoal;
+  experienceLevel: ExperienceLevel;
+  strengthDaysPerWeek: number; // 0..7
+  cardioDaysPerWeek: number; // 0..7
+  availableEquipment: EquipmentType[];
+  unitPreference: UnitPreference;
+  formulaPreference: EnergyFormulaPreference;
+  onboardingCompleted: boolean;
   createdAt: string; // UTC ISO
   updatedAt: string; // UTC ISO
 }
@@ -277,6 +315,7 @@ export interface RecoveryLog {
 export interface AppSettings {
   id: "app_settings";
   theme: "dark" | "light" | "system";
+  unitPreference: UnitPreference;
   restTimerSeconds: number;
   soundEnabled: boolean;
   hapticFeedbackEnabled: boolean;

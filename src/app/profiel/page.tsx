@@ -1,33 +1,251 @@
 "use client";
 
-import React, { useState } from "react";
-import { User, Scale, Settings, Database, Moon, Sun, Monitor, ShieldCheck, Download, Upload } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import {
+  User,
+  Scale,
+  Settings,
+  Database,
+  Moon,
+  Sun,
+  Monitor,
+  ShieldCheck,
+  Download,
+  Upload,
+  CheckCircle2,
+  RotateCcw,
+  Sparkles,
+} from "lucide-react";
 import { useTheme } from "@/lib/theme/ThemeProvider";
+import { useProfile } from "@/lib/hooks/useProfile";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/Card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { FormField } from "@/components/ui/FormField";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
+import { Alert } from "@/components/ui/Alert";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Badge } from "@/components/ui/Badge";
+import {
+  parseLocalizedNumber,
+  isValidBirthDate,
+  metersToCm,
+  cmToMeters,
+  kgToLbs,
+  lbsToKg,
+  formatWeight,
+} from "@/domain/units";
+import type {
+  Profile,
+  TrainingGoal,
+  ExperienceLevel,
+  EquipmentType,
+  UnitPreference,
+  EnergyFormulaPreference,
+} from "@/types/database";
 
 export default function ProfielPage() {
   const { theme, setTheme } = useTheme();
+  const { profile, settings, saveProfile, updateUnitPreference, isLoading } =
+    useProfile();
 
-  // Lokale state voor profielformulier
+  // Form State
   const [name, setName] = useState("");
-  const [heightCm, setHeightCm] = useState("");
-  const [weightKg, setWeightKg] = useState("");
-  const [gender, setGender] = useState("man");
-  const [activityLevel, setActivityLevel] = useState("gemiddeld");
-  const [savedSuccess, setSavedSuccess] = useState(false);
+  const [primaryGoal, setPrimaryGoal] = useState<TrainingGoal>("kracht");
+  const [experienceLevel, setExperienceLevel] =
+    useState<ExperienceLevel>("gemiddeld");
+  const [strengthDays, setStrengthDays] = useState(3);
+  const [cardioDays, setCardioDays] = useState(2);
+  const [equipment, setEquipment] = useState<EquipmentType[]>([
+    "barbell",
+    "dumbbell",
+    "kabel",
+    "machine",
+    "lichaamsgewicht",
+  ]);
 
-  const handleSaveProfile = (e: React.FormEvent) => {
-    e.preventDefault();
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 3000);
+  const [unitPref, setUnitPref] = useState<UnitPreference>("metric");
+  const [rawHeight, setRawHeight] = useState("");
+  const [rawWeight, setRawWeight] = useState("");
+  const [birthDate, setBirthDate] = useState("");
+  const [gender, setGender] = useState<Profile["gender"]>("onbekend");
+  const [formulaPreference, setFormulaPreference] =
+    useState<EnergyFormulaPreference>("mifflin_st_jeor");
+  const [activityLevel, setActivityLevel] =
+    useState<Profile["activityLevel"]>("gemiddeld");
+
+  const [feedbackMessage, setFeedbackMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Synchroniseer formulier wanneer profiel uit IndexedDB is geladen
+  useEffect(() => {
+    if (profile) {
+      setName(profile.name || "");
+      setPrimaryGoal(profile.primaryGoal || "kracht");
+      setExperienceLevel(profile.experienceLevel || "gemiddeld");
+      setStrengthDays(profile.strengthDaysPerWeek ?? 3);
+      setCardioDays(profile.cardioDaysPerWeek ?? 2);
+      setEquipment(
+        profile.availableEquipment && profile.availableEquipment.length > 0
+          ? profile.availableEquipment
+          : ["barbell", "dumbbell", "kabel", "machine", "lichaamsgewicht"]
+      );
+
+      const pref = profile.unitPreference || "metric";
+      setUnitPref(pref);
+
+      if (profile.heightMeters !== null && profile.heightMeters !== undefined) {
+        setRawHeight(String(metersToCm(profile.heightMeters)));
+      } else {
+        setRawHeight("");
+      }
+
+      if (profile.startWeightKg !== null && profile.startWeightKg !== undefined) {
+        setRawWeight(
+          pref === "imperial"
+            ? String(kgToLbs(profile.startWeightKg))
+            : String(profile.startWeightKg)
+        );
+      } else {
+        setRawWeight("");
+      }
+
+      setBirthDate(profile.birthDate || "");
+      setGender(profile.gender || "onbekend");
+      setFormulaPreference(profile.formulaPreference || "mifflin_st_jeor");
+      setActivityLevel(profile.activityLevel || "gemiddeld");
+    }
+  }, [profile]);
+
+  const toggleEquipment = (eq: EquipmentType) => {
+    setEquipment((prev) =>
+      prev.includes(eq) ? prev.filter((item) => item !== eq) : [...prev, eq]
+    );
   };
+
+  const handleUnitToggle = async (newPref: UnitPreference) => {
+    setUnitPref(newPref);
+    await updateUnitPreference(newPref);
+
+    // Converteer het actuele getoonde gewicht in het veld naar de nieuwe eenheid
+    if (rawWeight.trim() !== "") {
+      const num = parseLocalizedNumber(rawWeight, "Gewicht");
+      if (num !== null) {
+        if (newPref === "imperial") {
+          setRawWeight(String(kgToLbs(num)));
+        } else {
+          setRawWeight(String(lbsToKg(num)));
+        }
+      }
+    }
+
+    setFeedbackMessage({
+      type: "success",
+      text: `Weergave gewijzigd naar ${
+        newPref === "metric" ? "Metrisch (kg / km)" : "Imperiaal (lbs / miles)"
+      }. Opgeslagen data blijft canoniek.`,
+    });
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFeedbackMessage(null);
+
+    try {
+      // 1. Valideer optionele geboortedatum
+      if (birthDate.trim() !== "") {
+        const dateCheck = isValidBirthDate(birthDate.trim());
+        if (!dateCheck.valid) {
+          setFeedbackMessage({
+            type: "error",
+            text: dateCheck.error || "Geboortedatum is ongeldig.",
+          });
+          return;
+        }
+      }
+
+      // 2. Parseer gewicht met komma- en punt-ondersteuning
+      let parsedWeightKg: number | null = null;
+      if (rawWeight.trim() !== "") {
+        const weightValue = parseLocalizedNumber(rawWeight, "Lichaamsgewicht");
+        if (weightValue !== null) {
+          if (weightValue < 20 || weightValue > 400) {
+            setFeedbackMessage({
+              type: "error",
+              text: "Lichaamsgewicht moet tussen 20 en 400 liggen.",
+            });
+            return;
+          }
+          parsedWeightKg =
+            unitPref === "imperial" ? lbsToKg(weightValue) : weightValue;
+        }
+      }
+
+      // 3. Parseer lengte in cm naar canonieke meters
+      let parsedHeightMeters: number | null = null;
+      if (rawHeight.trim() !== "") {
+        const heightCm = parseLocalizedNumber(rawHeight, "Lengte");
+        if (heightCm !== null) {
+          if (heightCm < 50 || heightCm > 260) {
+            setFeedbackMessage({
+              type: "error",
+              text: "Lengte in centimeters moet tussen 50 en 260 cm liggen.",
+            });
+            return;
+          }
+          parsedHeightMeters = cmToMeters(heightCm);
+        }
+      }
+
+      setIsSaving(true);
+
+      const profilePayload: Omit<Profile, "id" | "createdAt" | "updatedAt"> = {
+        name: name.trim(),
+        birthDate: birthDate.trim() || null,
+        gender,
+        heightMeters: parsedHeightMeters,
+        startWeightKg: parsedWeightKg,
+        targetWeightKg: profile?.targetWeightKg ?? null,
+        activityLevel,
+        primaryGoal,
+        experienceLevel,
+        strengthDaysPerWeek: strengthDays,
+        cardioDaysPerWeek: cardioDays,
+        availableEquipment: equipment,
+        unitPreference: unitPref,
+        formulaPreference,
+        onboardingCompleted: true,
+      };
+
+      await saveProfile(profilePayload);
+
+      setFeedbackMessage({
+        type: "success",
+        text: "Profielgegevens succesvol opgeslagen in IndexedDB!",
+      });
+    } catch (err: any) {
+      setFeedbackMessage({
+        type: "error",
+        text: err.message || "Er is een fout opgetreden bij het opslaan.",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const equipmentOptions: { id: EquipmentType; label: string }[] = [
+    { id: "barbell", label: "Barbell (Halterstang)" },
+    { id: "dumbbell", label: "Dumbbells" },
+    { id: "kabel", label: "Kabelstation" },
+    { id: "machine", label: "Apparaten" },
+    { id: "lichaamsgewicht", label: "Lichaamsgewicht" },
+    { id: "elastiek", label: "Weerstandsbanden" },
+    { id: "cardio_apparatuur", label: "Cardiotoestellen" },
+  ];
 
   return (
     <div className="space-y-6 max-w-full overflow-x-hidden">
@@ -38,37 +256,52 @@ export default function ProfielPage() {
           Profiel &amp; Instellingen
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Beheer je persoonlijke parameters, thema en lokale data.
+          Beheer je persoonlijke parameters, eenheden, thema en lokale data.
         </p>
       </div>
+
+      {feedbackMessage && (
+        <Alert
+          variant={feedbackMessage.type === "success" ? "success" : "error"}
+          onDismiss={() => setFeedbackMessage(null)}
+        >
+          {feedbackMessage.text}
+        </Alert>
+      )}
 
       {/* Tabs */}
       <Tabs defaultValue="persoonlijk">
         <TabsList className="w-full justify-start">
-          <TabsTrigger value="persoonlijk">Persoonlijke Gegevens</TabsTrigger>
-          <TabsTrigger value="metingen">Metingen &amp; Gewicht</TabsTrigger>
-          <TabsTrigger value="voorkeuren">Voorkeuren &amp; Opslag</TabsTrigger>
+          <TabsTrigger value="persoonlijk">Persoonlijk Profiel</TabsTrigger>
+          <TabsTrigger value="voorkeuren">Eenheden &amp; Thema</TabsTrigger>
+          <TabsTrigger value="metingen">Lichaamsmetingen</TabsTrigger>
         </TabsList>
 
-        {/* Tab 1: Persoonlijke Gegevens */}
+        {/* Tab 1: Persoonlijk Profiel */}
         <TabsContent value="persoonlijk" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Basisparameters</CardTitle>
-              <CardDescription>
-                Deze waarden worden gebruikt voor de berekening van BMR, TDEE en caloriebehoeften.
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Basisparameters &amp; Trainingsdoelen</CardTitle>
+                  <CardDescription>
+                    Alle velden zijn optioneel en kunnen op elk gewenst moment worden aangepast.
+                  </CardDescription>
+                </div>
+                <Badge variant={profile?.onboardingCompleted ? "success" : "default"}>
+                  {profile?.onboardingCompleted ? "Profiel Actief" : "Onvolledig"}
+                </Badge>
+              </div>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleSaveProfile} className="space-y-4">
-                {savedSuccess && (
-                  <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-                    Profielgegevens succesvol bijgewerkt!
-                  </div>
-                )}
-
+              <form onSubmit={handleSaveProfile} className="space-y-5">
+                {/* Naam en Doel */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <FormField id="profile-name" label="Naam / Roepnaam">
+                  <FormField
+                    id="profile-name"
+                    label="Naam / Roepnaam (Optioneel)"
+                    helperText="Hoe SportKompas je aanspreekt"
+                  >
                     <Input
                       id="profile-name"
                       placeholder="Jouw naam"
@@ -77,72 +310,225 @@ export default function ProfielPage() {
                     />
                   </FormField>
 
-                  <FormField id="profile-gender" label="Geslacht">
+                  <FormField
+                    id="profile-goal"
+                    label="Primair Trainingsdoel"
+                  >
                     <Select
-                      id="profile-gender"
-                      value={gender}
-                      onChange={(e) => setGender(e.target.value)}
+                      id="profile-goal"
+                      value={primaryGoal}
+                      onChange={(e) =>
+                        setPrimaryGoal(e.target.value as TrainingGoal)
+                      }
                     >
-                      <option value="man">Man</option>
-                      <option value="vrouw">Vrouw</option>
-                      <option value="anders">Anders</option>
+                      <option value="kracht">Krachtopbouw (1RM verhogen)</option>
+                      <option value="spieropbouw">Spieropbouw / Hypertrofie</option>
+                      <option value="conditie">Conditie &amp; Uithoudingsvermogen</option>
+                      <option value="afvallen">Afvallen &amp; Vetverlies</option>
+                      <option value="fit_blijven">Fit &amp; Gezond blijven</option>
+                      <option value="onbekend">Onbekend / Geen specifieke voorkeur</option>
                     </Select>
                   </FormField>
                 </div>
 
+                {/* Ervaring en Activiteitsniveau */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <FormField
-                    id="profile-height"
-                    label="Lengte (cm)"
-                    helperText="Bijv. 182"
-                  >
-                    <Input
-                      id="profile-height"
-                      type="number"
-                      min="100"
-                      max="250"
-                      inputMode="numeric"
-                      placeholder="180"
-                      value={heightCm}
-                      onChange={(e) => setHeightCm(e.target.value)}
-                    />
+                  <FormField id="profile-exp" label="Ervaringsniveau">
+                    <Select
+                      id="profile-exp"
+                      value={experienceLevel}
+                      onChange={(e) =>
+                        setExperienceLevel(e.target.value as ExperienceLevel)
+                      }
+                    >
+                      <option value="beginner">Beginner (&lt; 1 jaar ervaring)</option>
+                      <option value="gemiddeld">Gemiddeld (1 - 3 jaar gestructureerd)</option>
+                      <option value="gevorderd">Gevorderd (3+ jaar ervaring)</option>
+                      <option value="onbekend">Onbekend</option>
+                    </Select>
                   </FormField>
 
-                  <FormField
-                    id="profile-weight"
-                    label="Gewicht (kg)"
-                    helperText="Bijv. 78.5"
-                  >
-                    <Input
-                      id="profile-weight"
-                      type="number"
-                      step="0.1"
-                      min="30"
-                      max="300"
-                      inputMode="decimal"
-                      placeholder="75.0"
-                      value={weightKg}
-                      onChange={(e) => setWeightKg(e.target.value)}
-                    />
+                  <FormField id="profile-activity" label="Activiteitsniveau buiten training">
+                    <Select
+                      id="profile-activity"
+                      value={activityLevel}
+                      onChange={(e) =>
+                        setActivityLevel(
+                          e.target.value as Profile["activityLevel"]
+                        )
+                      }
+                    >
+                      <option value="sedentair">Sedentair (kantoorbaan, weinig beweging)</option>
+                      <option value="licht">Licht actief (staand werk, dagelijks wandelen)</option>
+                      <option value="gemiddeld">Gemiddeld actief (fysiek actief werk)</option>
+                      <option value="zeer">Zeer actief (zware fysieke arbeid)</option>
+                      <option value="onbekend">Onbekend</option>
+                    </Select>
                   </FormField>
                 </div>
 
-                <FormField id="profile-activity" label="Activiteitsniveau">
-                  <Select
-                    id="profile-activity"
-                    value={activityLevel}
-                    onChange={(e) => setActivityLevel(e.target.value)}
+                {/* Trainingsritme per week */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FormField
+                    id="profile-strength-days"
+                    label="Krachttrainingsdagen per week"
                   >
-                    <option value="sedentair">Sedentair (weinig of geen lichaamsbeweging)</option>
-                    <option value="licht">Licht actief (1-3 dagen training/sport)</option>
-                    <option value="gemiddeld">Gemiddeld actief (3-5 dagen training/sport)</option>
-                    <option value="zeer">Zeer actief (6-7 dagen intensieve sport)</option>
-                  </Select>
-                </FormField>
+                    <Select
+                      id="profile-strength-days"
+                      value={strengthDays}
+                      onChange={(e) => setStrengthDays(Number(e.target.value))}
+                    >
+                      {[0, 1, 2, 3, 4, 5, 6, 7].map((d) => (
+                        <option key={d} value={d}>
+                          {d} {d === 1 ? "dag" : "dagen"} per week
+                        </option>
+                      ))}
+                    </Select>
+                  </FormField>
+
+                  <FormField
+                    id="profile-cardio-days"
+                    label="Cardiodagen per week"
+                  >
+                    <Select
+                      id="profile-cardio-days"
+                      value={cardioDays}
+                      onChange={(e) => setCardioDays(Number(e.target.value))}
+                    >
+                      {[0, 1, 2, 3, 4, 5, 6, 7].map((d) => (
+                        <option key={d} value={d}>
+                          {d} {d === 1 ? "dag" : "dagen"} per week
+                        </option>
+                      ))}
+                    </Select>
+                  </FormField>
+                </div>
+
+                {/* Apparatuur selector */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                    Beschikbare Uitrusting
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {equipmentOptions.map((opt) => {
+                      const isSelected = equipment.includes(opt.id);
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => toggleEquipment(opt.id)}
+                          className={`min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-medium border transition-all cursor-pointer ${
+                            isSelected
+                              ? "bg-emerald-500 text-white border-emerald-500 shadow-xs"
+                              : "bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-300"
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Optionele Lichaamsparameters */}
+                <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-4">
+                  <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                    <Scale className="w-4 h-4 text-emerald-500" />
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">
+                      Optionele Lichaamsgegevens (Komma &bull; Punt ondersteund)
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <FormField
+                      id="profile-height"
+                      label="Lengte (in cm)"
+                      helperText="Optioneel (bv. 182)"
+                    >
+                      <Input
+                        id="profile-height"
+                        placeholder="182"
+                        value={rawHeight}
+                        onChange={(e) => setRawHeight(e.target.value)}
+                      />
+                    </FormField>
+
+                    <FormField
+                      id="profile-weight"
+                      label={`Lichaamsgewicht (in ${
+                        unitPref === "metric" ? "kg" : "lbs"
+                      })`}
+                      helperText="Optioneel (bv. 82,5 of 82.5)"
+                    >
+                      <Input
+                        id="profile-weight"
+                        placeholder={
+                          unitPref === "metric" ? "Bijv. 82,5" : "Bijv. 180"
+                        }
+                        value={rawWeight}
+                        onChange={(e) => setRawWeight(e.target.value)}
+                      />
+                    </FormField>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <FormField
+                      id="profile-birth"
+                      label="Geboortedatum (Optioneel)"
+                      helperText="YYYY-MM-DD"
+                    >
+                      <Input
+                        id="profile-birth"
+                        type="date"
+                        value={birthDate}
+                        onChange={(e) => setBirthDate(e.target.value)}
+                      />
+                    </FormField>
+
+                    <FormField id="profile-gender" label="Geslacht (Optioneel)">
+                      <Select
+                        id="profile-gender"
+                        value={gender}
+                        onChange={(e) =>
+                          setGender(e.target.value as Profile["gender"])
+                        }
+                      >
+                        <option value="onbekend">Onbekend / Niet opgeven</option>
+                        <option value="man">Man</option>
+                        <option value="vrouw">Vrouw</option>
+                        <option value="anders">Anders</option>
+                      </Select>
+                    </FormField>
+                  </div>
+
+                  <FormField
+                    id="profile-formula"
+                    label="Energieformule Voorkeur (Optioneel)"
+                    helperText="Gebruikt in Stap 09 voor BMR / caloriebehoefte berekening"
+                  >
+                    <Select
+                      id="profile-formula"
+                      value={formulaPreference}
+                      onChange={(e) =>
+                        setFormulaPreference(
+                          e.target.value as EnergyFormulaPreference
+                        )
+                      }
+                    >
+                      <option value="mifflin_st_jeor">
+                        Mifflin-St Jeor (Aanbevolen)
+                      </option>
+                      <option value="katch_mcardle">
+                        Katch-McArdle (Op basis van vetvrije massa)
+                      </option>
+                      <option value="onbekend">Later bepalen</option>
+                    </Select>
+                  </FormField>
+                </div>
 
                 <div className="pt-2">
-                  <Button type="submit">
-                    Gegevens Opslaan
+                  <Button type="submit" isLoading={isSaving}>
+                    Wijzigingen Opslaan
                   </Button>
                 </div>
               </form>
@@ -150,19 +536,62 @@ export default function ProfielPage() {
           </Card>
         </TabsContent>
 
-        {/* Tab 2: Metingen */}
-        <TabsContent value="metingen" className="space-y-4">
-          <EmptyState
-            icon={<Scale className="w-6 h-6" />}
-            title="Nog geen lichaamsmetingen gelogd"
-            description="In stap 07 koppelen we het gewichts- en omtreklogboek aan IndexedDB."
-            actionLabel="Start Metingen In Stap 07"
-            actionHref="#persoonlijk"
-          />
-        </TabsContent>
-
-        {/* Tab 3: Voorkeuren & Opslag */}
+        {/* Tab 2: Eenheden & Thema */}
         <TabsContent value="voorkeuren" className="space-y-4">
+          {/* Weergave Eenheden (Metric vs Imperial) */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Voorkeur voor Eenheden</CardTitle>
+              <CardDescription>
+                Kies tussen het metrische of imperiale stelsel.
+                Alle gegevens blijven onder de motorkap altijd zuiver canoniek opgeslagen in kg en meters.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <button
+                  type="button"
+                  onClick={() => handleUnitToggle("metric")}
+                  className={`min-h-[56px] p-4 rounded-2xl border flex flex-col items-start gap-1 transition-all cursor-pointer ${
+                    unitPref === "metric"
+                      ? "border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-semibold"
+                      : "border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300"
+                  }`}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <span className="text-sm font-bold">Metrisch Stelsel</span>
+                    {unitPref === "metric" && (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                    )}
+                  </div>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    Gewichten in kg &bull; Afstanden in km &bull; Lengtes in cm
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleUnitToggle("imperial")}
+                  className={`min-h-[56px] p-4 rounded-2xl border flex flex-col items-start gap-1 transition-all cursor-pointer ${
+                    unitPref === "imperial"
+                      ? "border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-semibold"
+                      : "border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300"
+                  }`}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <span className="text-sm font-bold">Imperiaal Stelsel</span>
+                    {unitPref === "imperial" && (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                    )}
+                  </div>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    Gewichten in lbs &bull; Afstanden in miles &bull; Lengtes in feet/inch
+                  </span>
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Thema Kiezer */}
           <Card>
             <CardHeader>
@@ -179,7 +608,7 @@ export default function ProfielPage() {
                   className={`min-h-[48px] p-3 rounded-xl border flex items-center justify-center gap-2.5 transition-all text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer ${
                     theme === "dark"
                       ? "border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold"
-                      : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-slate-700 dark:text-slate-300"
+                      : "border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300"
                   }`}
                 >
                   <Moon className="w-4 h-4" />
@@ -192,7 +621,7 @@ export default function ProfielPage() {
                   className={`min-h-[48px] p-3 rounded-xl border flex items-center justify-center gap-2.5 transition-all text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer ${
                     theme === "light"
                       ? "border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold"
-                      : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-slate-700 dark:text-slate-300"
+                      : "border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300"
                   }`}
                 >
                   <Sun className="w-4 h-4" />
@@ -205,7 +634,7 @@ export default function ProfielPage() {
                   className={`min-h-[48px] p-3 rounded-xl border flex items-center justify-center gap-2.5 transition-all text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer ${
                     theme === "system"
                       ? "border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold"
-                      : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-slate-700 dark:text-slate-300"
+                      : "border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300"
                   }`}
                 >
                   <Monitor className="w-4 h-4" />
@@ -215,12 +644,12 @@ export default function ProfielPage() {
             </CardContent>
           </Card>
 
-          {/* Lokale Opslag & Veiligheid */}
+          {/* Lokale Opslag & Data-soevereiniteit */}
           <Card>
             <CardHeader>
               <CardTitle>Lokale Opslag &amp; Back-up</CardTitle>
               <CardDescription>
-                SportKompas slaat al je data 100% lokaal op via IndexedDB in je browser.
+                Alle data bevindt zich in IndexedDB in je browser. Geen externe tracking.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -231,7 +660,7 @@ export default function ProfielPage() {
                     Offline-first persistentie actief
                   </p>
                   <p className="text-slate-500 dark:text-slate-400">
-                    Geen externe tracking, cookies of advertenties.
+                    Geen accounts, cookies of advertenties.
                   </p>
                 </div>
               </div>
@@ -241,7 +670,9 @@ export default function ProfielPage() {
                   variant="outline"
                   size="sm"
                   leftIcon={<Download className="w-4 h-4" />}
-                  onClick={() => alert("Volledige exportfunctie wordt aangesloten in Stap 37.")}
+                  onClick={() =>
+                    alert("Volledige exportfunctie wordt aangesloten in Stap 37.")
+                  }
                 >
                   Exporteer Back-up (JSON)
                 </Button>
@@ -249,7 +680,9 @@ export default function ProfielPage() {
                   variant="ghost"
                   size="sm"
                   leftIcon={<Upload className="w-4 h-4" />}
-                  onClick={() => alert("Importfunctie wordt aangesloten in Stap 37.")}
+                  onClick={() =>
+                    alert("Importfunctie wordt aangesloten in Stap 37.")
+                  }
                 >
                   Importeer Back-up
                 </Button>
@@ -257,8 +690,18 @@ export default function ProfielPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Tab 3: Lichaamsmetingen */}
+        <TabsContent value="metingen" className="space-y-4">
+          <EmptyState
+            icon={<Scale className="w-6 h-6" />}
+            title="Nog geen metingen gelogd"
+            description="Lichaamsmetingen en gewichtstracking worden volledig gekoppeld in Stap 07."
+            actionLabel="Naar Profiel Gegevens"
+            actionHref="#persoonlijk"
+          />
+        </TabsContent>
       </Tabs>
     </div>
   );
 }
-
