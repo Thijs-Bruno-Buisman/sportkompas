@@ -49,7 +49,11 @@ interface EnrichedScheduledSession extends ScheduledSession {
   plannedExercises: PlannedExerciseInDay[];
 }
 
-export function WeekPlanner() {
+interface WeekPlannerProps {
+  onWorkoutStarted?: (session: WorkoutSession) => void;
+}
+
+export function WeekPlanner({ onWorkoutStarted }: WeekPlannerProps = {}) {
   const { repositories, isDemoMode, dataVersion, refreshData } = useDatabase();
 
   const [weekStartsOn, setWeekStartsOn] = useState<WeekStartDay>("maandag");
@@ -225,6 +229,7 @@ export function WeekPlanner() {
       showNotification(
         `Workout "${started.snapshot.routineDayName || "Training"}" gestart!`
       );
+      onWorkoutStarted?.(started);
     } catch (err: any) {
       showNotification(err.message || "Fout bij starten van workout.", "error");
     }

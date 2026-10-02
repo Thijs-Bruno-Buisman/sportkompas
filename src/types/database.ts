@@ -204,7 +204,11 @@ export interface WorkoutExerciseSnapshot {
   targetRepsMin?: number;
   targetRepsMax?: number;
   targetDurationSeconds?: number;
+  targetWeightKg?: number | null;
+  targetRpe?: number | null;
+  targetRir?: number | null;
   restSeconds: number;
+  notes?: string;
 }
 
 export interface WorkoutRoutineSnapshot {
@@ -216,16 +220,23 @@ export interface WorkoutRoutineSnapshot {
 export interface WorkoutSession {
   id: EntityId;
   calendarDate: string; // YYYY-MM-DD
-  startTime: string; // UTC ISO
+  startTime: string; // UTC ISO (gestartOp)
+  startedAt?: string; // Optionele expliciete alias voor gestartOp
   endTime: string | null; // UTC ISO
+  cancelledAt?: string | null; // UTC ISO
   status: "actief" | "afgerond" | "geannuleerd";
+  currentExerciseIndex?: number; // 0-based index in snapshot.exercises
+  activeExerciseId?: EntityId | null; // UUID van de actieve oefening
   routineId: EntityId | null;
   routineDayId: EntityId | null;
   routineVersion: number | null;
+  scheduledSessionId?: EntityId | null;
+  durationMinutes?: number | null;
   snapshot: WorkoutRoutineSnapshot;
   overallRpe: number | null; // 1..10
   notes: string;
   provenance: Provenance;
+  updatedAt?: string; // UTC ISO
 }
 
 // 7. Workout Sets

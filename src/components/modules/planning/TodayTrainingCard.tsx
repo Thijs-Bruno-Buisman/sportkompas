@@ -18,6 +18,7 @@ import type {
   PlannedExerciseInDay,
   WorkoutRoutine,
   RoutineDay,
+  WorkoutSession,
 } from "@/types/database";
 import {
   Play,
@@ -48,6 +49,7 @@ export function TodayTrainingCard() {
     routine: WorkoutRoutine;
     days: RoutineDay[];
   } | null>(null);
+  const [activeSession, setActiveSession] = useState<WorkoutSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
   const [isMoveOpen, setIsMoveOpen] = useState(false);
@@ -58,12 +60,14 @@ export function TodayTrainingCard() {
   const loadTodayData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [session, routine] = await Promise.all([
+      const [session, routine, currentActive] = await Promise.all([
         repositories.workout.getScheduledSessionForDate(todayStr),
         repositories.workout.getActiveRoutine(),
+        repositories.workout.getActiveWorkoutSession(),
       ]);
       setTodaySession(session);
       setActiveRoutine(routine);
+      setActiveSession(currentActive);
     } catch (err) {
       console.error("Fout bij laden van training van vandaag:", err);
     } finally {
@@ -81,9 +85,13 @@ export function TodayTrainingCard() {
     try {
       await repositories.workout.startWorkoutFromScheduledSession(todaySession.id);
       refreshData();
-      router.push("/training?tab=sessies");
-    } catch (err) {
+      router.push("/training?tab=actief");
+    } catch (err: any) {
       console.error("Fout bij starten van workout van vandaag:", err);
+      // Als er al een sessie actief was, stuur direct door naar actief
+      if (err.message?.includes("Er is al een actieve training")) {
+        router.push("/training?tab=actief");
+      }
       setIsStarting(false);
     }
   };
@@ -123,6 +131,57 @@ export function TodayTrainingCard() {
         <div className="animate-pulse space-y-3">
           <div className="h-4 bg-muted rounded-md w-1/3"></div>
           <div className="h-6 bg-muted rounded-md w-1/2"></div>
+        </div>
+      </Card>
+    );
+  }
+
+  // 0. Geval: Er is momenteel een training actief in uitvoering
+  if (activeSession) {
+    const activeName =
+      activeSession.snapshot.routineDayName ||
+      activeSession.snapshot.routineName ||
+      "Krachttraining";
+    const startTimeFormatted = new Date(activeSession.startTime).toLocaleTimeString(
+      "nl-NL",
+      { hour: "2-digit", minute: "2-digit" }
+    );
+
+    return (
+      <Card className="p-5 border-emerald-500/50 bg-linear-to-br from-card via-card to-emerald-50/30 dark:to-emerald-950/30 shadow-md ring-2 ring-emerald-500/30">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
+              <Badge variant="success" className="text-xs font-semibold">
+                Nu Actief Bezig
+              </Badge>
+              <span className="text-xs text-muted-foreground">
+                Gestart om {startTimeFormatted}
+              </span>
+            </div>
+
+            <h3 className="text-xl font-bold text-foreground">
+              {activeName}
+            </h3>
+
+            <p className="text-xs text-muted-foreground">
+              {activeSession.snapshot.exercises.length} oefeningen in programma &bull;{" "}
+              Je sessie staat klaar om direct verder te gaan.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap self-start md:self-auto">
+            <Button
+              variant="primary"
+              size="md"
+              onClick={() => router.push("/training?tab=actief")}
+              className="min-h-[48px] px-6 text-sm font-semibold shadow-md shadow-emerald-500/25"
+            >
+              <Play className="w-4 h-4 mr-2 fill-current" />
+              Training Hervatten
+            </Button>
+          </div>
         </div>
       </Card>
     );

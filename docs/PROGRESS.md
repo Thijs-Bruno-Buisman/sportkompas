@@ -28,8 +28,8 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 | **10** | Krachttraining: Oefeningenbibliotheek | `[ ] OPEN` | Spiergroepen, apparatuur, filters, aangepaste oefeningen toevoegen. |
 | **11 / P07** | **Krachttraining: Schema's & Routines Creator (Mijn Schema's)** | `[x] KLAAR` | Schema's maken, bewerken, dupliceren, archiveren, templates, versiebeheer en validatie. |
 | **12 / P08** | **Actief Programma & Weekplanning (Prompt 08)** | `[x] KLAAR` | Actief schema selecteren, interactieve weekplanning, verschuiven, overslaan, datumverwerking en Home widget. |
-| **13** | Krachttraining: Actieve Workout Tracker Core | `[ ] OPEN` | Grote touchbediening, sets loggen, gewicht/reps invoer, afvinken. |
-| **13** | Krachttraining: Geïntegreerde Rusttimer | `[ ] OPEN` | Grote visuele timer, instelbare rustduur, audio/visuele feedback. |
+| **13 / P09** | **Krachttraining: Training Starten & Hervatten (Prompt 09)** | `[x] KLAAR` | Snapshotting, single-active workout regel, persistente sessiestatus, hervatflow & cancel/discard opties. |
+| **14 / P10** | Krachttraining: Sets Registreren (Prompt 10) | `[ ] OPEN` | Snelle setregistratie, decimalen, vorige set kopiëren, assisted oefeningen. |
 | **14** | Krachttraining: Vorige Prestaties Inline | `[ ] OPEN` | Direct inzicht in eerdere gewichten en reps tijdens de oefening. |
 | **15** | Krachttraining: Trainingshistoriek & Detailweergave | `[ ] OPEN` | Historisch logboek, sessies inzien, bewerken en statusbeheer. |
 | **16** | Krachttraining: 1RM & Volume Domeinberekeningen | `[ ] OPEN` | Epley & Brzycki formules, tonnage berekening met unit tests. |
@@ -428,6 +428,49 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
   - De weekplanner ondersteunt naadloos het wisselen tussen weekstart op Maandag of Zondag; deze instelling wordt persistent onthouden.
   - Geen nepdata of gefingeerde synchronisaties; alle planningen berusten 100% op IndexedDB via Dexie.
 - **Volgende Stap:**
-  - Prompt 09 / Volgende geplande prompt.
+  - Prompt 09: Training starten en hervatten (actieve workout tracker, single-active guard, frozen snapshots).
+
+### Stap 09: Training starten en hervatten (Prompt 09)
+- **Datum:** 2026-10-02
+- **Status:** `[x] KLAAR`
+- **Uitgevoerde Acties:**
+  - **Domein & Datamodel (`src/types/database.ts` & `src/lib/db/schema.ts`):**
+    - `WorkoutExerciseSnapshot` uitgebreid met `targetWeightKg`, `targetRpe`, `targetRir` en `notes`.
+    - `WorkoutSession` verrijkt met persistente sessiestatus: `startedAt` (gestartOp ISO), `currentExerciseIndex` (0-based actieve oefening index), `activeExerciseId` (UUID van de actieve oefening), `scheduledSessionId` (bidirectionele koppeling), `durationMinutes` (automatische duurberekening) en `cancelledAt`.
+    - `WorkoutSetSchema` afgestemd met flexibele rep-bereiken en veilige constraints.
+  - **Workout Repository Functionaliteit (`src/lib/db/repositories/workout.repository.ts`):**
+    - `getActiveWorkoutSession()`: Haalt de huidige actieve sessie op (`status: "actief"`).
+    - `ensureNoActiveWorkoutSession()`: Garandeert de regel dat er **maximaal één actieve krachttraining tegelijk** mag bestaan. Biedt duidelijke foutmelding bij conflict.
+    - `startWorkoutFromScheduledSession()`: Start vanuit geplande sessie, bewaart frozen snapshot, pre-populateert geplande sets (gemarkeerd als `completed: false`) en markeert geplande sessie als `afgerond` met `completedSessionId`.
+    - `startWorkoutFromDay()`: Start actieve training direct vanuit een schemadag.
+    - `startEmptyWorkout()`: Start een ad-hoc vrije sessie zonder vooraf vastgelegd schema.
+    - `updateActiveSessionExercise()`: Slaat actieve oefeningindex persistent op in IndexedDB zodat herladen/navigeren exact op de juiste oefening blijft.
+    - `addExerciseToActiveSession()` & `removeExerciseFromActiveSession()`: Oefeningen dynamisch toevoegen of verwijderen tijdens een lopende training inclusief set-opruiming.
+    - `saveWorkoutSet()` & `deleteWorkoutSet()`: Sets opslaan met werkelijk gewicht, reps, RPE, RIR, tijdstempel en voltooid-status.
+    - `getPreviousPerformanceForExercise()`: Haalt eerdere sets op uit de meest recente afgeronde sessie voor progressieve overload referentie.
+    - `finishActiveSession()`: Rondt training af met duur, sessie-RPE (1-10) en notities.
+    - `cancelOrDiscardActiveSession()`: Ondersteunt 3 expliciete keuzes: `"keep_draft"` (behoud draft), `"mark_cancelled"` (registreer als geannuleerd in historie), of `"discard_delete"` (verwijder sessie en sets volledig en herstel gekoppelde planning naar `"gepland"`).
+  - **Gebruikersinterface & Active Tracker Modules (`src/components/modules/tracker/`):**
+    - `ActiveWorkoutBanner.tsx`: Prominente statusbalk op Home en Training met live pulsindicator, verstreken tijd en directe "Hervatten" knop met >=48px touch targets.
+    - `ActiveWorkoutTracker.tsx`: Volledige actieve trainingsinterface geoptimaliseerd voor smartphones (>=48px touch targets):
+      - Live sessietimer en geïntegreerde rusttimer met countdown.
+      - Horizontale oefen-tabs met voortgangsaanduiding (afgevinkte sets).
+      - Vorige prestaties inline getoond voor progressieve overload.
+      - Sets-tabel met gewicht- en herhalingsinvoer en grote afvinkknoppen.
+      - Oefening toevoegen dialog en oefening verwijderen.
+      - Grote sticky afrondbalk onderaan het scherm.
+    - `StartWorkoutConflictDialog.tsx`: Modal wanneer een gebruiker een training wil starten terwijl er al één actief is (keuze tussen hervatten of weggooien).
+    - `ExitWorkoutDialog.tsx`: Modal met de 3 expliciete opties voor pauzeren, annuleren of weggooien.
+    - `FinishWorkoutDialog.tsx`: Modal voor training voltooien met samenvatting, RPE selector (1-10) en trainingsnotities.
+    - `StartFreeWorkoutDialog.tsx`: Modal om direct een losse training te starten.
+    - `TodayTrainingCard.tsx` & `WeekPlanner.tsx`: Verbonden met actieve sessie detectie en directe hervatfunctionaliteit.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): 0 fouten.
+  - Linting (`npm run lint`): 0 fouten of waarschuwingen.
+  - Vitest testsuite (`npm test`): **101 van de 101 tests geslaagd** over 9 testbestanden:
+    - `tests/activeWorkout.test.ts` (15 gerichte tests voor actieve sessies, persistentie, sets, eerdere prestaties en afbreekopties).
+  - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 8 pagina's correct gegenereerd.
+- **Volgende Stap:**
+  - Prompt 10: Sets registreren (snelle setregistratie, decimalen, vorige set kopiëren, assisted oefeningen).
 
 

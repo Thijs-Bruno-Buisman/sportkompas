@@ -1,126 +1,111 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Dumbbell, Plus, Play, Calendar, Layers, Search, Sparkles, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
+import { Card } from "@/components/ui/Card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Dialog, DialogFooter } from "@/components/ui/Dialog";
-import { FormField } from "@/components/ui/FormField";
-import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
 import { Badge } from "@/components/ui/Badge";
-import { Alert } from "@/components/ui/Alert";
 import { useDatabase } from "@/lib/db";
 import { ExerciseLibrary } from "@/components/modules/exercises/ExerciseLibrary";
 import { RoutineList } from "@/components/modules/routines/RoutineList";
 import { WeekPlanner } from "@/components/modules/planning/WeekPlanner";
+import { ActiveWorkoutTracker } from "@/components/modules/tracker/ActiveWorkoutTracker";
+import { ActiveWorkoutBanner } from "@/components/modules/tracker/ActiveWorkoutBanner";
+import { StartFreeWorkoutDialog } from "@/components/modules/tracker/StartFreeWorkoutDialog";
+import { StartWorkoutConflictDialog } from "@/components/modules/tracker/StartWorkoutConflictDialog";
 import type { WorkoutSession, WorkoutRoutine, RoutineDay, Exercise } from "@/types/database";
 
 export default function TrainingPage() {
-  const { repositories, isDemoMode, dataVersion } = useDatabase();
+  const { repositories, isDemoMode, dataVersion, refreshData } = useDatabase();
 
-  const [activeTab, setActiveTab] = useState("sessies");
+  const [activeTab, setActiveTab] = useState("planning");
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
   const [routines, setRoutines] = useState<WorkoutRoutine[]>([]);
-  const [routineDays, setRoutineDays] = useState<RoutineDay[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [activeSession, setActiveSession] = useState<WorkoutSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Dialog State
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [workoutName, setWorkoutName] = useState("");
-  const [workoutType, setWorkoutType] = useState("hypertrofie");
-  const [errorMessage, setErrorMessage] = useState("");
+  const [isStartFreeOpen, setIsStartFreeOpen] = useState(false);
+  const [isConflictOpen, setIsConflictOpen] = useState(false);
 
-  useEffect(() => {
-    let isCancelled = false;
-    async function loadTrainingData() {
-      setIsLoading(true);
-      try {
-        const [fetchedSessions, fetchedRoutines, fetchedExercises] = await Promise.all([
+  const loadTrainingData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const [fetchedSessions, fetchedRoutines, fetchedExercises, currentActive] =
+        await Promise.all([
           repositories.workout.sessions.getAll(),
           repositories.workout.routines.getAll(),
           repositories.exercises.getAll(),
+          repositories.workout.getActiveWorkoutSession(),
         ]);
 
-        let fetchedDays: RoutineDay[] = [];
-        if (fetchedRoutines.length > 0) {
-          fetchedDays = await repositories.workout.routineDays["table"]
-            .where("routineId")
-            .equals(fetchedRoutines[0].id)
-            .toArray();
-        }
+      setSessions(fetchedSessions.reverse()); // Nieuwste eerst
+      setRoutines(fetchedRoutines);
+      setExercises(fetchedExercises);
+      setActiveSession(currentActive);
 
-        if (!isCancelled) {
-          setSessions(fetchedSessions.reverse()); // Nieuwste eerst
-          setRoutines(fetchedRoutines);
-          setRoutineDays(fetchedDays);
-          setExercises(fetchedExercises);
+      // Als er een actieve sessie is en URL bevat ?tab=actief, schakel direct in
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const tabParam = params.get("tab");
+        if (tabParam === "actief" && currentActive) {
+          setActiveTab("actief");
+        } else if (tabParam && ["planning", "sessies", "schemas", "oefeningen"].includes(tabParam)) {
+          setActiveTab(tabParam);
         }
-      } catch (err) {
-        console.error("Fout bij laden van trainingsdata:", err);
-      } finally {
-        if (!isCancelled) setIsLoading(false);
       }
+    } catch (err) {
+      console.error("Fout bij laden van trainingsdata:", err);
+    } finally {
+      setIsLoading(false);
     }
+  }, [repositories]);
 
-    loadTrainingData();
-    return () => {
-      isCancelled = true;
-    };
-  }, [repositories, isDemoMode, dataVersion]);
-
-  // Synchroniseer optioneel actieve tab uit URL query (bv. ?tab=schemas of ?tab=planning)
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const tabParam = params.get("tab");
-      if (tabParam && ["planning", "sessies", "schemas", "oefeningen"].includes(tabParam)) {
-        setActiveTab(tabParam);
+    loadTrainingData();
+  }, [loadTrainingData, isDemoMode, dataVersion]);
+
+  // Start vrije training afhandeling
+  const handleStartFreeWorkout = async (name: string, notes?: string) => {
+    try {
+      const active = await repositories.workout.getActiveWorkoutSession();
+      if (active) {
+        setIsConflictOpen(true);
+        return;
+      }
+
+      const started = await repositories.workout.startEmptyWorkout({
+        workoutName: name,
+        notes: notes,
+      });
+
+      setActiveSession(started);
+      setActiveTab("actief");
+      refreshData();
+    } catch (err: any) {
+      console.error("Fout bij starten vrije training:", err);
+      if (err.message?.includes("Er is al een actieve training")) {
+        setIsConflictOpen(true);
       }
     }
-  }, []);
+  };
 
-  const handleStartWorkout = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!workoutName.trim()) {
-      setErrorMessage("Vul een naam in voor je workout.");
-      return;
-    }
-
+  const handleDiscardConflictAndStartNew = async () => {
+    if (!activeSession) return;
     try {
-      const now = new Date();
-      const todayStr = now.toISOString().split("T")[0];
-      const newSession: WorkoutSession = {
-        id: crypto.randomUUID(),
-        calendarDate: todayStr,
-        startTime: now.toISOString(),
-        endTime: null,
-        status: "actief",
-        routineId: null,
-        routineDayId: null,
-        routineVersion: null,
-        snapshot: {
-          routineName: workoutName.trim(),
-          routineDayName: workoutType,
-          exercises: [],
-        },
-        overallRpe: null,
-        notes: `Gestart als losse workout (${workoutType})`,
-        provenance: { source: isDemoMode ? "demo" : "user", isDemo: isDemoMode },
-      };
-
-      await repositories.workout.sessions.save(newSession);
-      setSessions((prev) => [newSession, ...prev]);
-
-      setErrorMessage("");
-      setIsDialogOpen(false);
-      setWorkoutName("");
-      alert(`Nieuwe training gestart: ${newSession.snapshot.routineName}`);
-    } catch (err: any) {
-      setErrorMessage(err.message || "Fout bij starten van workout");
+      await repositories.workout.cancelOrDiscardActiveSession(
+        activeSession.id,
+        "discard_delete"
+      );
+      setIsConflictOpen(false);
+      setIsStartFreeOpen(true);
+      refreshData();
+      loadTrainingData();
+    } catch (err) {
+      console.error("Fout bij wissen bestaande sessie:", err);
     }
   };
 
@@ -138,70 +123,168 @@ export default function TrainingPage() {
           </p>
         </div>
 
-        <Button
-          onClick={() => setIsDialogOpen(true)}
-          leftIcon={<Plus className="w-4 h-4" />}
-          className="shadow-sm"
-        >
-          Nieuwe Workout
-        </Button>
+        <div className="flex items-center gap-2">
+          {activeSession ? (
+            <Button
+              variant="primary"
+              onClick={() => setActiveTab("actief")}
+              leftIcon={<Play className="w-4 h-4 fill-current" />}
+              className="min-h-[48px] px-5 font-semibold shadow-md shadow-emerald-500/20"
+            >
+              Hervat Training
+            </Button>
+          ) : (
+            <Button
+              onClick={() => setIsStartFreeOpen(true)}
+              leftIcon={<Plus className="w-4 h-4" />}
+              className="min-h-[48px] px-5 font-semibold shadow-sm"
+            >
+              Vrije Training Starten
+            </Button>
+          )}
+        </div>
       </div>
 
+      {/* Banner wanneer er een actieve training loopt en de gebruiker op een ander tabblad kijkt */}
+      {activeSession && activeTab !== "actief" && (
+        <ActiveWorkoutBanner
+          session={activeSession}
+          onResume={() => setActiveTab("actief")}
+          onRefresh={loadTrainingData}
+        />
+      )}
+
       {/* Tabs Navigatie */}
-      <Tabs defaultValue="planning" value={activeTab} onValueChange={setActiveTab}>
+      <Tabs
+        defaultValue="planning"
+        value={activeTab}
+        onValueChange={setActiveTab}
+      >
         <TabsList className="w-full justify-start overflow-x-auto">
-          <TabsTrigger value="planning">
-            Planning
-          </TabsTrigger>
+          {activeSession && (
+            <TabsTrigger
+              value="actief"
+              className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1.5"
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping inline-block" />
+              Actieve Training
+            </TabsTrigger>
+          )}
+          <TabsTrigger value="planning">Planning</TabsTrigger>
           <TabsTrigger value="sessies">
             Workouts ({sessions.length})
           </TabsTrigger>
           <TabsTrigger value="schemas">
             Schema&apos;s &amp; Routines ({routines.length})
           </TabsTrigger>
-          <TabsTrigger value="oefeningen">
-            Oefeningen
-          </TabsTrigger>
+          <TabsTrigger value="oefeningen">Oefeningen</TabsTrigger>
         </TabsList>
 
-        {/* Tab 0: Planning */}
+        {/* Tab 0: Actieve Training (Live Tracker) */}
+        {activeSession && (
+          <TabsContent value="actief" className="space-y-4 pt-1">
+            <ActiveWorkoutTracker
+              session={activeSession}
+              onExit={() => {
+                setActiveTab("planning");
+                loadTrainingData();
+              }}
+              onFinished={(finishedId) => {
+                setActiveSession(null);
+                setActiveTab("sessies");
+                loadTrainingData();
+                refreshData();
+              }}
+            />
+          </TabsContent>
+        )}
+
+        {/* Tab 1: Planning */}
         <TabsContent value="planning" className="space-y-4">
-          <WeekPlanner />
+          <WeekPlanner
+            onWorkoutStarted={(started) => {
+              setActiveSession(started);
+              setActiveTab("actief");
+              refreshData();
+            }}
+          />
         </TabsContent>
 
-        {/* Tab 1: Sessies */}
+        {/* Tab 2: Sessies Historiek */}
         <TabsContent value="sessies" className="space-y-4">
           {sessions.length > 0 ? (
             <div className="space-y-3">
-              {sessions.map((session) => (
+              {sessions.map((sessionItem) => (
                 <Card
-                  key={session.id}
-                  className="p-4 sm:p-5 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+                  key={sessionItem.id}
+                  className={`p-4 sm:p-5 transition-colors ${
+                    sessionItem.status === "actief"
+                      ? "border-emerald-500/50 bg-emerald-50/10 dark:bg-emerald-950/20"
+                      : "hover:border-slate-300 dark:hover:border-slate-700"
+                  }`}
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-base text-slate-900 dark:text-white">
-                          {session.snapshot.routineDayName || session.snapshot.routineName || "Workout Sessie"}
+                          {sessionItem.snapshot.routineDayName ||
+                            sessionItem.snapshot.routineName ||
+                            "Workout Sessie"}
                         </span>
-                        <Badge variant={session.status === "afgerond" ? "success" : "default"}>
-                          {session.status === "afgerond" ? "Voltooid" : session.status}
+                        <Badge
+                          variant={
+                            sessionItem.status === "afgerond"
+                              ? "success"
+                              : sessionItem.status === "actief"
+                              ? "default"
+                              : "outline"
+                          }
+                          className={
+                            sessionItem.status === "actief"
+                              ? "bg-emerald-500 text-white font-semibold"
+                              : ""
+                          }
+                        >
+                          {sessionItem.status === "afgerond"
+                            ? "Voltooid"
+                            : sessionItem.status === "actief"
+                            ? "Nu Actief"
+                            : "Geannuleerd"}
                         </Badge>
                       </div>
                       <p className="text-xs text-slate-500 dark:text-slate-400">
-                        {session.calendarDate} &bull; {session.snapshot.exercises.length} geplande oefeningen
-                        {session.overallRpe ? ` &bull; RPE ${session.overallRpe}` : ""}
+                        {sessionItem.calendarDate} &bull;{" "}
+                        {sessionItem.snapshot.exercises.length} oefeningen
+                        {sessionItem.overallRpe
+                          ? ` &bull; RPE ${sessionItem.overallRpe}`
+                          : ""}
                       </p>
-                      {session.notes && (
+                      {sessionItem.notes && (
                         <p className="text-xs text-slate-600 dark:text-slate-300 italic pt-0.5">
-                          &ldquo;{session.notes}&rdquo;
+                          &ldquo;{sessionItem.notes}&rdquo;
                         </p>
                       )}
                     </div>
 
                     <div className="flex items-center gap-2 self-start sm:self-center">
+                      {sessionItem.status === "actief" && (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => {
+                            setActiveSession(sessionItem);
+                            setActiveTab("actief");
+                          }}
+                          leftIcon={<Play className="w-3.5 h-3.5 fill-current" />}
+                          className="min-h-[44px] px-4 font-semibold"
+                        >
+                          Hervatten
+                        </Button>
+                      )}
                       <Badge variant="outline" className="text-xs">
-                        {session.provenance.source === "demo" ? "Demodata" : "Echt"}
+                        {sessionItem.provenance.source === "demo"
+                          ? "Demodata"
+                          : "Echt"}
                       </Badge>
                     </div>
                   </div>
@@ -212,9 +295,9 @@ export default function TrainingPage() {
             <EmptyState
               icon={<Play className="w-6 h-6 fill-current ml-0.5" />}
               title="Geen workouts gevonden"
-              description="Je hebt nog geen voltooide of actieve trainingssessies gelogd. Start direct een training of kies een routine."
-              actionLabel="Start Lege Workout"
-              onAction={() => setIsDialogOpen(true)}
+              description="Je hebt nog geen voltooide of actieve trainingssessies gelogd. Start direct een vrije training of plan een schema."
+              actionLabel="Vrije Training Starten"
+              onAction={() => setIsStartFreeOpen(true)}
               secondaryAction={
                 <Button variant="outline" onClick={() => setActiveTab("schemas")}>
                   Maak je eerste schema
@@ -224,83 +307,35 @@ export default function TrainingPage() {
           )}
         </TabsContent>
 
-        {/* Tab 2: Schema's & Routines */}
+        {/* Tab 3: Schema's & Routines */}
         <TabsContent value="schemas" className="space-y-4">
           <RoutineList />
         </TabsContent>
 
-        {/* Tab 3: Oefeningenbibliotheek */}
+        {/* Tab 4: Oefeningenbibliotheek */}
         <TabsContent value="oefeningen" className="space-y-4">
           <ExerciseLibrary />
         </TabsContent>
       </Tabs>
 
-      {/* Dialoog voor starten van workout */}
-      <Dialog
-        isOpen={isDialogOpen}
-        onClose={() => {
-          setIsDialogOpen(false);
-          setErrorMessage("");
+      {/* Start Vrije Training Dialog */}
+      <StartFreeWorkoutDialog
+        isOpen={isStartFreeOpen}
+        onClose={() => setIsStartFreeOpen(false)}
+        onStart={handleStartFreeWorkout}
+      />
+
+      {/* Conflictdialoog bij al actieve sessie */}
+      <StartWorkoutConflictDialog
+        isOpen={isConflictOpen}
+        onClose={() => setIsConflictOpen(false)}
+        activeSession={activeSession}
+        onResume={() => {
+          setIsConflictOpen(false);
+          setActiveTab("actief");
         }}
-        title="Nieuwe Workout Starten"
-        description="Configureer de basissessie om direct je oefeningen en sets te loggen."
-      >
-        <form onSubmit={handleStartWorkout} className="space-y-4">
-          {errorMessage && (
-            <Alert variant="error" onDismiss={() => setErrorMessage("")}>
-              {errorMessage}
-            </Alert>
-          )}
-
-          <FormField
-            id="workout-name"
-            label="Naam van de Workout"
-            required
-            helperText="Bijv. Borst & Triceps, Leg Day of Full Body"
-          >
-            <Input
-              id="workout-name"
-              placeholder="Bijv. Borst & Triceps"
-              value={workoutName}
-              onChange={(e) => setWorkoutName(e.target.value)}
-              hasError={Boolean(errorMessage)}
-              autoFocus
-            />
-          </FormField>
-
-          <FormField
-            id="workout-focus"
-            label="Doel / Focus van de training"
-          >
-            <Select
-              id="workout-focus"
-              value={workoutType}
-              onChange={(e) => setWorkoutType(e.target.value)}
-            >
-              <option value="Hypertrofie (Spiermassa)">Hypertrofie (Spiermassa)</option>
-              <option value="Kracht (Hoge intensiteit, lage reps)">Kracht (Hoge intensiteit, lage reps)</option>
-              <option value="Krachtuithoudingsvermogen">Krachtuithoudingsvermogen</option>
-              <option value="Licht herstel & techniek">Licht herstel &amp; techniek</option>
-            </Select>
-          </FormField>
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setIsDialogOpen(false);
-                setErrorMessage("");
-              }}
-            >
-              Annuleren
-            </Button>
-            <Button type="submit">
-              Start Training
-            </Button>
-          </DialogFooter>
-        </form>
-      </Dialog>
+        onDiscardAndStartNew={handleDiscardConflictAndStartNew}
+      />
     </div>
   );
 }

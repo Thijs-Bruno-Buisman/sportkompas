@@ -189,18 +189,28 @@ export const WorkoutExerciseSnapshotSchema = z.object({
   targetRepsMin: z.number().int().optional(),
   targetRepsMax: z.number().int().optional(),
   targetDurationSeconds: z.number().int().optional(),
+  targetWeightKg: z.number().min(0).max(1000).nullable().optional(),
+  targetRpe: z.number().min(1).max(10).nullable().optional(),
+  targetRir: z.number().int().min(0).max(10).nullable().optional(),
   restSeconds: z.number().int(),
+  notes: z.string().optional(),
 });
 
 export const WorkoutSessionSchema = z.object({
   id: z.string().uuid(),
   calendarDate: z.string().regex(calendarDateRegex),
   startTime: z.string().regex(isoDateRegex),
+  startedAt: z.string().regex(isoDateRegex).optional(),
   endTime: z.string().regex(isoDateRegex).nullable(),
+  cancelledAt: z.string().regex(isoDateRegex).nullable().optional(),
   status: z.enum(["actief", "afgerond", "geannuleerd"]),
+  currentExerciseIndex: z.number().int().min(0).default(0).optional(),
+  activeExerciseId: z.string().uuid().nullable().optional(),
   routineId: z.string().uuid().nullable(),
   routineDayId: z.string().uuid().nullable(),
   routineVersion: z.number().int().nullable(),
+  scheduledSessionId: z.string().uuid().nullable().optional(),
+  durationMinutes: z.number().int().min(0).nullable().optional(),
   snapshot: z.object({
     routineName: z.string().optional(),
     routineDayName: z.string().optional(),
@@ -209,6 +219,7 @@ export const WorkoutSessionSchema = z.object({
   overallRpe: z.number().min(1).max(10).nullable(),
   notes: z.string(),
   provenance: ProvenanceSchema,
+  updatedAt: z.string().regex(isoDateRegex).optional(),
 });
 
 export const WorkoutSetSchema = z.object({
@@ -218,7 +229,7 @@ export const WorkoutSetSchema = z.object({
   setNumber: z.number().int().min(1),
   setType: z.enum(["warmup", "normal", "drop", "failure"]),
   weightKg: z.number().min(0).max(1000),
-  reps: z.number().int().min(1).max(500),
+  reps: z.number().int().min(0).max(500),
   targetRpe: z.number().min(1).max(10).nullable(),
   actualRpe: z.number().min(1).max(10).nullable(),
   restTimeSeconds: z.number().int().min(0).max(1200),

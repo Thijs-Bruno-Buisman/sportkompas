@@ -6,6 +6,7 @@ import type {
   WorkoutSession,
   WorkoutSet,
   WorkoutRoutineSnapshot,
+  WorkoutExerciseSnapshot,
   PlannedExerciseInDay,
 } from "@/types/database";
 import {
@@ -18,6 +19,7 @@ import {
 import { type Table } from "dexie";
 import { validateRoutineData } from "@/domain/strength/routineValidation";
 import { ValidationError } from "../errors";
+import { getLocalDateString } from "@/domain/dates/calendar";
 
 export class WorkoutRepository {
   public readonly routines: BaseRepository<WorkoutRoutine>;
@@ -29,6 +31,8 @@ export class WorkoutRepository {
   private readonly routinesTable: Table<WorkoutRoutine, string>;
   private readonly routineDaysTable: Table<RoutineDay, string>;
   private readonly scheduledSessionsTable: Table<ScheduledSession, string>;
+  private readonly sessionsTable: Table<WorkoutSession, string>;
+  private readonly setsTable: Table<WorkoutSet, string>;
 
   constructor(
     routinesTable: Table<WorkoutRoutine, string>,
@@ -40,6 +44,8 @@ export class WorkoutRepository {
     this.routinesTable = routinesTable;
     this.routineDaysTable = routineDaysTable;
     this.scheduledSessionsTable = scheduledSessionsTable;
+    this.sessionsTable = sessionsTable;
+    this.setsTable = setsTable;
 
     this.routines = new (class extends BaseRepository<WorkoutRoutine> {})(
       routinesTable,
@@ -524,13 +530,60 @@ export class WorkoutRepository {
   }
 
   /**
+   * Haalt een geplande sessie op op basis van id.
+   */
+  async getScheduledSessionById(
+    sessionId: string
+  ): Promise<ScheduledSession | null> {
+    return await this.scheduledSessions.getById(sessionId);
+  }
+
+  // =========================================================================
+  // ACTIEVE WORKOUT SESSIES & STATE (PROMPT 09)
+  // =========================================================================
+
+  /**
+   * Haalt de momenteel actieve krachttraining op, of null indien er geen training loopt.
+   * Garandeert dat er conform afspraak maximaal één actieve training tegelijk is.
+   */
+  async getActiveWorkoutSession(): Promise<WorkoutSession | null> {
+    const list = await this.sessionsTable
+      .where("status")
+      .equals("actief")
+      .toArray();
+
+    return list.length > 0 ? list[0] : null;
+  }
+
+  /**
+   * Bewaakt dat er slechts één actieve training tegelijkertijd kan bestaan.
+   */
+  async ensureNoActiveWorkoutSession(allowSessionId?: string): Promise<void> {
+    const active = await this.getActiveWorkoutSession();
+    if (active && active.id !== allowSessionId) {
+      const sessionName =
+        active.snapshot.routineDayName ||
+        active.snapshot.routineName ||
+        "Actieve training";
+      throw new Error(
+        `Er is al een actieve training bezig: "${sessionName}". Rond deze eerst af of annuleer deze voordat je een nieuwe training start.`
+      );
+    }
+  }
+
+  /**
    * Start een workout vanuit een geplande sessie.
    * Maakt een onveranderlijke snapshot van de schemadag op dit exacte moment.
    * Markeert de geplande sessie als 'afgerond' en koppelt het completedSessionId.
    */
   async startWorkoutFromScheduledSession(
-    scheduledSessionId: string
+    scheduledSessionId: string,
+    options?: { force?: boolean }
   ): Promise<WorkoutSession> {
+    if (!options?.force) {
+      await this.ensureNoActiveWorkoutSession();
+    }
+
     const scheduled = await this.scheduledSessions.getById(scheduledSessionId);
     if (!scheduled) {
       throw new Error(`Geplande sessie ${scheduledSessionId} niet gevonden.`);
@@ -553,7 +606,11 @@ export class WorkoutRepository {
           targetRepsMin: e.targetRepsMin,
           targetRepsMax: e.targetRepsMax,
           targetDurationSeconds: e.targetDurationSeconds,
+          targetWeightKg: e.targetWeightKg ?? null,
+          targetRpe: e.targetRpe ?? null,
+          targetRir: e.targetRir ?? null,
           restSeconds: e.restSeconds,
+          notes: e.notes || "",
         })) ?? [],
     };
 
@@ -561,18 +618,45 @@ export class WorkoutRepository {
       id: crypto.randomUUID(),
       calendarDate: scheduled.calendarDate,
       startTime: now,
+      startedAt: now,
       endTime: null,
       status: "actief",
+      currentExerciseIndex: 0,
+      activeExerciseId: snapshot.exercises[0]?.exerciseId || null,
       routineId: routine ? routine.id : null,
       routineDayId: routineDay ? routineDay.id : null,
       routineVersion: routine ? routine.version : null,
+      scheduledSessionId: scheduled.id,
       snapshot,
       overallRpe: null,
       notes: scheduled.notes || "",
       provenance: { source: "user" },
+      updatedAt: now,
     };
 
     const savedWorkout = await this.sessions.save(newSession);
+
+    // Initialiseer voorgeplande sets voor elke oefening in de snapshot
+    for (const ex of snapshot.exercises) {
+      const numSets = ex.targetSets || 3;
+      for (let s = 1; s <= numSets; s++) {
+        const newSet: WorkoutSet = {
+          id: crypto.randomUUID(),
+          sessionId: savedWorkout.id,
+          exerciseId: ex.exerciseId,
+          setNumber: s,
+          setType: "normal",
+          weightKg: ex.targetWeightKg ?? 0,
+          reps: ex.targetRepsMin ?? 8,
+          targetRpe: ex.targetRpe ?? null,
+          actualRpe: null,
+          restTimeSeconds: ex.restSeconds || 90,
+          completed: false,
+          loggedAt: now,
+        };
+        await this.sets.save(newSet);
+      }
+    }
 
     // Koppel de gestarte workout aan de geplande sessie en zet status op 'afgerond'
     const updatedScheduled: ScheduledSession = {
@@ -592,19 +676,82 @@ export class WorkoutRepository {
   async startWorkoutFromDay(
     routineId: string,
     routineDayId: string,
-    calendarDate: string
+    calendarDate: string,
+    options?: { force?: boolean }
   ): Promise<WorkoutSession> {
+    if (!options?.force) {
+      await this.ensureNoActiveWorkoutSession();
+    }
+
     const routine = await this.routines.getById(routineId);
     const routineDay = await this.routineDays.getById(routineDayId);
 
-    const workout = await this.startSessionWithSnapshot({
+    const now = new Date().toISOString();
+
+    const snapshot: WorkoutRoutineSnapshot = {
+      routineName: routine?.name || "Trainingssessie",
+      routineDayName: routineDay?.name || "Workout Dag",
+      exercises:
+        routineDay?.plannedExercises.map((e) => ({
+          exerciseId: e.exerciseId,
+          exerciseName: e.exerciseName,
+          primaryMuscleGroup: "onbekend",
+          targetSets: e.targetSets,
+          targetRepsMin: e.targetRepsMin,
+          targetRepsMax: e.targetRepsMax,
+          targetDurationSeconds: e.targetDurationSeconds,
+          targetWeightKg: e.targetWeightKg ?? null,
+          targetRpe: e.targetRpe ?? null,
+          targetRir: e.targetRir ?? null,
+          restSeconds: e.restSeconds,
+          notes: e.notes || "",
+        })) ?? [],
+    };
+
+    const newSession: WorkoutSession = {
+      id: crypto.randomUUID(),
       calendarDate,
-      routine,
-      routineDay,
-    });
+      startTime: now,
+      startedAt: now,
+      endTime: null,
+      status: "actief",
+      currentExerciseIndex: 0,
+      activeExerciseId: snapshot.exercises[0]?.exerciseId || null,
+      routineId: routine ? routine.id : null,
+      routineDayId: routineDay ? routineDay.id : null,
+      routineVersion: routine ? routine.version : null,
+      snapshot,
+      overallRpe: null,
+      notes: "",
+      provenance: { source: "user" },
+      updatedAt: now,
+    };
+
+    const savedWorkout = await this.sessions.save(newSession);
+
+    // Initialiseer sets
+    for (const ex of snapshot.exercises) {
+      const numSets = ex.targetSets || 3;
+      for (let s = 1; s <= numSets; s++) {
+        const newSet: WorkoutSet = {
+          id: crypto.randomUUID(),
+          sessionId: savedWorkout.id,
+          exerciseId: ex.exerciseId,
+          setNumber: s,
+          setType: "normal",
+          weightKg: ex.targetWeightKg ?? 0,
+          reps: ex.targetRepsMin ?? 8,
+          targetRpe: ex.targetRpe ?? null,
+          actualRpe: null,
+          restTimeSeconds: ex.restSeconds || 90,
+          completed: false,
+          loggedAt: now,
+        };
+        await this.sets.save(newSet);
+      }
+    }
 
     // Registreer ook een voltooide ScheduledSession zodat weekplanning en agenda de sessie tonen
-    const now = new Date().toISOString();
     const scheduledToSave: ScheduledSession = {
       id: crypto.randomUUID(),
       calendarDate,
@@ -612,14 +759,358 @@ export class WorkoutRepository {
       routineDayId,
       routineVersion: routine?.version ?? 1,
       status: "afgerond",
-      completedSessionId: workout.id,
+      completedSessionId: savedWorkout.id,
       notes: "",
       createdAt: now,
       updatedAt: now,
     };
     await this.scheduledSessions.save(scheduledToSave);
 
-    return workout;
+    return savedWorkout;
+  }
+
+  /**
+   * Start een lege losse / vrije training (zonder vooraf gedefinieerd schema).
+   * Oefeningen kunnen direct tijdens de sessie worden toegevoegd.
+   */
+  async startEmptyWorkout(options?: {
+    calendarDate?: string;
+    workoutName?: string;
+    notes?: string;
+    force?: boolean;
+  }): Promise<WorkoutSession> {
+    if (!options?.force) {
+      await this.ensureNoActiveWorkoutSession();
+    }
+
+    const now = new Date().toISOString();
+    const calendarDate = options?.calendarDate || getLocalDateString();
+
+    const snapshot: WorkoutRoutineSnapshot = {
+      routineName: options?.workoutName || "Vrije Krachttraining",
+      routineDayName: "Losse Training",
+      exercises: [],
+    };
+
+    const newSession: WorkoutSession = {
+      id: crypto.randomUUID(),
+      calendarDate,
+      startTime: now,
+      startedAt: now,
+      endTime: null,
+      status: "actief",
+      currentExerciseIndex: 0,
+      activeExerciseId: null,
+      routineId: null,
+      routineDayId: null,
+      routineVersion: null,
+      snapshot,
+      overallRpe: null,
+      notes: options?.notes || "",
+      provenance: { source: "user" },
+      updatedAt: now,
+    };
+
+    return await this.sessions.save(newSession);
+  }
+
+  /**
+   * Wijzigt de actieve oefening binnen een lopende sessie.
+   * Persistent opgeslagen zodat browser-reload de gebruiker exact op deze oefening houdt.
+   */
+  async updateActiveSessionExercise(
+    sessionId: string,
+    exerciseIndex: number
+  ): Promise<WorkoutSession> {
+    const session = await this.sessions.getById(sessionId);
+    if (!session) {
+      throw new Error(`Sessie met ID ${sessionId} niet gevonden.`);
+    }
+
+    const activeExercise = session.snapshot.exercises[exerciseIndex];
+    const updated: WorkoutSession = {
+      ...session,
+      currentExerciseIndex: exerciseIndex,
+      activeExerciseId: activeExercise?.exerciseId || null,
+      updatedAt: new Date().toISOString(),
+    };
+
+    return await this.sessions.save(updated);
+  }
+
+  /**
+   * Voegt tijdens een lopende training (los of uit schema) een oefening toe aan de sessie snapshot.
+   */
+  async addExerciseToActiveSession(
+    sessionId: string,
+    exerciseData: WorkoutExerciseSnapshot
+  ): Promise<WorkoutSession> {
+    const session = await this.sessions.getById(sessionId);
+    if (!session) {
+      throw new Error(`Sessie met ID ${sessionId} niet gevonden.`);
+    }
+
+    const isFirstExercise = session.snapshot.exercises.length === 0;
+    const updatedExercises = [...session.snapshot.exercises, exerciseData];
+
+    const updatedSession: WorkoutSession = {
+      ...session,
+      snapshot: {
+        ...session.snapshot,
+        exercises: updatedExercises,
+      },
+      currentExerciseIndex: isFirstExercise
+        ? 0
+        : session.currentExerciseIndex ?? 0,
+      activeExerciseId: isFirstExercise
+        ? exerciseData.exerciseId
+        : session.activeExerciseId,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const saved = await this.sessions.save(updatedSession);
+
+    // Initialiseer sets voor de toegevoegde oefening
+    const numSets = exerciseData.targetSets || 3;
+    const now = new Date().toISOString();
+    for (let s = 1; s <= numSets; s++) {
+      const newSet: WorkoutSet = {
+        id: crypto.randomUUID(),
+        sessionId: session.id,
+        exerciseId: exerciseData.exerciseId,
+        setNumber: s,
+        setType: "normal",
+        weightKg: exerciseData.targetWeightKg ?? 0,
+        reps: exerciseData.targetRepsMin ?? 8,
+        targetRpe: exerciseData.targetRpe ?? null,
+        actualRpe: null,
+        restTimeSeconds: exerciseData.restSeconds || 90,
+        completed: false,
+        loggedAt: now,
+      };
+      await this.sets.save(newSet);
+    }
+
+    return saved;
+  }
+
+  /**
+   * Verwijdert een oefening en bijbehorende sets uit een actieve sessie snapshot.
+   */
+  async removeExerciseFromActiveSession(
+    sessionId: string,
+    exerciseIndex: number
+  ): Promise<WorkoutSession> {
+    const session = await this.sessions.getById(sessionId);
+    if (!session) {
+      throw new Error(`Sessie met ID ${sessionId} niet gevonden.`);
+    }
+
+    const removedExercise = session.snapshot.exercises[exerciseIndex];
+    if (!removedExercise) return session;
+
+    // Verwijder sets van deze specifieke oefening
+    const existingSets = await this.setsTable
+      .where("sessionId")
+      .equals(sessionId)
+      .filter((s) => s.exerciseId === removedExercise.exerciseId)
+      .toArray();
+
+    if (existingSets.length > 0) {
+      await this.setsTable.bulkDelete(existingSets.map((s) => s.id));
+    }
+
+    const updatedExercises = session.snapshot.exercises.filter(
+      (_, idx) => idx !== exerciseIndex
+    );
+
+    let nextIndex = session.currentExerciseIndex ?? 0;
+    if (nextIndex >= updatedExercises.length) {
+      nextIndex = Math.max(0, updatedExercises.length - 1);
+    }
+
+    const updatedSession: WorkoutSession = {
+      ...session,
+      snapshot: {
+        ...session.snapshot,
+        exercises: updatedExercises,
+      },
+      currentExerciseIndex: nextIndex,
+      activeExerciseId: updatedExercises[nextIndex]?.exerciseId || null,
+      updatedAt: new Date().toISOString(),
+    };
+
+    return await this.sessions.save(updatedSession);
+  }
+
+  /**
+   * Haalt alle sets op voor een specifieke oefening binnen een sessie.
+   */
+  async getSetsForSessionAndExercise(
+    sessionId: string,
+    exerciseId: string
+  ): Promise<WorkoutSet[]> {
+    return await this.setsTable
+      .where("sessionId")
+      .equals(sessionId)
+      .filter((s) => s.exerciseId === exerciseId)
+      .sortBy("setNumber");
+  }
+
+  /**
+   * Slaat een set op of werkt deze bij in IndexedDB.
+   */
+  async saveWorkoutSet(set: WorkoutSet): Promise<WorkoutSet> {
+    return await this.sets.save(set);
+  }
+
+  /**
+   * Verwijdert een set uit de database.
+   */
+  async deleteWorkoutSet(setId: string): Promise<void> {
+    await this.setsTable.delete(setId);
+  }
+
+  /**
+   * Haalt de prestaties van de vorige voltooide sessie op voor een specifieke oefening.
+   * Zoekt naar de meest recente afgeronde sessie waarin deze oefening voorkwam,
+   * en geeft de voltooide sets terug voor progressieve overload referentie.
+   */
+  async getPreviousPerformanceForExercise(
+    exerciseId: string,
+    excludeSessionId?: string
+  ): Promise<{
+    sessionDate: string;
+    calendarDate?: string;
+    routineName?: string;
+    workoutName?: string;
+    sets: WorkoutSet[];
+  } | null> {
+    const completedSessions = await this.sessionsTable
+      .where("status")
+      .equals("afgerond")
+      .toArray();
+
+    // Sorteer nieuwste eerst op endTime of startTime
+    completedSessions.sort((a, b) => {
+      const timeA = new Date(a.endTime || a.startTime).getTime();
+      const timeB = new Date(b.endTime || b.startTime).getTime();
+      return timeB - timeA;
+    });
+
+    for (const session of completedSessions) {
+      if (excludeSessionId && session.id === excludeSessionId) continue;
+
+      const hasExercise = session.snapshot.exercises.some(
+        (e) => e.exerciseId === exerciseId
+      );
+
+      if (hasExercise) {
+        const sets = await this.setsTable
+          .where("sessionId")
+          .equals(session.id)
+          .filter((s) => s.exerciseId === exerciseId && s.completed)
+          .sortBy("setNumber");
+
+        if (sets.length > 0) {
+          const workoutName =
+            session.snapshot.routineName && session.snapshot.routineDayName
+              ? `${session.snapshot.routineName} - ${session.snapshot.routineDayName}`
+              : session.snapshot.routineDayName ||
+                session.snapshot.routineName ||
+                "Vorige Training";
+
+          return {
+            sessionDate: session.calendarDate,
+            calendarDate: session.calendarDate,
+            routineName:
+              session.snapshot.routineDayName ||
+              session.snapshot.routineName ||
+              "Vorige Training",
+            workoutName,
+            sets,
+          };
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Sluit of annuleert een actieve sessie met een expliciete gebruikerskeuze:
+   * - "keep_draft": Laat de sessie actief in IndexedDB staan (kan later worden hervat).
+   * - "mark_cancelled": Markeert de sessie als 'geannuleerd' met eindtijd.
+   * - "discard_delete": Verwijdert de sessie en bijbehorende sets volledig uit IndexedDB.
+   *   Indien de sessie afkomstig was van een geplande sessie, herstelt deze naar 'gepland'.
+   */
+  async cancelOrDiscardActiveSession(
+    sessionId: string,
+    action: "keep_draft" | "mark_cancelled" | "discard_delete"
+  ): Promise<{ success: boolean; session?: WorkoutSession | null }> {
+    const session = await this.sessions.getById(sessionId);
+    if (!session) {
+      return { success: false, session: null };
+    }
+
+    if (action === "keep_draft") {
+      return { success: true, session };
+    }
+
+    if (action === "mark_cancelled") {
+      const now = new Date().toISOString();
+      const updated: WorkoutSession = {
+        ...session,
+        status: "geannuleerd",
+        endTime: now,
+        cancelledAt: now,
+        updatedAt: now,
+      };
+      const saved = await this.sessions.save(updated);
+      return { success: true, session: saved };
+    }
+
+    if (action === "discard_delete") {
+      // 1. Verwijder alle sets van deze sessie
+      const sets = await this.setsTable
+        .where("sessionId")
+        .equals(sessionId)
+        .toArray();
+      if (sets.length > 0) {
+        await this.setsTable.bulkDelete(sets.map((s) => s.id));
+      }
+
+      // 2. Herstel eventuele gekoppelde geplande sessie terug naar 'gepland'
+      if (session.scheduledSessionId) {
+        const ss = await this.scheduledSessions.getById(session.scheduledSessionId);
+        if (ss) {
+          await this.scheduledSessions.save({
+            ...ss,
+            status: "gepland",
+            completedSessionId: null,
+            updatedAt: new Date().toISOString(),
+          });
+        }
+      } else {
+        const linked = await this.scheduledSessionsTable
+          .filter((s) => s.completedSessionId === sessionId)
+          .toArray();
+        for (const ss of linked) {
+          await this.scheduledSessions.save({
+            ...ss,
+            status: "gepland",
+            completedSessionId: null,
+            updatedAt: new Date().toISOString(),
+          });
+        }
+      }
+
+      // 3. Verwijder de workoutsessie zelf
+      await this.sessionsTable.delete(sessionId);
+      return { success: true, session: null };
+    }
+
+    return { success: false, session };
   }
 
   // =========================================================================
@@ -662,8 +1153,11 @@ export class WorkoutRepository {
       id: crypto.randomUUID(),
       calendarDate,
       startTime: now,
+      startedAt: now,
       endTime: null,
       status: "actief",
+      currentExerciseIndex: 0,
+      activeExerciseId: snapshot.exercises[0]?.exerciseId || null,
       routineId: routine ? routine.id : null,
       routineDayId: routineDay ? routineDay.id : null,
       routineVersion: routine ? routine.version : null,
@@ -671,6 +1165,7 @@ export class WorkoutRepository {
       overallRpe: null,
       notes,
       provenance: { source: "user" },
+      updatedAt: now,
     };
 
     return await this.sessions.save(newSession);
@@ -687,22 +1182,50 @@ export class WorkoutRepository {
     const session = await this.sessions.getById(sessionId);
     if (!session) return null;
 
+    const now = new Date().toISOString();
+    const startTimeMs = new Date(session.startTime).getTime();
+    const endTimeMs = new Date(now).getTime();
+    const durationMinutes = Math.max(0, Math.round((endTimeMs - startTimeMs) / 60000));
+
     const updated: WorkoutSession = {
       ...session,
-      endTime: new Date().toISOString(),
+      endTime: now,
       status: "afgerond",
+      durationMinutes,
       overallRpe: overallRpe ?? session.overallRpe,
       notes: notes !== undefined ? notes : session.notes,
+      updatedAt: now,
     };
 
     return await this.sessions.save(updated);
   }
 
   /**
+   * Rond een actieve trainingssessie af (alias voor finishSession met opties-object).
+   */
+  async finishActiveSession(
+    sessionId: string,
+    options?: { sessionRpe?: number; notes?: string }
+  ): Promise<WorkoutSession | null> {
+    return await this.finishSession(
+      sessionId,
+      options?.sessionRpe,
+      options?.notes
+    );
+  }
+
+  /**
+   * Haalt een specifieke workoutsessie op op basis van sessie ID.
+   */
+  async getSessionById(sessionId: string): Promise<WorkoutSession | null> {
+    return await this.sessions.getById(sessionId);
+  }
+
+  /**
    * Haal alle sets op voor een specifieke sessie.
    */
   async getSetsForSession(sessionId: string): Promise<WorkoutSet[]> {
-    return await this.sets["table"]
+    return await this.setsTable
       .where("sessionId")
       .equals(sessionId)
       .sortBy("setNumber");
@@ -712,7 +1235,7 @@ export class WorkoutRepository {
    * Haal alle workoutsessies op voor een bepaalde kalenderdatum (YYYY-MM-DD).
    */
   async getSessionsByDate(calendarDate: string): Promise<WorkoutSession[]> {
-    return await this.sessions["table"]
+    return await this.sessionsTable
       .where("calendarDate")
       .equals(calendarDate)
       .toArray();
