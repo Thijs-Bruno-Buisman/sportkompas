@@ -37,8 +37,7 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 | **P15** | **Progressieve Overload & Dubbele Progressie (Prompt 15)** | `[x] KLAAR` | Uitlegbare dubbele progressie (reps uitbouwen naar max, daarna instelbare gewichtsstap en reset naar min), apparatuurspecifieke stappen (barbell 2.5kg, dumbbell 2kg, machine/kabel 2.5kg, kettlebell 4kg), omgekeerde progressie bij assisted machines, doel-RPE/RIR overloadbescherming (consolideren bij te hoge inspanning), disclaimer en 1-klik toepassing in actieve training. |
 | **18 / P16** | **Spiergroepen, Weekvolume & Consistentie (Prompt 16)** | `[x] KLAAR` | Weekoverzicht werksets per spiergroep (gescheiden primaire 1.0x en secundaire 0.5x telling), interactieve anatomische SVG lichaamsvisualisatie (voor- en achterzijde), instelbaar weekdoel, respectvolle rustdagen (herstel, nooit falen), streaks en maand-/jaargrensbewaking. |
 | **19-20 / P17** | **Cardio: Activiteitstypen, Datamodel & Handmatige Logger (Prompt 17)** | `[x] KLAAR` | Ondersteuning voor 7 sporten (hardlopen, fietsen, roeien, wandelen, zwemmen, crosstrainer, overig), canonieke eenheden (m, s), sportspecifieke splits (500m split, 100m zwemtempo, min/km, km/u), MET-calorieën o.b.v. snelheid en gewicht, Gellish HR-zones (Z1-Z5), live berekeningspreview in modal, filterbalk, bewerk/verwijder flows en statistiekentab. |
-| **21** | Cardio: Live Tracker & Stopwatch | `[ ] OPEN` | Live timer met pauze/hervat en tussentijdse statistieken. |
-| **22** | Cardio: Domeinberekeningen & Formules | `[ ] OPEN` | Pace (min/km), snelheid (km/u), MET-calorieën en hartslagzones met tests. |
+| **21-22 / P18** | **Cardio: Live Tracker, Stopwatch & Berekeningen (Prompt 18)** | `[x] KLAAR` | Timestamp-gebaseerde live stopwatch zonder tab-drift, achtergrondresistentie via localStorage, live pauzeer/hervat, ronde/split tracking met tussentijden, live tempo- en calorie-indicatoren, actieve cardio banner, finish- & discard dialogen, sportspecifieke afstands-incrementen en 9 tests. |
 | **23** | Cardio: Historiek & Periode-statistieken | `[ ] OPEN` | Wekelijkse en maandelijkse totalen per activiteitstype. |
 | **24** | Cardio: Grafieken & Pace-analyse | `[ ] OPEN` | Tempo- en hartslagverloop over tijd in Recharts. |
 | **25** | Voeding: Voedingsmiddelen & Recepten Database | `[ ] OPEN` | Lokale database met kcal, eiwit, koolhydraat, vet, vezels per 100g. |
@@ -874,3 +873,51 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
   - Geannuleerde sessies worden conform AGENTS.md bewaard maar automatisch uitgesloten van de prestatie- en kilometerstatistieken.
 - **Volgende Stap:**
   - Prompt 18 / Stap 21: Cardio: Live Tracker & Stopwatch (live timer met pauze/hervat, tussentijdse splits en live statistieken).
+
+---
+
+### Stap 21-22 / Prompt 18 — Cardio: Live Tracker, Stopwatch & Berekeningen (`[x] KLAAR`)
+- **Doel & Bereik:**
+  - Realtime cardio stopwatch en live tracker realiseren voor trainingen (lopen, fietsen, roeien, etc.).
+  - Timestamp-gebaseerde tijdregistratie (`Date.now()`) met absolute immuniteit voor tab-switches, achtergrondgebruik en `setInterval`-vertragingen.
+  - Tussentijdse splits/rondes (laps) registreren met automatische berekening van de tussentijdse splitpace en rondeduur.
+  - Live ergonomische interface met grote sportschoolklok, snelle afstandsknoppen (+100m, +250m, +500m, +1km), actieve banner bij navigatie, afrondingsflow met automatische Dexie-persistentie en veilige afbreekopties.
+- **Geïmplementeerde Wijzigingen:**
+  - **Live Tracker Domein (`src/domain/cardio/liveTracker.ts`):**
+    - `startLiveTracker(activityType, nowMs, customId)`: Initialiseert live sessie met stabiele UUID en timestamps.
+    - `getLiveElapsedSeconds(state, nowMs)`: Berekent de werkelijk verstreken seconden op basis van wall-clock timestamps en bevroren pauze-accumulatie.
+    - `pauseLiveTracker(state, nowMs)` & `resumeLiveTracker(state, nowMs)`: Pauzeert en hervat zonder tijdverlies of sprongen.
+    - `addLapSplit(state, nowMs)`: Registreert een ronde/split met rondeduur, cumulatieve tijd, rondenafstand en sportspecifiek split-tempo (bijv. 500m split voor roeien, min/km voor lopen).
+    - `updateLiveDistance(state, distanceMeters)`: Werkt de tussentijdse afstand bij.
+    - `formatLiveTimer(seconds)`: Formatteert seconden naar ergonomische leesbare tijd (`MM:SS` of `HH:MM:SS`).
+    - `saveLiveTrackerToStorage()`, `loadLiveTrackerFromStorage()`, `clearLiveTrackerFromStorage()`: Volledige persistentie via localStorage (met veilige in-memory fallback voor SSR en testen).
+    - `liveTracker.test.ts`: 6 pure domeintests voor initiatie, wall-clock nauwkeurigheid, meerdere pauzeer/hervat cycli, rondecalculaties en timerformatering.
+  - **Gebruikersinterface Components (`src/components/modules/cardio/`):**
+    - `StartLiveCardioDialog.tsx`: Sportselector met visuele kaarten om direct een stopwatch voor de gewenste duursport te starten.
+    - `LiveCardioTrackerModal.tsx`:
+      - Grote digitale sportklok met hoog contrast voor gebruik in de sportschool of buiten.
+      - Live statistiekenstrook (afstand, live tempo/snelheid, geschat calorieverbruik).
+      - Snelle afstands-increment knoppen (+100m, +250m, +500m, +1.0km) en directe decimale kilometerinvoer.
+      - Extra grote touch-knoppen (minimaal 52px touch target) voor Pauzeren/Hervatten en Ronde/Split.
+      - Rondes & Tussentijden overzichtslijst (nieuwste ronde bovenaan) met splitpace en tussentijden.
+      - Haptische feedback (HTML5 vibration API) bij knopdrukken.
+    - `ActiveCardioBanner.tsx`:
+      - Prominente actieve banner bovenaan de pagina met sport-icoon, live lopende klok, afstand en rondeteller.
+      - Knoppen voor "Hervatten/Pauzeren", "Openen" en "Afronden".
+    - `FinishLiveCardioDialog.tsx`:
+      - Afrondscherm met vooraf ingevulde verstreken tijd, berekend tempo, snelheid en calorieverbruik.
+      - Optionele registratie van hartslag (gemiddeld/max), RPE-inspanningsscore (1-10 slider), hoogtemeters, cadans en notities.
+      - Opslaan naar Dexie IndexedDB met `status: "afgerond"`.
+    - `DiscardLiveCardioDialog.tsx`:
+      - Veilige afbreekdialoog met 2 keuzes: "Wissen & Verwerpen" (geen databasevervuiling) of "Opslaan als geannuleerd" (status `geannuleerd` conform AGENTS.md data-integriteit).
+  - **Integratie in [`src/app/cardio/page.tsx`](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes app/src/app/cardio/page.tsx):**
+    - Volledige integratie van de live tracker flows, actieve banner, startknop in de header en automatische synchronisatie met IndexedDB.
+  - **Integratietests (`tests/cardioLiveTrackerIntegration.test.ts`):**
+    - 3 integratietests voor: opslag en herstel via storage, voltooien en persistent opslaan in Dexie, en afbreken als geannuleerd met uitsluiting van volume-statistieken.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): **0 fouten**.
+  - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
+  - Vitest testsuite (`npm test`): **259 van de 259 tests geslaagd** over 27 testbestanden (100% slagingspercentage).
+  - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 8 Next.js routes statisch gegenereerd.
+- **Volgende Stap:**
+  - Prompt 19 / Stap 23-24: Cardio Historiek, Periode-statistieken & Pace/Hartslaggrafieken (Recharts grafieken voor tempo- en hartslagverloop over tijd, week- en maandtotalen per activiteitstype).

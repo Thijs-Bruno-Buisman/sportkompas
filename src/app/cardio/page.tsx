@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { Activity, Plus, Timer, Heart, Sparkles } from "lucide-react";
+import { Activity, Plus, Timer, Play } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -14,6 +14,23 @@ import { CardioFilterBar } from "@/components/modules/cardio/CardioFilterBar";
 import { CardioSessionModal } from "@/components/modules/cardio/CardioSessionModal";
 import { CardioStatsTab } from "@/components/modules/cardio/CardioStatsTab";
 
+// Live Tracker componenten
+import type { LiveCardioTrackerState } from "@/domain/cardio/liveTracker";
+import {
+  startLiveTracker,
+  pauseLiveTracker,
+  resumeLiveTracker,
+  loadLiveTrackerFromStorage,
+  saveLiveTrackerToStorage,
+  clearLiveTrackerFromStorage,
+  getLiveElapsedSeconds,
+} from "@/domain/cardio/liveTracker";
+import { ActiveCardioBanner } from "@/components/modules/cardio/ActiveCardioBanner";
+import { StartLiveCardioDialog } from "@/components/modules/cardio/StartLiveCardioDialog";
+import { LiveCardioTrackerModal } from "@/components/modules/cardio/LiveCardioTrackerModal";
+import { FinishLiveCardioDialog } from "@/components/modules/cardio/FinishLiveCardioDialog";
+import { DiscardLiveCardioDialog } from "@/components/modules/cardio/DiscardLiveCardioDialog";
+
 export default function CardioPage() {
   const { repositories, isDemoMode, dataVersion } = useDatabase();
   const { profile } = useProfile();
@@ -23,9 +40,25 @@ export default function CardioPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedActivity, setSelectedActivity] = useState<CardioActivityType | "alle">("alle");
 
-  // Modal State
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  // Handmatige Invoer Modal State
+  const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [sessionToEdit, setSessionToEdit] = useState<CardioSession | null>(null);
+
+  // Live Tracker State
+  const [activeTracker, setActiveTracker] = useState<LiveCardioTrackerState | null>(null);
+  const [isStartLiveDialogOpen, setIsStartLiveDialogOpen] = useState(false);
+  const [isLiveModalOpen, setIsLiveModalOpen] = useState(false);
+  const [isFinishDialogOpen, setIsFinishDialogOpen] = useState(false);
+  const [finishFinalSeconds, setFinishFinalSeconds] = useState(0);
+  const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
+
+  // Laad eventuele actieve live tracker uit localStorage bij mount
+  useEffect(() => {
+    const savedTracker = loadLiveTrackerFromStorage();
+    if (savedTracker) {
+      setActiveTracker(savedTracker);
+    }
+  }, []);
 
   // Bepaal gebruikersleeftijd en gewicht voor berekeningen
   const userAge = useMemo(() => {
@@ -86,22 +119,24 @@ export default function CardioPage() {
     return sessions.filter((s) => s.activityType === selectedActivity);
   }, [sessions, selectedActivity]);
 
-  // Opslaan van een nieuwe of gewijzigde sessie
-  const handleSaveSession = async (savedSession: CardioSession) => {
+  // Opslaan van een handmatige of bewerkte sessie
+  const handleSaveManualSession = async (savedSession: CardioSession) => {
     await repositories.cardio.save(savedSession);
 
-    // Update lokale state direct
     setSessions((prev) => {
       const idx = prev.findIndex((s) => s.id === savedSession.id);
       if (idx >= 0) {
         const updated = [...prev];
         updated[idx] = savedSession;
-        return updated.sort((a, b) => `${b.calendarDate}T${b.startTime}`.localeCompare(`${a.calendarDate}T${a.startTime}`));
+        return updated.sort((a, b) =>
+          `${b.calendarDate}T${b.startTime}`.localeCompare(`${a.calendarDate}T${a.startTime}`)
+        );
       }
-      return [savedSession, ...prev].sort((a, b) => `${b.calendarDate}T${b.startTime}`.localeCompare(`${a.calendarDate}T${a.startTime}`));
+      return [savedSession, ...prev].sort((a, b) =>
+        `${b.calendarDate}T${b.startTime}`.localeCompare(`${a.calendarDate}T${a.startTime}`)
+      );
     });
 
-    // Herbereken samenvattingsstatistieken
     const stats = await repositories.cardio.getSummaryStats();
     setSummaryStats(stats);
   };
@@ -115,14 +150,106 @@ export default function CardioPage() {
     setSummaryStats(stats);
   };
 
-  const handleOpenAddModal = () => {
-    setSessionToEdit(null);
-    setIsModalOpen(true);
+  // =========================================================================
+  // Live Tracker Handlers
+  // =========================================================================
+  const handleStartLiveTracker = (activityType: CardioActivityType) => {
+    const newTracker = startLiveTracker(activityType, Date.now());
+    saveLiveTrackerToStorage(newTracker);
+    setActiveTracker(newTracker);
+    setIsLiveModalOpen(true);
   };
 
-  const handleOpenEditModal = (session: CardioSession) => {
-    setSessionToEdit(session);
-    setIsModalOpen(true);
+  const handleToggleLivePause = () => {
+    if (!activeTracker) return;
+    const now = Date.now();
+    let updated: LiveCardioTrackerState;
+
+    if (activeTracker.isPaused) {
+      updated = resumeLiveTracker(activeTracker, now);
+    } else {
+      updated = pauseLiveTracker(activeTracker, now);
+    }
+
+    setActiveTracker(updated);
+    saveLiveTrackerToStorage(updated);
+  };
+
+  const handleUpdateLiveTrackerState = (newState: LiveCardioTrackerState) => {
+    setActiveTracker(newState);
+    saveLiveTrackerToStorage(newState);
+  };
+
+  const handleFinishLiveRequest = (finalSeconds: number) => {
+    setFinishFinalSeconds(finalSeconds);
+    setIsLiveModalOpen(false);
+    setIsFinishDialogOpen(true);
+  };
+
+  const handleFinishLiveSave = async (completedSession: CardioSession) => {
+    await repositories.cardio.save(completedSession);
+    clearLiveTrackerFromStorage();
+    setActiveTracker(null);
+
+    setSessions((prev) =>
+      [completedSession, ...prev].sort((a, b) =>
+        `${b.calendarDate}T${b.startTime}`.localeCompare(`${a.calendarDate}T${a.startTime}`)
+      )
+    );
+
+    const stats = await repositories.cardio.getSummaryStats();
+    setSummaryStats(stats);
+  };
+
+  const handleDiscardLiveRequest = () => {
+    setIsDiscardDialogOpen(true);
+  };
+
+  const handleDiscardCompletely = () => {
+    clearLiveTrackerFromStorage();
+    setActiveTracker(null);
+    setIsLiveModalOpen(false);
+  };
+
+  const handleSaveAsCancelled = async () => {
+    if (!activeTracker) return;
+
+    const elapsed = getLiveElapsedSeconds(activeTracker, Date.now());
+    const startDate = new Date(activeTracker.startTimeMs);
+    const calendarDate = startDate.toISOString().split("T")[0];
+
+    const cancelledSession: CardioSession = {
+      id: activeTracker.id,
+      calendarDate,
+      startTime: startDate.toISOString(),
+      endTime: new Date().toISOString(),
+      activityType: activeTracker.activityType,
+      distanceMeters: activeTracker.distanceMeters,
+      durationSeconds: Math.max(1, elapsed),
+      avgHeartRateBpm: null,
+      maxHeartRateBpm: null,
+      estimatedCaloriesBurned: null,
+      elevationGainMeters: null,
+      rpe: null,
+      notes: "Sessie geannuleerd tijdens live tracking",
+      status: "geannuleerd",
+      provenance: { source: isDemoMode ? "demo" : "user", isDemo: isDemoMode },
+      updatedAt: new Date().toISOString(),
+    };
+
+    await repositories.cardio.save(cancelledSession);
+    clearLiveTrackerFromStorage();
+    setActiveTracker(null);
+    setIsLiveModalOpen(false);
+
+    setSessions((prev) =>
+      [cancelledSession, ...prev].sort((a, b) =>
+        `${b.calendarDate}T${b.startTime}`.localeCompare(`${a.calendarDate}T${a.startTime}`)
+      )
+    );
+
+    const stats = await repositories.cardio.getSummaryStats();
+    setSummaryStats(stats);
   };
 
   return (
@@ -139,14 +266,44 @@ export default function CardioPage() {
           </p>
         </div>
 
-        <Button
-          onClick={handleOpenAddModal}
-          leftIcon={<Plus className="w-4 h-4" />}
-          className="shadow-sm"
-        >
-          Sessie Loggen
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setIsManualModalOpen(true)}
+            leftIcon={<Plus className="w-4 h-4" />}
+            className="shadow-xs"
+          >
+            Achteraf Loggen
+          </Button>
+
+          <Button
+            onClick={() => {
+              if (activeTracker) {
+                setIsLiveModalOpen(true);
+              } else {
+                setIsStartLiveDialogOpen(true);
+              }
+            }}
+            leftIcon={<Play className="w-4 h-4 fill-current" />}
+            className="shadow-sm bg-emerald-600 hover:bg-emerald-700 text-white"
+          >
+            {activeTracker ? "Live Tracker Openen" : "Live Tracker"}
+          </Button>
+        </div>
       </div>
+
+      {/* Actieve Live Tracker Banner (indien een sessie loopt) */}
+      {activeTracker && (
+        <ActiveCardioBanner
+          trackerState={activeTracker}
+          onOpenTracker={() => setIsLiveModalOpen(true)}
+          onTogglePause={handleToggleLivePause}
+          onFinish={() => {
+            const elapsed = getLiveElapsedSeconds(activeTracker, Date.now());
+            handleFinishLiveRequest(elapsed);
+          }}
+        />
+      )}
 
       {/* Tabs */}
       <Tabs defaultValue="activiteiten">
@@ -181,7 +338,10 @@ export default function CardioPage() {
                   key={session.id}
                   session={session}
                   userAge={userAge}
-                  onEdit={handleOpenEditModal}
+                  onEdit={(s) => {
+                    setSessionToEdit(s);
+                    setIsManualModalOpen(true);
+                  }}
                   onDelete={handleDeleteSession}
                 />
               ))}
@@ -207,9 +367,9 @@ export default function CardioPage() {
             <EmptyState
               icon={<Timer className="w-6 h-6" />}
               title="Nog geen cardiosessies geregistreerd"
-              description="Houd je hardloopsessies, fietstochten, roeitrainingen of wandelingen bij met nauwkeurige tempo- en calorieberekeningen."
-              actionLabel="Eerste Sessie Registreren"
-              onAction={handleOpenAddModal}
+              description="Start een live stopwatch met tussentijden of voer een voltooide hardloop-, fiets- of roeitraining in."
+              actionLabel="Live Tracker Starten"
+              onAction={() => setIsStartLiveDialogOpen(true)}
             />
           )}
         </TabsContent>
@@ -230,19 +390,65 @@ export default function CardioPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Sessie Modal (Nieuw / Bewerken) */}
+      {/* Handmatige Sessie Modal (Nieuw / Bewerken) */}
       <CardioSessionModal
-        isOpen={isModalOpen}
+        isOpen={isManualModalOpen}
         onClose={() => {
-          setIsModalOpen(false);
+          setIsManualModalOpen(false);
           setSessionToEdit(null);
         }}
-        onSave={handleSaveSession}
+        onSave={handleSaveManualSession}
         sessionToEdit={sessionToEdit}
         userWeightKg={userWeightKg}
         userAge={userAge}
         isDemoMode={isDemoMode}
       />
+
+      {/* Start Live Tracker Dialoog */}
+      <StartLiveCardioDialog
+        isOpen={isStartLiveDialogOpen}
+        onClose={() => setIsStartLiveDialogOpen(false)}
+        onStart={handleStartLiveTracker}
+      />
+
+      {/* Live Cardio Tracker Cockpit Modal */}
+      {activeTracker && (
+        <LiveCardioTrackerModal
+          isOpen={isLiveModalOpen}
+          onClose={() => setIsLiveModalOpen(false)}
+          trackerState={activeTracker}
+          onUpdateState={handleUpdateLiveTrackerState}
+          onFinishRequest={handleFinishLiveRequest}
+          onDiscardRequest={handleDiscardLiveRequest}
+          userWeightKg={userWeightKg}
+        />
+      )}
+
+      {/* Finish Dialoog */}
+      {activeTracker && (
+        <FinishLiveCardioDialog
+          isOpen={isFinishDialogOpen}
+          onClose={() => setIsFinishDialogOpen(false)}
+          trackerState={activeTracker}
+          finalDurationSeconds={finishFinalSeconds}
+          userWeightKg={userWeightKg}
+          userAge={userAge}
+          isDemoMode={isDemoMode}
+          onSave={handleFinishLiveSave}
+        />
+      )}
+
+      {/* Discard Dialoog */}
+      {activeTracker && (
+        <DiscardLiveCardioDialog
+          isOpen={isDiscardDialogOpen}
+          onClose={() => setIsDiscardDialogOpen(false)}
+          trackerState={activeTracker}
+          onDiscardCompletely={handleDiscardCompletely}
+          onSaveAsCancelled={handleSaveAsCancelled}
+        />
+      )}
     </div>
   );
 }
+
