@@ -513,6 +513,43 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
   - Invoer met komma en punt werkt consistent over alle platformen dankzij gecontroleerde `inputMode="decimal"` inputs.
   - Geen neppe data; alle gewichten, herhalingen en sets worden direct persistent opgeslagen in IndexedDB.
 - **Volgende Stap:**
-  - Prompt 11: Stap 11 — Rusttimer en trainingsnotities (Geïntegreerde rusttimer met audio/vibratie fallback, achtergrondbestendigheid en oefen- en sessienotities).
+  - Prompt 11: Stap 11 — Rusttimer en trainingsnotities (Geïntegreerde rusttimer met audio/vibratie fallback, achtergrondbestendigheid en oefen- en sessienotities) [AFGEROND].
+
+### Stap 11: Rusttimer en oefennotities (Prompt 11)
+- **Datum:** 2026-10-03
+- **Status:** `[x] KLAAR`
+- **Uitgevoerde Acties:**
+  - **Domein & Timestamp-gebaseerde Rusttimer (`src/domain/strength/restTimer.ts`):**
+    - `getRemainingSeconds(state, nowMs)`: Berekent de resterende seconden zuiver uit de absolute doeltijdstempel (`targetEndTimeMs - nowMs`), niet alleen uit interval-ticks. Garandeert dat de timer na 30 seconden achtergrondgebruik, tab-switches of schermvergrendeling exact klopt.
+    - `startRestTimer`, `pauseRestTimer`, `resumeRestTimer`, `adjustRestTimer`: Volledige bediening met pauzeren (bevriest resterende seconden), hervatten (herberekent doeltijdstempel), plus/min 15 seconden (+15s / -15s) en overslaan.
+    - `formatTimerDisplay`: Formattering naar `mm:ss` (`"01:30"`, `"00:45"`, `"00:00"`). Nooit negatieve waarden.
+    - Web Audio API synthese (`playTimerCompletionSound`) en Vibration API (`triggerTimerVibration`) met stille fallback als audio/trillen geblokkeerd is of de browser geen permissie heeft.
+    - Opt-in voorkeuren voor geluid en trillen opgeslagen in `localStorage` met transparante toelichting dat gesloten mobiele browsers achtergrondgeluid kunnen onderbreken.
+    - Persistentie via `saveTimerStateToStorage` en `loadTimerStateFromStorage`: timer overleeft herladen of navigeren binnen de app.
+  - **Geïsoleerde Rusttimer Component (`src/components/modules/tracker/RestTimerBar.tsx`):**
+    - Bevat een eigen lokale 1-seconde interval zodat **uitsluitend** de balk re-rendert en de rest van de actieve training (invoervelden, focus, sets) 100% rustig en stabiel blijft zonder storende inputfocus of schermflikkering.
+    - Luistert naar `visibilitychange` en `window.onfocus` voor ogenblikkelijke herberekening na achtergrondgebruik.
+    - Grote touch-targets (>= 48x48px) voor alle bedieningselementen.
+  - **Strikte Scheiding van Notities (`src/components/modules/tracker/ExerciseNotesCard.tsx`):**
+    - **1. Blijvende Technieknotitie:** Persistent opgeslagen op `Exercise.techniqueNotes` in de oefeningenbibliotheek (bv. "Bankje op stand 2, pinken op ringen"). Zichtbaar bij elke toekomstige training van deze oefening en direct bewerkbaar.
+    - **2. Vorige Trainingsnotitie:** Uitgelezen uit de vorige voltooide sessie voor deze oefening via `getPreviousPerformanceForExercise` (`exerciseNotes`).
+    - **3. Huidige Sessienotitie:** Opgeslagen in `session.snapshot.exercises[i].notes` specifiek voor deze trainingsdatum met autosave bij verlaten van het veld (`updateSessionExerciseNotes`).
+  - **Database & Repositories (`src/types/database.ts`, `src/lib/db/schema.ts`, `src/lib/db/repositories/exercise.repository.ts`, `src/lib/db/repositories/workout.repository.ts`):**
+    - `Exercise` en `ExerciseSchema` uitgebreid met optioneel veld `techniqueNotes`.
+    - `ExerciseRepository.updateTechniqueNotes(id, techniqueNotes)` toegevoegd voor atomaire bibliotheekupdates.
+    - `WorkoutRepository.updateSessionExerciseNotes(sessionId, exerciseIndex, notes)` toegevoegd voor sessie-oefennotities.
+    - `WorkoutRepository.getPreviousPerformanceForExercise` retourneert nu ook `exerciseNotes` van de vorige afgeronde training.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): 0 fouten.
+  - Linting (`npm run lint`): 0 waarschuwingen of fouten.
+  - Vitest testsuite (`npm test`): **141 van de 141 tests geslaagd** over 13 testbestanden:
+    - `src/domain/strength/restTimer.test.ts` (9 tests voor timestampberekeningen, 30s achtergrondsimulatie, pauze/hervat, +/-15s en audio/trillen fallback).
+    - `tests/restTimerAndNotes.test.ts` (8 integratietests voor timestamp timer, achtergrondweerbaarheid, strikte scheiding tussen technieknotitie en sessienotitie, en eerdere notities tonen bij de volgende sessie).
+  - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 8 pagina's correct gegenereerd.
+- **Beperkingen & Notities:**
+  - Timer berekent resterende tijd altijd op basis van het verschil tussen systeemtijd en ingestelde doeltijdstempel.
+  - Geluid en trillen werken zolang het tabblad geopend is; browsers blokkeren actieve audio bij volledig afgesloten apps (geen valse beloften).
+- **Volgende Stap:**
+  - Prompt 12: Stap 12 — Training afronden en corrigeren (Afrondscherm, bewerkbare voltooide training, herberekening van PR's en volume, incomplete sets afhandeling).
 
 

@@ -1006,6 +1006,7 @@ export class WorkoutRepository {
     calendarDate?: string;
     routineName?: string;
     workoutName?: string;
+    exerciseNotes?: string;
     sets: WorkoutSet[];
   } | null> {
     const completedSessions = await this.sessionsTable
@@ -1023,11 +1024,11 @@ export class WorkoutRepository {
     for (const session of completedSessions) {
       if (excludeSessionId && session.id === excludeSessionId) continue;
 
-      const hasExercise = session.snapshot.exercises.some(
+      const matchingExercise = session.snapshot.exercises.find(
         (e) => e.exerciseId === exerciseId
       );
 
-      if (hasExercise) {
+      if (matchingExercise) {
         const sets = await this.setsTable
           .where("sessionId")
           .equals(session.id)
@@ -1050,6 +1051,7 @@ export class WorkoutRepository {
               session.snapshot.routineName ||
               "Vorige Training",
             workoutName,
+            exerciseNotes: matchingExercise.notes || undefined,
             sets,
           };
         }
@@ -1057,6 +1059,41 @@ export class WorkoutRepository {
     }
 
     return null;
+  }
+
+  /**
+   * Werkt de sessie-specifieke notitie bij voor een oefening in de actieve sessie.
+   */
+  async updateSessionExerciseNotes(
+    sessionId: string,
+    exerciseIndex: number,
+    notes: string
+  ): Promise<WorkoutSession> {
+    const session = await this.sessions.getById(sessionId);
+    if (!session) {
+      throw new Error(`Sessie met id ${sessionId} niet gevonden`);
+    }
+
+    if (!session.snapshot.exercises[exerciseIndex]) {
+      throw new Error(`Oefening op index ${exerciseIndex} niet gevonden in sessie`);
+    }
+
+    const updatedExercises = [...session.snapshot.exercises];
+    updatedExercises[exerciseIndex] = {
+      ...updatedExercises[exerciseIndex],
+      notes,
+    };
+
+    const updatedSession: WorkoutSession = {
+      ...session,
+      snapshot: {
+        ...session.snapshot,
+        exercises: updatedExercises,
+      },
+      updatedAt: new Date().toISOString(),
+    };
+
+    return await this.sessions.save(updatedSession);
   }
 
   /**

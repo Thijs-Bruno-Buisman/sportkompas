@@ -135,6 +135,24 @@ export class ExerciseRepository extends BaseRepository<Exercise> {
   }
 
   /**
+   * Werkt de blijvende technieknotitie voor een oefening bij in de bibliotheek.
+   */
+  async updateTechniqueNotes(id: string, techniqueNotes: string): Promise<Exercise> {
+    const exercise = await this.getById(id);
+    if (!exercise) {
+      throw new Error(`Oefening met ID ${id} is niet gevonden.`);
+    }
+
+    const updated: Exercise = {
+      ...exercise,
+      techniqueNotes,
+      updatedAt: new Date().toISOString(),
+    };
+
+    return await this.save(updated);
+  }
+
+  /**
    * Slaat een oefening op en stempelt updatedAt automatisch.
    */
   override async save(exercise: Exercise): Promise<Exercise> {

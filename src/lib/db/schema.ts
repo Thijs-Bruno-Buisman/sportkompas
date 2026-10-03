@@ -116,6 +116,7 @@ export const ExerciseSchema = z.object({
   isCustom: z.boolean(),
   isArchived: z.boolean().default(false),
   instructions: z.string(),
+  techniqueNotes: z.string().optional(),
   videoUrl: z.string().url().or(z.literal("")).nullable().optional(),
   provenance: ProvenanceSchema,
   createdAt: z.string().regex(isoDateRegex),

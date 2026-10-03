@@ -130,6 +130,7 @@ export interface Exercise {
   isCustom: boolean;
   isArchived: boolean;
   instructions: string;
+  techniqueNotes?: string; // Blijvende persoonlijke technieknotitie per oefening (Prompt 11)
   videoUrl?: string | null;
   provenance: Provenance;
   createdAt: string; // UTC ISO

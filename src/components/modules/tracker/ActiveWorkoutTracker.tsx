@@ -35,7 +35,15 @@ import { ExerciseSelectorDialog } from "../routines/ExerciseSelectorDialog";
 import { ExitWorkoutDialog } from "./ExitWorkoutDialog";
 import { FinishWorkoutDialog } from "./FinishWorkoutDialog";
 import { SetRow } from "./SetRow";
+import { RestTimerBar } from "./RestTimerBar";
+import { ExerciseNotesCard } from "./ExerciseNotesCard";
 import { duplicateSetValues } from "@/domain/strength/setParser";
+import {
+  type RestTimerState,
+  startRestTimer,
+  saveTimerStateToStorage,
+  loadTimerStateFromStorage,
+} from "@/domain/strength/restTimer";
 import { formatFriendlyDate } from "@/domain/dates/calendar";
 
 interface ActiveWorkoutTrackerProps {
@@ -63,16 +71,26 @@ export function ActiveWorkoutTracker({
   const [previousPerformance, setPreviousPerformance] = useState<{
     sessionDate: string;
     routineName?: string;
+    workoutName?: string;
+    exerciseNotes?: string;
     sets: WorkoutSet[];
   } | null>(null);
   const [isLoadingPrevious, setIsLoadingPrevious] = useState(false);
 
+  // Dubbelklikbeveiliging voor set operaties
+  const [isOperatingSet, setIsOperatingSet] = useState(false);
+
   // Live Timer (tijd sinds start)
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
 
-  // Rusttimer na afronden set
-  const [restCountdown, setRestCountdown] = useState<number | null>(null);
-  const [restTarget, setRestTarget] = useState<number>(90);
+  // Rusttimer na afronden set (timestamp-gebaseerd, persistent en geïsoleerd)
+  const [restTimerState, setRestTimerState] = useState<RestTimerState | null>(
+    () => loadTimerStateFromStorage()
+  );
+
+  // Oefening details uit bibliotheek (voor permanente technieknotities)
+  const [exerciseLibraryItem, setExerciseLibraryItem] =
+    useState<Exercise | null>(null);
 
   // Modals
   const [isExitDialogOpen, setIsExitDialogOpen] = useState(false);
@@ -110,22 +128,6 @@ export function ActiveWorkoutTracker({
     }
     return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
   };
-
-  // ---------------------------------------------------------------------------
-  // 2. RUSTTIMER COUNTDOWN
-  // ---------------------------------------------------------------------------
-  useEffect(() => {
-    if (restCountdown === null || restCountdown <= 0) return;
-
-    const timer = setInterval(() => {
-      setRestCountdown((prev) => {
-        if (prev === null || prev <= 1) return null;
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [restCountdown]);
 
   // ---------------------------------------------------------------------------
   // 3. HUIDIGE OEFENING & SETS LADEN
@@ -192,6 +194,30 @@ export function ActiveWorkoutTracker({
     };
   }, [repositories, currentExercise, session.id]);
 
+  // Laad de vaste oefeningdefinitie uit de bibliotheek voor blijvende technieknotities
+  useEffect(() => {
+    if (!currentExercise) {
+      setExerciseLibraryItem(null);
+      return;
+    }
+
+    let isCancelled = false;
+    repositories.exercises
+      .getById(currentExercise.exerciseId)
+      .then((item) => {
+        if (!isCancelled) {
+          setExerciseLibraryItem(item || null);
+        }
+      })
+      .catch((err) => {
+        console.error("Fout bij laden van oefening:", err);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [repositories, currentExercise]);
+
   // ---------------------------------------------------------------------------
   // 4. OEFENING WISSELEN & PERSISTENTIE
   // ---------------------------------------------------------------------------
@@ -221,11 +247,38 @@ export function ActiveWorkoutTracker({
     }
   };
 
-  // Dubbelklikbeveiliging voor set operaties
-  const [isOperatingSet, setIsOperatingSet] = useState(false);
+  // ---------------------------------------------------------------------------
+  // 5. OEFENING NOTITIES BEHEER (SESSIE NOTITIE VS BLIJVENDE TECHNIEKNOTITIE)
+  // ---------------------------------------------------------------------------
+  const handleSaveSessionNote = async (note: string) => {
+    if (!currentExercise) return;
+    try {
+      const updated = await repositories.workout.updateSessionExerciseNotes(
+        session.id,
+        currentExerciseIndex,
+        note
+      );
+      setSession(updated);
+    } catch (err) {
+      console.error("Fout bij opslaan sessienotitie:", err);
+    }
+  };
+
+  const handleSaveTechniqueNote = async (techniqueNote: string) => {
+    if (!currentExercise) return;
+    try {
+      const updated = await repositories.exercises.updateTechniqueNotes(
+        currentExercise.exerciseId,
+        techniqueNote
+      );
+      setExerciseLibraryItem(updated);
+    } catch (err) {
+      console.error("Fout bij opslaan technieknotitie:", err);
+    }
+  };
 
   // ---------------------------------------------------------------------------
-  // 5. OEFENING TOEVOEGEN TIJDENS TRAINING
+  // 6. OEFENING TOEVOEGEN TIJDENS TRAINING
   // ---------------------------------------------------------------------------
   const handleAddExerciseToWorkout = async (selected: Exercise) => {
     try {
@@ -340,8 +393,12 @@ export function ActiveWorkoutTracker({
       if (nextCompleted) {
         const restDuration =
           currentExercise?.restSeconds || set.restTimeSeconds || 90;
-        setRestTarget(restDuration);
-        setRestCountdown(restDuration);
+        const newTimer = startRestTimer(
+          restDuration,
+          currentExercise?.exerciseName
+        );
+        setRestTimerState(newTimer);
+        saveTimerStateToStorage(newTimer);
       }
     } catch (err) {
       console.error("Fout bij voltooien set:", err);
@@ -558,44 +615,12 @@ export function ActiveWorkoutTracker({
       </Card>
 
       {/* ----------------------------------------------------------------------- */}
-      {/* RUSTTIMER BALK (WANNEER ACTIEF) */}
+      {/* RUSTTIMER BALK (WANNEER ACTIEF, MET TIMESTAMP RE-EVALUATIE & ISOLATIE) */}
       {/* ----------------------------------------------------------------------- */}
-      {restCountdown !== null && restCountdown > 0 && (
-        <Card className="p-3.5 border-emerald-500 bg-emerald-500/10 dark:bg-emerald-950/30 flex items-center justify-between gap-3 shadow-md animate-in fade-in slide-in-from-top-2">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-emerald-500 text-white shrink-0">
-              <TimerIcon className="w-5 h-5 animate-spin" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
-                Rusttijd actief (Doel: {restTarget}s)
-              </p>
-              <p className="text-lg font-mono font-bold text-emerald-950 dark:text-emerald-100">
-                {formatElapsed(restCountdown)} over
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setRestCountdown((prev) => (prev ? prev + 30 : 30))}
-              className="text-xs min-h-[36px]"
-            >
-              +30s
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setRestCountdown(null)}
-              className="text-xs min-h-[36px]"
-            >
-              Overslaan
-            </Button>
-          </div>
-        </Card>
-      )}
+      <RestTimerBar
+        timerState={restTimerState}
+        onUpdateTimer={setRestTimerState}
+      />
 
       {/* ----------------------------------------------------------------------- */}
       {/* OEFENINGEN NAVIGATIE / CAROUSEL */}
@@ -893,6 +918,22 @@ export function ActiveWorkoutTracker({
                 ))}
               </div>
             )}
+
+            {/* ----------------------------------------------------------------- */}
+            {/* OEFENING NOTITIES: BLIJVENDE TECHNIEKNOTITIE & SESSIENOTITIE */}
+            {/* ----------------------------------------------------------------- */}
+            <div className="pt-2 border-t border-border mt-4">
+              <ExerciseNotesCard
+                exerciseId={currentExercise.exerciseId}
+                exerciseName={currentExercise.exerciseName}
+                currentExerciseSnapshot={currentExercise}
+                exerciseLibraryItem={exerciseLibraryItem}
+                previousExerciseNote={previousPerformance?.exerciseNotes}
+                previousSessionDate={previousPerformance?.sessionDate}
+                onSaveSessionNote={handleSaveSessionNote}
+                onSaveTechniqueNote={handleSaveTechniqueNote}
+              />
+            </div>
           </div>
         </Card>
       )}
