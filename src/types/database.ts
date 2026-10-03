@@ -256,28 +256,33 @@ export interface WorkoutSet {
 }
 
 // 8. Cardio Sessies
+export type CardioActivityType =
+  | "hardlopen"
+  | "fietsen"
+  | "roeien"
+  | "wandelen"
+  | "zwemmen"
+  | "crosstrainer"
+  | "overig";
+
 export interface CardioSession {
   id: EntityId;
   calendarDate: string; // YYYY-MM-DD
   startTime: string; // UTC ISO
   endTime: string | null; // UTC ISO
-  activityType:
-    | "hardlopen"
-    | "fietsen"
-    | "roeien"
-    | "wandelen"
-    | "zwemmen"
-    | "crosstrainer"
-    | "overig";
+  activityType: CardioActivityType;
   distanceMeters: number; // bv. 5000 voor 5 km
   durationSeconds: number; // bv. 1800 voor 30 min
   avgHeartRateBpm: number | null;
   maxHeartRateBpm: number | null;
   estimatedCaloriesBurned: number | null;
   elevationGainMeters: number | null;
+  cadenceRpm?: number | null; // bijv. stappen/omwentelingen per minuut
   rpe: number | null;
   notes: string;
+  status?: "gepland" | "actief" | "afgerond" | "geannuleerd";
   provenance: Provenance;
+  updatedAt?: string; // UTC ISO
 }
 
 // 9. Doelen

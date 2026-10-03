@@ -36,8 +36,7 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 | **17 / P14** | **Krachttraining: Persoonlijke Records (PR) Tracking (Prompt 14)** | `[x] KLAAR` | Automatische PR-detectie in 5 categorieën, 1-10 reps 1RM wetenschappelijke grens, formuletransparantie, tie-bescherming, omgekeerde progressie bij assisted machines, dynamisch herberekenen bij sessieverwijdering, Home recente PRs widget & favoriete oefeningen cockpit voortgangsgrafiek. |
 | **P15** | **Progressieve Overload & Dubbele Progressie (Prompt 15)** | `[x] KLAAR` | Uitlegbare dubbele progressie (reps uitbouwen naar max, daarna instelbare gewichtsstap en reset naar min), apparatuurspecifieke stappen (barbell 2.5kg, dumbbell 2kg, machine/kabel 2.5kg, kettlebell 4kg), omgekeerde progressie bij assisted machines, doel-RPE/RIR overloadbescherming (consolideren bij te hoge inspanning), disclaimer en 1-klik toepassing in actieve training. |
 | **18 / P16** | **Spiergroepen, Weekvolume & Consistentie (Prompt 16)** | `[x] KLAAR` | Weekoverzicht werksets per spiergroep (gescheiden primaire 1.0x en secundaire 0.5x telling), interactieve anatomische SVG lichaamsvisualisatie (voor- en achterzijde), instelbaar weekdoel, respectvolle rustdagen (herstel, nooit falen), streaks en maand-/jaargrensbewaking. |
-| **19** | Cardio: Activiteitstypen & Datamodel | `[ ] OPEN` | Hardlopen, fietsen, roeien, wandelen, zwemmen en crosstrainer. |
-| **20** | Cardio: Handmatige Sessie Logger | `[ ] OPEN` | Afstand, tijd, hartslag, calorieën, gevoel/RPE en notities. |
+| **19-20 / P17** | **Cardio: Activiteitstypen, Datamodel & Handmatige Logger (Prompt 17)** | `[x] KLAAR` | Ondersteuning voor 7 sporten (hardlopen, fietsen, roeien, wandelen, zwemmen, crosstrainer, overig), canonieke eenheden (m, s), sportspecifieke splits (500m split, 100m zwemtempo, min/km, km/u), MET-calorieën o.b.v. snelheid en gewicht, Gellish HR-zones (Z1-Z5), live berekeningspreview in modal, filterbalk, bewerk/verwijder flows en statistiekentab. |
 | **21** | Cardio: Live Tracker & Stopwatch | `[ ] OPEN` | Live timer met pauze/hervat en tussentijdse statistieken. |
 | **22** | Cardio: Domeinberekeningen & Formules | `[ ] OPEN` | Pace (min/km), snelheid (km/u), MET-calorieën en hartslagzones met tests. |
 | **23** | Cardio: Historiek & Periode-statistieken | `[ ] OPEN` | Wekelijkse en maandelijkse totalen per activiteitstype. |
@@ -827,6 +826,51 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 - **Volgende Stap:**
   - Prompt 17: Cardio: Activiteitstypen, datamodel en handmatige sessielogger (hardlopen, fietsen, roeien, wandelen, zwemmen, crosstrainer met afstand, duur, hartslag en MET-calorieën).
 
+---
 
-
-
+### Stap 19-20 / Prompt 17 — Cardio: Activiteitstypen, Datamodel & Handmatige Logger (`[x] KLAAR`)
+- **Doel & Bereik:**
+  - Volledige cardio-module realiseren met ondersteuning voor 7 duursportactiviteiten (hardlopen, fietsen, roeien, wandelen, zwemmen, crosstrainer, overig).
+  - Canonieke data-opslag (meters voor afstand, seconden voor duur) in IndexedDB conform clean architecture principes.
+  - Wetenschappelijk gevalideerde domeinberekeningen voor tempo (min/km, roeien 500m split, zwemmen 100m tempo, km/u), MET-calorieën schaling met snelheid en lichaamsgewicht, en fysiologische Gellish hartslagzones (Zone 1 t/m Zone 5).
+  - Handmatige sessielogger modal met live berekeningspreview tijdens invoer, sportfilterbalk, interactieve sessiekaarten met bewerk- en verwijderflows, en statistiekentab.
+- **Geïmplementeerde Wijzigingen:**
+  - **Domeinlaag (`src/domain/cardio/`):**
+    - `types.ts`: Typen voor `CardioActivityType`, `PaceCalculationResult`, `HeartRateZone`, en `ActivityMetadata`.
+    - `calculations.ts`:
+      - `calculatePace(distanceMeters, durationSeconds, activityType)`: Berekent tempo in min/km, snelheid in km/u, alsmede sportspecifieke metrieken zoals de roeier 500m split (`min:ss /500m`) en zwemtempo (`min:ss /100m`). Veilige afhandeling van 0 afstand of duur zonder `NaN` of deling door nul.
+      - `getMetValue(activityType, speedKmH)`: Dynamische MET-toewijzing conform het *Compendium of Physical Activities (Ainsworth et al.)* geschaald op basis van gemeten snelheid en intensiteit.
+      - `calculateCalories({ activityType, durationSeconds, distanceMeters, userWeightKg })`: Berekent het actuele calorieverbruik. Gebruikt het profielgewicht van de gebruiker (indien beschikbaar) of valt transparant terug op 75 kg standaard met duidelijke vermelding (`isDefaultWeight`).
+      - `calculateHeartRateZones({ age, maxHeartRateBpm })`: Berekent Zone 1 t/m Zone 5 via de Gellish-formule (`HRmax = 207 - 0,7 * leeftijd`) of een expliciet ingestelde maximale hartslag.
+      - `getHeartRateZoneForBpm(bpm, zones)`: Koppelt een gemiddelde hartslag direct aan de bijbehorende fysiologische trainingszone met kleuraccent en fysiologische omschrijving.
+      - `getActivityMetadata(type)` / `CARDIO_ACTIVITIES`: Definieert Nederlandse labels, icoonnamen, standaard afstands-eenheid (km vs m) en primaire prestatiemetriek.
+    - `calculations.test.ts`: 15 pure Vitest domeintests voor tempo, roeiersplits, zwemtempo's, MET-snelheidsschaling, gewichtsgebaseerde calorieën en Gellish zones.
+  - **Database & Schema:**
+    - `src/types/database.ts`: `CardioActivityType` geëxporteerd; `CardioSession` uitgebreid met optionele `cadenceRpm`, `status` ("gepland" | "actief" | "afgerond" | "geannuleerd"), en `updatedAt`.
+    - `src/lib/db/schema.ts`: `CardioActivityTypeSchema` en `CardioSessionSchema` bijgewerkt met Zod runtime validatie en veilige grenzen.
+    - `src/lib/db/repositories/cardio.repository.ts`: Uitgebreid met `getAllSessionsSorted()` (nieuwste datum/tijd eerst), `getFilteredSessions()`, en `getSummaryStats()` (totale meters, seconden, calorieën, en telling/volume per activiteitstype).
+  - **Gebruikersinterface (`src/components/modules/cardio/`):**
+    - `CardioSessionCard.tsx`: Rijke sessiekaart met sport-icoon, datum/tijd, afstand (km of m), duur, primair tempo/snelheid, calorieën, hartslag + zonebadge (bijv. "Z2 Duurbasis"), RPE badge, cadans/hoogtemeters, notities, bewerkknop en veilige verwijderdialoog (`Dialog`).
+    - `CardioFilterBar.tsx`: Horizontale filterbalk met chips per sport ("Alle", "Hardlopen", "Fietsen", etc.) inclusief live tellers per categorie.
+    - `CardioSessionModal.tsx`: Responsieve modal voor het toevoegen en bewerken van sessies:
+      - Sportselector met visuele keuzekaarten.
+      - Afstandsinvoer met dynamische eenheidschakelaar ("Kilometers" vs "Meters").
+      - Duurinvoer met gescheiden minuten en seconden velden.
+      - Datumkiezer en starttijd.
+      - Optionele hartslag (gemiddeld + max), RPE-slider (1-10) met duidelijke tekstlabels, hoogtemeters en cadans.
+      - **Live Previewstrook:** Toont realtime het berekende tempo, gemiddelde snelheid, geschat calorieverbruik (met vermelding van gebruikt gewicht) en hartslagzone terwijl de gebruiker typt.
+    - `CardioStatsTab.tsx`: 4 cockpitkaarten (Totale Afstand, Tijd in beweging, Calorieën, Aantal sessies), uitsplitsing per sport met gemiddelde snelheden, en een transparantiekader met verantwoording van MET-formules en hartslagberekeningen.
+  - **Applicatie-integratie (`src/app/cardio/page.tsx`):**
+    - Volledig herbouwd met reactieve databasekoppeling, profielkoppeling (`userWeightKg`, `userAge`), actieve filtering per sport, lege staat met actieknop, en bewerk-/verwijderfunctionaliteit.
+  - **Integratietests (`tests/cardioIntegration.test.ts`):**
+    - 6 integratietests met Dexie en `fake-indexeddb` voor: canonieke opslag, Zod runtime validatie, 7 activiteitstypen, chronologische sortering, samenvattingsstatistieken met uitsluiting van geannuleerde sessies, en updates/verwijderingen.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): **0 fouten**.
+  - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
+  - Vitest testsuite (`npm test`): **250 van de 250 tests geslaagd** over 25 testbestanden (100% slagingspercentage).
+  - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 8 Next.js routes statisch gegenereerd.
+- **Beperkingen & Notities:**
+  - Calorieën worden berekend via het Compendium of Physical Activities (Ainsworth MET-formules); als profielgewicht ontbreekt, wordt 75 kg gehanteerd en transparant vermeld in de UI.
+  - Geannuleerde sessies worden conform AGENTS.md bewaard maar automatisch uitgesloten van de prestatie- en kilometerstatistieken.
+- **Volgende Stap:**
+  - Prompt 18 / Stap 21: Cardio: Live Tracker & Stopwatch (live timer met pauze/hervat, tussentijdse splits en live statistieken).

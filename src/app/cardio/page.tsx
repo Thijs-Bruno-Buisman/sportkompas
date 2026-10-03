@@ -1,42 +1,61 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { Activity, Plus, Timer, Footprints, Flame, Bike, Heart, Waves, Compass } from "lucide-react";
+import React, { useState, useEffect, useMemo } from "react";
+import { Activity, Plus, Timer, Heart, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Card, CardContent } from "@/components/ui/Card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Dialog, DialogFooter } from "@/components/ui/Dialog";
-import { FormField } from "@/components/ui/FormField";
-import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
-import { Alert } from "@/components/ui/Alert";
-import { Badge } from "@/components/ui/Badge";
 import { useDatabase } from "@/lib/db";
-import type { CardioSession } from "@/types/database";
+import { useProfile } from "@/lib/hooks/useProfile";
+import type { CardioSession, CardioActivityType } from "@/types/database";
+import type { CardioSummaryStats } from "@/lib/db/repositories/cardio.repository";
+import { CardioSessionCard } from "@/components/modules/cardio/CardioSessionCard";
+import { CardioFilterBar } from "@/components/modules/cardio/CardioFilterBar";
+import { CardioSessionModal } from "@/components/modules/cardio/CardioSessionModal";
+import { CardioStatsTab } from "@/components/modules/cardio/CardioStatsTab";
 
 export default function CardioPage() {
   const { repositories, isDemoMode, dataVersion } = useDatabase();
+  const { profile } = useProfile();
 
   const [sessions, setSessions] = useState<CardioSession[]>([]);
+  const [summaryStats, setSummaryStats] = useState<CardioSummaryStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedActivity, setSelectedActivity] = useState<CardioActivityType | "alle">("alle");
 
-  // Form State
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [activityType, setActivityType] = useState<CardioSession["activityType"]>("hardlopen");
-  const [distanceKm, setDistanceKm] = useState("");
-  const [durationMin, setDurationMin] = useState("");
-  const [avgHeartRate, setAvgHeartRate] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
+  // Modal State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [sessionToEdit, setSessionToEdit] = useState<CardioSession | null>(null);
 
+  // Bepaal gebruikersleeftijd en gewicht voor berekeningen
+  const userAge = useMemo(() => {
+    if (!profile?.birthDate) return null;
+    const birth = new Date(profile.birthDate);
+    const now = new Date();
+    let age = now.getFullYear() - birth.getFullYear();
+    const m = now.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) {
+      age--;
+    }
+    return age > 0 && age < 120 ? age : null;
+  }, [profile?.birthDate]);
+
+  const userWeightKg = profile?.startWeightKg ?? null;
+
+  // Laad cardio sessies en statistieken
   useEffect(() => {
     let isCancelled = false;
     async function loadCardio() {
       setIsLoading(true);
       try {
-        const all = await repositories.cardio.getAll();
+        const [allSessions, stats] = await Promise.all([
+          repositories.cardio.getAllSessionsSorted(),
+          repositories.cardio.getSummaryStats(),
+        ]);
+
         if (!isCancelled) {
-          setSessions(all.reverse()); // Meest recent bovenaan
+          setSessions(allSessions);
+          setSummaryStats(stats);
         }
       } catch (err) {
         console.error("Fout bij laden van cardio data:", err);
@@ -44,91 +63,66 @@ export default function CardioPage() {
         if (!isCancelled) setIsLoading(false);
       }
     }
+
     loadCardio();
     return () => {
       isCancelled = true;
     };
   }, [repositories, isDemoMode, dataVersion]);
 
-  // Bereken dynamische weektotalen vanuit de actieve database
-  const stats = React.useMemo(() => {
-    const totalMeters = sessions.reduce((acc, s) => acc + s.distanceMeters, 0);
-    const totalSeconds = sessions.reduce((acc, s) => acc + s.durationSeconds, 0);
-    const totalCalories = sessions.reduce((acc, s) => acc + (s.estimatedCaloriesBurned ?? 0), 0);
-
-    return {
-      distanceKm: (totalMeters / 1000).toFixed(1),
-      durationMin: Math.round(totalSeconds / 60),
-      caloriesKcal: Math.round(totalCalories),
-    };
+  // Bereken tellingen per activiteit voor de filterbalk
+  const activityCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const s of sessions) {
+      if (s.status === "geannuleerd") continue;
+      counts[s.activityType] = (counts[s.activityType] ?? 0) + 1;
+    }
+    return counts;
   }, [sessions]);
 
-  const handleSaveCardio = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const parsedDist = Number(distanceKm.replace(",", "."));
-    const parsedDur = Number(durationMin.replace(",", "."));
-    const parsedHr = avgHeartRate ? Number(avgHeartRate) : null;
+  // Gefilterde sessies
+  const filteredSessions = useMemo(() => {
+    if (selectedActivity === "alle") return sessions;
+    return sessions.filter((s) => s.activityType === selectedActivity);
+  }, [sessions, selectedActivity]);
 
-    if (!distanceKm || isNaN(parsedDist) || parsedDist <= 0) {
-      setErrorMessage("Voer een geldige positieve afstand in kilometers in.");
-      return;
-    }
-    if (!durationMin || isNaN(parsedDur) || parsedDur <= 0) {
-      setErrorMessage("Voer een geldige duur in minuten in.");
-      return;
-    }
+  // Opslaan van een nieuwe of gewijzigde sessie
+  const handleSaveSession = async (savedSession: CardioSession) => {
+    await repositories.cardio.save(savedSession);
 
-    try {
-      const now = new Date();
-      const todayStr = now.toISOString().split("T")[0];
+    // Update lokale state direct
+    setSessions((prev) => {
+      const idx = prev.findIndex((s) => s.id === savedSession.id);
+      if (idx >= 0) {
+        const updated = [...prev];
+        updated[idx] = savedSession;
+        return updated.sort((a, b) => `${b.calendarDate}T${b.startTime}`.localeCompare(`${a.calendarDate}T${a.startTime}`));
+      }
+      return [savedSession, ...prev].sort((a, b) => `${b.calendarDate}T${b.startTime}`.localeCompare(`${a.calendarDate}T${a.startTime}`));
+    });
 
-      // Ruwe calorie-inschatting via MET factor
-      const met = activityType === "hardlopen" ? 9.8 : activityType === "fietsen" ? 7.5 : 7.0;
-      const estimatedCalories = Math.round(met * (parsedDur / 60) * 75);
-
-      const newSession: CardioSession = {
-        id: crypto.randomUUID(),
-        calendarDate: todayStr,
-        startTime: now.toISOString(),
-        endTime: null,
-        activityType,
-        distanceMeters: Math.round(parsedDist * 1000), // Canonieke meters
-        durationSeconds: Math.round(parsedDur * 60), // Canonieke seconden
-        avgHeartRateBpm: parsedHr,
-        maxHeartRateBpm: parsedHr ? parsedHr + 15 : null,
-        estimatedCaloriesBurned: estimatedCalories,
-        elevationGainMeters: null,
-        rpe: 7,
-        notes: "Handmatig gelogde sessie",
-        provenance: { source: isDemoMode ? "demo" : "user", isDemo: isDemoMode },
-      };
-
-      await repositories.cardio.save(newSession);
-      setSessions((prev) => [newSession, ...prev]);
-
-      setErrorMessage("");
-      setIsDialogOpen(false);
-      setDistanceKm("");
-      setDurationMin("");
-      setAvgHeartRate("");
-    } catch (err: any) {
-      setErrorMessage(err.message || "Fout bij opslaan van cardio sessie");
-    }
+    // Herbereken samenvattingsstatistieken
+    const stats = await repositories.cardio.getSummaryStats();
+    setSummaryStats(stats);
   };
 
-  const getActivityIcon = (type: CardioSession["activityType"]) => {
-    switch (type) {
-      case "hardlopen":
-        return <Footprints className="w-5 h-5 text-emerald-500" />;
-      case "fietsen":
-        return <Bike className="w-5 h-5 text-sky-500" />;
-      case "zwemmen":
-        return <Waves className="w-5 h-5 text-cyan-500" />;
-      case "roeien":
-        return <Activity className="w-5 h-5 text-amber-500" />;
-      default:
-        return <Activity className="w-5 h-5 text-slate-500" />;
-    }
+  // Verwijderen van een sessie
+  const handleDeleteSession = async (sessionId: string) => {
+    await repositories.cardio.delete(sessionId);
+    setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+
+    const stats = await repositories.cardio.getSummaryStats();
+    setSummaryStats(stats);
+  };
+
+  const handleOpenAddModal = () => {
+    setSessionToEdit(null);
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEditModal = (session: CardioSession) => {
+    setSessionToEdit(session);
+    setIsModalOpen(true);
   };
 
   return (
@@ -138,15 +132,15 @@ export default function CardioPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
             <Activity className="w-6 h-6 text-emerald-500" />
-            Cardio &amp; Conditie
+            Cardio &amp; Duursport
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Houd duursporten, kilometers, tempo en calorieën bij.
+            Houd duursessies, kilometers, tempo en calorieën nauwkeurig bij.
           </p>
         </div>
 
         <Button
-          onClick={() => setIsDialogOpen(true)}
+          onClick={handleOpenAddModal}
           leftIcon={<Plus className="w-4 h-4" />}
           className="shadow-sm"
         >
@@ -160,223 +154,95 @@ export default function CardioPage() {
           <TabsTrigger value="activiteiten">
             Sessies ({sessions.length})
           </TabsTrigger>
-          <TabsTrigger value="statistieken">Statistieken</TabsTrigger>
+          <TabsTrigger value="statistieken">Statistieken &amp; Totalen</TabsTrigger>
         </TabsList>
 
+        {/* Tab 1: Activiteiten & Sessies */}
         <TabsContent value="activiteiten" className="space-y-4">
-          {sessions.length > 0 ? (
+          {/* Filterbalk per sport */}
+          {sessions.length > 0 && (
+            <CardioFilterBar
+              selectedActivity={selectedActivity}
+              onSelectActivity={setSelectedActivity}
+              counts={activityCounts}
+              totalCount={sessions.length}
+            />
+          )}
+
+          {/* Sessielijst */}
+          {isLoading ? (
+            <div className="py-12 text-center text-sm text-slate-400">
+              Cardiogegevens laden...
+            </div>
+          ) : filteredSessions.length > 0 ? (
             <div className="space-y-3">
-              {sessions.map((session) => {
-                const km = (session.distanceMeters / 1000).toFixed(2);
-                const min = Math.round(session.durationSeconds / 60);
-                const paceMinPerKm = (session.durationSeconds / 60) / (session.distanceMeters / 1000);
-                const paceMinutes = Math.floor(paceMinPerKm);
-                const paceSeconds = Math.round((paceMinPerKm - paceMinutes) * 60);
-                const formattedPace = `${paceMinutes}:${String(paceSeconds).padStart(2, "0")} /km`;
-
-                return (
-                  <Card key={session.id} className="p-4 sm:p-5 hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="flex items-start gap-3.5">
-                        <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 shrink-0">
-                          {getActivityIcon(session.activityType)}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-base capitalize text-slate-900 dark:text-white">
-                              {session.activityType}
-                            </span>
-                            <Badge variant="outline" className="text-xs">
-                              {km} km
-                            </Badge>
-                          </div>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                            {session.calendarDate} &bull; {min} min &bull; Tempo: {formattedPace}
-                            {session.avgHeartRateBpm && ` &bull; ${session.avgHeartRateBpm} bpm`}
-                          </p>
-                          {session.notes && (
-                            <p className="text-xs text-slate-600 dark:text-slate-300 italic pt-1">
-                              &ldquo;{session.notes}&rdquo;
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3 self-end sm:self-center">
-                        {session.estimatedCaloriesBurned && (
-                          <div className="text-right">
-                            <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                              <Flame className="w-3.5 h-3.5" />
-                              {session.estimatedCaloriesBurned} kcal
-                            </span>
-                          </div>
-                        )}
-                        <Badge variant="outline" className="text-[11px]">
-                          {session.provenance.source === "demo" ? "Demodata" : "Echt"}
-                        </Badge>
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
+              {filteredSessions.map((session) => (
+                <CardioSessionCard
+                  key={session.id}
+                  session={session}
+                  userAge={userAge}
+                  onEdit={handleOpenEditModal}
+                  onDelete={handleDeleteSession}
+                />
+              ))}
+            </div>
+          ) : sessions.length > 0 ? (
+            <div className="py-10 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl p-6">
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                Geen sessies gevonden voor &ldquo;{selectedActivity}&rdquo;
+              </p>
+              <p className="text-xs text-slate-400 mt-1">
+                Kies een andere sport of klik op &ldquo;Alle&rdquo; om al je sessies te zien.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedActivity("alle")}
+                className="mt-3"
+              >
+                Toon alle activiteiten
+              </Button>
             </div>
           ) : (
             <EmptyState
               icon={<Timer className="w-6 h-6" />}
-              title="Nog geen cardio gelogd"
-              description="Je hebt nog geen duursessies geregistreerd in deze database. Voer direct een voltooide training in."
-              actionLabel="Sessie Toevoegen"
-              onAction={() => setIsDialogOpen(true)}
+              title="Nog geen cardiosessies geregistreerd"
+              description="Houd je hardloopsessies, fietstochten, roeitrainingen of wandelingen bij met nauwkeurige tempo- en calorieberekeningen."
+              actionLabel="Eerste Sessie Registreren"
+              onAction={handleOpenAddModal}
             />
           )}
         </TabsContent>
 
+        {/* Tab 2: Statistieken & Totalen */}
         <TabsContent value="statistieken" className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Card className="p-4">
-              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                Totale Afstand
-              </span>
-              <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
-                {stats.distanceKm} <span className="text-sm font-normal text-slate-400">km</span>
-              </p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                Berekend uit {sessions.length} opgeslagen {sessions.length === 1 ? "sessie" : "sessies"}
-              </p>
-            </Card>
-
-            <Card className="p-4">
-              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                Tijd in beweging
-              </span>
-              <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
-                {stats.durationMin} <span className="text-sm font-normal text-slate-400">min</span>
-              </p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                {(stats.durationMin / 60).toFixed(1)} uur duursport
-              </p>
-            </Card>
-
-            <Card className="p-4">
-              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                Calorieverbruik
-              </span>
-              <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
-                {stats.caloriesKcal} <span className="text-sm font-normal text-slate-400">kcal</span>
-              </p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                Schatting op basis van MET-factoren
-              </p>
-            </Card>
-          </div>
+          {summaryStats ? (
+            <CardioStatsTab
+              stats={summaryStats}
+              sessions={sessions}
+              userWeightKg={userWeightKg}
+            />
+          ) : (
+            <div className="py-12 text-center text-sm text-slate-400">
+              Statistieken berekenen...
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 
-      {/* Dialog voor handmatige sessie */}
-      <Dialog
-        isOpen={isDialogOpen}
+      {/* Sessie Modal (Nieuw / Bewerken) */}
+      <CardioSessionModal
+        isOpen={isModalOpen}
         onClose={() => {
-          setIsDialogOpen(false);
-          setErrorMessage("");
+          setIsModalOpen(false);
+          setSessionToEdit(null);
         }}
-        title="Cardiosessie Registreren"
-        description="Voer de gegevens in van je voltooide duurtraining."
-      >
-        <form onSubmit={handleSaveCardio} className="space-y-4">
-          {errorMessage && (
-            <Alert variant="error" onDismiss={() => setErrorMessage("")}>
-              {errorMessage}
-            </Alert>
-          )}
-
-          <FormField id="activity-type" label="Sport / Activiteit" required>
-            <Select
-              id="activity-type"
-              value={activityType}
-              onChange={(e) => setActivityType(e.target.value as CardioSession["activityType"])}
-            >
-              <option value="hardlopen">Hardlopen (Buiten / Baan)</option>
-              <option value="fietsen">Wielrennen / Fietsen</option>
-              <option value="crosstrainer">Loopband / Crosstrainer (Binnen)</option>
-              <option value="roeien">Roeier (Ergometer)</option>
-              <option value="wandelen">Wandelen</option>
-              <option value="zwemmen">Zwemmen</option>
-            </Select>
-          </FormField>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <FormField
-              id="distance-km"
-              label="Afstand (km)"
-              required
-              helperText="Bijv. 5.2 of 5,2"
-            >
-              <Input
-                id="distance-km"
-                type="text"
-                inputMode="decimal"
-                placeholder="0.0"
-                value={distanceKm}
-                onChange={(e) => setDistanceKm(e.target.value)}
-                hasError={Boolean(errorMessage && !distanceKm)}
-              />
-            </FormField>
-
-            <FormField
-              id="duration-min"
-              label="Duur (minuten)"
-              required
-              helperText="Bijv. 28"
-            >
-              <Input
-                id="duration-min"
-                type="number"
-                step="1"
-                min="1"
-                inputMode="numeric"
-                placeholder="30"
-                value={durationMin}
-                onChange={(e) => setDurationMin(e.target.value)}
-                hasError={Boolean(errorMessage && !durationMin)}
-              />
-            </FormField>
-          </div>
-
-          <FormField
-            id="heart-rate"
-            label="Gemiddelde Hartslag (optioneel)"
-            helperText="Slagen per minuut (bpm)"
-          >
-            <Input
-              id="heart-rate"
-              type="number"
-              step="1"
-              min="40"
-              max="220"
-              inputMode="numeric"
-              placeholder="Bijv. 145"
-              value={avgHeartRate}
-              onChange={(e) => setAvgHeartRate(e.target.value)}
-            />
-          </FormField>
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setIsDialogOpen(false);
-                setErrorMessage("");
-              }}
-            >
-              Annuleren
-            </Button>
-            <Button type="submit">
-              Opslaan
-            </Button>
-          </DialogFooter>
-        </form>
-      </Dialog>
+        onSave={handleSaveSession}
+        sessionToEdit={sessionToEdit}
+        userWeightKg={userWeightKg}
+        userAge={userAge}
+        isDemoMode={isDemoMode}
+      />
     </div>
   );
 }

@@ -254,29 +254,34 @@ export const WorkoutSetSchema = z.object({
 });
 
 // Cardio Schema
+export const CardioActivityTypeSchema = z.enum([
+  "hardlopen",
+  "fietsen",
+  "roeien",
+  "wandelen",
+  "zwemmen",
+  "crosstrainer",
+  "overig",
+]);
+
 export const CardioSessionSchema = z.object({
   id: z.string().uuid(),
   calendarDate: z.string().regex(calendarDateRegex),
   startTime: z.string().regex(isoDateRegex),
   endTime: z.string().regex(isoDateRegex).nullable(),
-  activityType: z.enum([
-    "hardlopen",
-    "fietsen",
-    "roeien",
-    "wandelen",
-    "zwemmen",
-    "crosstrainer",
-    "overig",
-  ]),
+  activityType: CardioActivityTypeSchema,
   distanceMeters: z.number().min(0),
   durationSeconds: z.number().min(1),
   avgHeartRateBpm: z.number().int().min(30).max(250).nullable(),
   maxHeartRateBpm: z.number().int().min(30).max(250).nullable(),
   estimatedCaloriesBurned: z.number().min(0).nullable(),
   elevationGainMeters: z.number().nullable(),
+  cadenceRpm: z.number().int().min(0).max(300).nullable().optional(),
   rpe: z.number().min(1).max(10).nullable(),
   notes: z.string(),
+  status: z.enum(["gepland", "actief", "afgerond", "geannuleerd"]).optional().default("afgerond"),
   provenance: ProvenanceSchema,
+  updatedAt: z.string().regex(isoDateRegex).optional(),
 });
 
 // Food & Meal Schemas
