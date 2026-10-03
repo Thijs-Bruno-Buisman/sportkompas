@@ -40,6 +40,11 @@ import {
   evaluateSetForPRs,
   type AchievedPR,
 } from "@/domain/strength/personalRecords";
+import {
+  calculateProgressiveOverload,
+  type ProgressiveOverloadSuggestion,
+  type ProgressiveOverloadTarget,
+} from "@/domain/strength/progressiveOverload";
 
 export interface FinishSessionOptions {
   overallRpe?: number;
@@ -1775,6 +1780,82 @@ export class WorkoutRepository {
     );
 
     return evaluateSetForPRs(set, exercise, session, priorSets, formula);
+  }
+
+  /**
+   * Berekent een uitlegbare progressieve overload suggestie voor een oefening
+   * op basis van de laatste voltooide sessie en ingestelde streefwaarden.
+   */
+  async getProgressionSuggestion(
+    exerciseId: string,
+    plannedTarget?: ProgressiveOverloadTarget,
+    equipmentStepKg?: number,
+    fallbackExercise?: Partial<Exercise>
+  ): Promise<ProgressiveOverloadSuggestion | null> {
+    let exercise = (await this.sessionsTable.db
+      .table("exercises")
+      .get(exerciseId)) as Exercise | undefined;
+
+    if (!exercise && fallbackExercise) {
+      exercise = {
+        id: exerciseId,
+        name: fallbackExercise.name || "Oefening",
+        category: fallbackExercise.category || "kracht",
+        primaryMuscleGroup: fallbackExercise.primaryMuscleGroup || "borst",
+        secondaryMuscleGroups: fallbackExercise.secondaryMuscleGroups || [],
+        equipment: fallbackExercise.equipment || "barbell",
+        measurementType: fallbackExercise.measurementType || "gewicht_herhalingen",
+        isCustom: false,
+        isArchived: false,
+        instructions: "",
+        provenance: { source: "user" },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+    }
+
+    if (!exercise) return null;
+
+    // Haal alle voltooide sessies op (nieuwste eerst)
+    const completedSessions = await this.sessionsTable
+      .where("status")
+      .equals("afgerond")
+      .toArray();
+
+    completedSessions.sort((a, b) => {
+      const timeA = new Date(a.endTime || a.startTime || a.calendarDate).getTime();
+      const timeB = new Date(b.endTime || b.startTime || b.calendarDate).getTime();
+      return timeB - timeA;
+    });
+
+    const completedSessionIds = new Set(completedSessions.map((s) => s.id));
+
+    // Haal alle sets op voor deze oefening
+    const sets = await this.setsTable
+      .where("exerciseId")
+      .equals(exerciseId)
+      .toArray();
+
+    const validSets = sets.filter((s) => completedSessionIds.has(s.sessionId));
+
+    // Vind de meest recente voltooide sessie met sets voor deze oefening
+    let latestSessionSets: WorkoutSet[] = [];
+    for (const session of completedSessions) {
+      const sessionSets = validSets
+        .filter((s) => s.sessionId === session.id)
+        .sort((a, b) => a.setNumber - b.setNumber);
+      if (sessionSets.length > 0) {
+        latestSessionSets = sessionSets;
+        break;
+      }
+    }
+
+    return calculateProgressiveOverload({
+      exercise,
+      plannedTarget,
+      previousWorksets: latestSessionSets,
+      equipmentStepKg,
+    });
   }
 
   /**

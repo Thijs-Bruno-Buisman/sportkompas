@@ -34,6 +34,7 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 | **16 / P12** | **Training Afronden & Corrigeren (Prompt 12)** | `[x] KLAAR` | Afrondscherm met overzicht en volume, incomplete sets afhandeling (discard/voltooid), bewerken en veilig verwijderen. |
 | **P13** | **Geschiedenis en Oefenprogressie (Prompt 13)** | `[x] KLAAR` | Trainingsgeschiedenis met datumfilters (7d/30d/90d/1y/custom), zoekbalk, statistiekenribbon, oefenprogressiegrafieken (gewicht, reps, volume, RPE), lb/kg presentatie en tabelweergave. |
 | **17 / P14** | **Krachttraining: Persoonlijke Records (PR) Tracking (Prompt 14)** | `[x] KLAAR` | Automatische PR-detectie in 5 categorieën, 1-10 reps 1RM wetenschappelijke grens, formuletransparantie, tie-bescherming, omgekeerde progressie bij assisted machines, dynamisch herberekenen bij sessieverwijdering, Home recente PRs widget & favoriete oefeningen cockpit voortgangsgrafiek. |
+| **P15** | **Progressieve Overload & Dubbele Progressie (Prompt 15)** | `[x] KLAAR` | Uitlegbare dubbele progressie (reps uitbouwen naar max, daarna instelbare gewichtsstap en reset naar min), apparatuurspecifieke stappen (barbell 2.5kg, dumbbell 2kg, machine/kabel 2.5kg, kettlebell 4kg), omgekeerde progressie bij assisted machines, doel-RPE/RIR overloadbescherming (consolideren bij te hoge inspanning), disclaimer en 1-klik toepassing in actieve training. |
 | **18** | Krachttraining: Kracht- en Volumegrafieken | `[ ] OPEN` | Visuele trends per spiergroep en progressie over tijd. |
 | **19** | Cardio: Activiteitstypen & Datamodel | `[ ] OPEN` | Hardlopen, fietsen, roeien, wandelen, zwemmen en crosstrainer. |
 | **20** | Cardio: Handmatige Sessie Logger | `[ ] OPEN` | Afstand, tijd, hartslag, calorieën, gevoel/RPE en notities. |
@@ -706,7 +707,68 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
   - 1RM-schattingen worden strikt begrensd tot maximaal 10 herhalingen conform wetenschappelijke standaarden (boven 10 reps is 1RM onbetrouwbaar).
   - Geen PR-confetti of badges voor niet-afgevinkte sets of gelijke scores (ties).
 - **Volgende Stap:**
-  - Prompt 15: Stap 15 — Rusttimer, trainingsnotities en volume-optimalisaties / Deload & overbelasting (geavanceerde volume-analyses en deload-planning).
+  - Prompt 15: Stap 15 — Progressieve Overload & Dubbele Progressie.
+
+---
+
+### Prompt 15 — Progressieve Overload, Dubbele Progressie en Aanbevelingen
+- **Datum:** 2026-10-03
+- **Status:** `[x] KLAAR`
+- **Uitgevoerde Acties:**
+  - **Pure Domeinlogica Progressieve Overload (`src/domain/strength/progressiveOverload.ts`):**
+    - `calculateProgressiveOverload(input)`:
+      - **Deterministische Dubbele Progressie (Double Progression):**
+        - Eerst herhalingen (reps) uitbouwen binnen het repbereik (`targetRepsMin` t/m `targetRepsMax`).
+        - Zolang nog niet álle voltooide werksets de bovengrens (`targetRepsMax`) hebben bereikt, is de actie `increase_reps` ("Herhalingen opbouwen") op hetzelfde gewicht.
+        - Pas wanneer **alle werksets de bovengrens hebben gehaald**, wordt een instelbare gewichtsstap voorgesteld (`increase_weight`), waarbij de herhalingen resetten naar `targetRepsMin`.
+      - **Doel-RPE / RIR Overloadbescherming:**
+        - Als een doel-RPE is opgegeven en de gemiddelde werkelijke RPE substantieel te hoog was (`avgRpe >= targetRpe + 1.5`, bijv. RPE 10 / absolute failure terwijl doel RPE 8 was), adviseert het algoritme `maintain_weight` ("Consolideren & herstellen") om techniek te borgen en overbelasting te voorkomen.
+      - **Assisted Machines (Omgekeerde Progressie):**
+        - Wanneer alle sets de maximale herhalingen halen op het huidige tegengewicht, stelt het algoritme voor om de machinehulp te verlagen (`reduce_assistance`, bv. 30 kg -> 27.5 kg machinehulp).
+      - **Apparatuurspecifieke Gewichtsstappen (`getDefaultEquipmentStep`):**
+        - Barbell: standaard +2,5 kg (2x 1.25 kg schijven).
+        - Dumbbell: standaard +2,0 kg (+1 kg per dumbbellpaar).
+        - Machine / Kabel: standaard +2,5 kg.
+        - Kettlebell: standaard +4,0 kg (standaard stappen 12 -> 16 -> 20 kg).
+        - Assisted: -2,5 kg (minder tegengewicht).
+        - Ondersteunt handmatige overrides zoals microloading (bv. +1.25 kg).
+      - **Aanleiding & Rationale (Transparantie):**
+        - Iedere suggestie bevat een heldere Nederlandstalige toelichting van de exacte reden (waarom gewicht omhoog, waarom eerst reps opbouwen of waarom herstellen).
+      - **Adviesprincipe & Disclaimer (AGENTS.md Regel 7):**
+        - Expliciete disclaimer: *"Dit voorstel is een indicatieve richtlijn op basis van dubbele progressie. Pas gewichten en herhalingen altijd aan op jouw actuele techniek, vermoeidheid en herstel."*
+        - Suggesties zijn voorstellen; de gebruiker behoudt altijd de controle en bevestigt acties expliciet.
+  - **Database Repository Integratie (`src/lib/db/repositories/workout.repository.ts`):**
+    - `getProgressionSuggestion(exerciseId, plannedTarget?, equipmentStepKg?, fallbackExercise?)`:
+      - Zoekt de meest recente voltooide sessie voor de oefening in IndexedDB.
+      - Filtert voltooide werksets (`completed === true`, `setType !== 'warmup'`).
+      - Berekent en retourneert de deterministische overload suggestie.
+  - **Gebruikersinterface Components:**
+    - `ProgressiveOverloadCard.tsx` (`src/components/modules/tracker/ProgressiveOverloadCard.tsx`):
+      - Herbruikbare kaart met dynamische kleurcodering (emerald voor gewicht/hulp, blauw voor herhalingen, amber voor consolideren, slate voor nulmeting).
+      - Vergelijking: vorig gewicht vs voorgesteld doelgewicht & reps.
+      - Rationale en optionele RPE-contextbanner.
+      - 1-klik knop "Pas toe op huidige training" met directe visuele feedback ("Toegepast ✓").
+      - Uitklapbare uitleg over dubbele progressie en de gekozen uitrustingsstap.
+      - Compacte weergavemodus (`isCompact`) voor modalen en samenvattingen.
+    - `ActiveWorkoutTracker.tsx`:
+      - Laadt automatisch de progressieve overload suggestie zodra een oefening wordt geselecteerd.
+      - Toont de `ProgressiveOverloadCard` prominent tussen de voorschriftkaart en de werksets tabel.
+      - `handleApplyProgressionSuggestion`: vult met 1 klik het voorgestelde gewicht en reps in voor alle resterende niet-voltooide sets en slaat deze direct persistent op in IndexedDB.
+    - `ExerciseProgressionModal.tsx`:
+      - Toont in de oefenprogressie-dialoog direct het berekende dubbele progressie voorstel voor de volgende sessie.
+  - **Uitgebreide Tests:**
+    - `src/domain/strength/progressiveOverload.test.ts`: 10 pure domeintests voor apparatuurstappen, bovengrens-verhoging, dumbbell sprongen, microloading, herhalingenopbouw, RPE-consolidatie, assisted machine progressie, en ontbrekende data.
+    - `tests/progressiveOverloadIntegration.test.ts`: 6 integratietests met echte Dexie IndexedDB opslag voor nulmeting, double progression bij max reps, herhalingsopbouw bij onvoltooide reps, RPE overload protectie, assisted pull-up omgekeerde progressie en microloading overrides.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): **0 fouten**.
+  - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
+  - Vitest testsuite (`npm test`): **215 van de 215 tests geslaagd** over 21 testbestanden.
+  - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 8 routes statisch gegenereerd.
+- **Beperkingen & Notities:**
+  - Suggesties baseren zich strikt op voltooide werksets (warming-up sets worden genegeerd).
+  - Als er nog geen afgeronde sets bestaan, geeft het systeem `insufficient_data` en wordt geen willekeurige verhoging gefingeerd.
+- **Volgende Stap:**
+  - Prompt 16 / Stap 18: Krachttraining: Kracht- en Volumegrafieken (Visuele trends per spiergroep, tonnage per week en progressie over tijd).
 
 
 

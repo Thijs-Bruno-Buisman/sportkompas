@@ -88,8 +88,6 @@ describe("Stap 14 — Persoonlijke Records en Geschatte 1RM (Integratietests)", 
     overallRpe: null,
     notes: "",
     provenance: { source: "user" },
-    createdAt: `${overrides.calendarDate}T10:00:00Z`,
-    updatedAt: `${overrides.calendarDate}T11:00:00Z`,
     ...overrides,
   });
 

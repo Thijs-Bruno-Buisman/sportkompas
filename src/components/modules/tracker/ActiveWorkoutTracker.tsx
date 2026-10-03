@@ -46,6 +46,8 @@ import {
   saveTimerStateToStorage,
   loadTimerStateFromStorage,
 } from "@/domain/strength/restTimer";
+import { ProgressiveOverloadCard } from "./ProgressiveOverloadCard";
+import type { ProgressiveOverloadSuggestion } from "@/domain/strength/progressiveOverload";
 import { formatFriendlyDate } from "@/domain/dates/calendar";
 
 interface ActiveWorkoutTrackerProps {
@@ -78,6 +80,11 @@ export function ActiveWorkoutTracker({
     sets: WorkoutSet[];
   } | null>(null);
   const [isLoadingPrevious, setIsLoadingPrevious] = useState(false);
+
+  // Dubbele progressie / Progressieve Overload suggestie (Prompt 15)
+  const [progressionSuggestion, setProgressionSuggestion] =
+    useState<ProgressiveOverloadSuggestion | null>(null);
+  const [isLoadingProgression, setIsLoadingProgression] = useState(false);
 
   // Dubbelklikbeveiliging voor set operaties
   const [isOperatingSet, setIsOperatingSet] = useState(false);
@@ -212,6 +219,96 @@ export function ActiveWorkoutTracker({
       isCancelled = true;
     };
   }, [repositories, currentExercise, session.id]);
+
+  // Laad progressieve overload / dubbele progressie suggestie voor huidige oefening
+  useEffect(() => {
+    if (!currentExercise) {
+      setProgressionSuggestion(null);
+      return;
+    }
+
+    const currentEx = currentExercise;
+    let isCancelled = false;
+    setIsLoadingProgression(true);
+
+    repositories.workout
+      .getProgressionSuggestion(
+        currentEx.exerciseId,
+        {
+          targetSets: currentEx.targetSets,
+          targetRepsMin: currentEx.targetRepsMin,
+          targetRepsMax: currentEx.targetRepsMax,
+          targetWeightKg: currentEx.targetWeightKg,
+          targetRpe: currentEx.targetRpe,
+          targetRir: currentEx.targetRir,
+        },
+        undefined,
+        {
+          name: currentEx.exerciseName,
+          measurementType: currentEx.measurementType,
+        }
+      )
+      .then((sugg) => {
+        if (!isCancelled) {
+          setProgressionSuggestion(sugg);
+        }
+      })
+      .catch((err) => {
+        console.error("Fout bij ophalen progressievoorstel:", err);
+      })
+      .finally(() => {
+        if (!isCancelled) setIsLoadingProgression(false);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [repositories, currentExercise, session.id]);
+
+  const handleApplyProgressionSuggestion = async (
+    suggestedWeightKg: number,
+    suggestedReps: number
+  ) => {
+    if (!currentExercise) return;
+
+    const uncompleted = sets.filter((s) => !s.completed);
+    if (uncompleted.length === 0) {
+      setFeedback(
+        `Alle sets voor ${currentExercise.exerciseName} zijn al voltooid.`
+      );
+      return;
+    }
+
+    const updatedSets = sets.map((s) => {
+      if (!s.completed) {
+        return {
+          ...s,
+          weightKg: suggestedWeightKg,
+          reps: suggestedReps,
+        };
+      }
+      return s;
+    });
+
+    setSets(updatedSets);
+    setAllSessionSets((prev) =>
+      prev.map((s) => {
+        const found = updatedSets.find((u) => u.id === s.id);
+        return found ? found : s;
+      })
+    );
+
+    try {
+      for (const set of updatedSets.filter((s) => !s.completed)) {
+        await repositories.workout.saveWorkoutSet(set);
+      }
+      setFeedback(
+        `Dubbele progressie toegepast: ${suggestedWeightKg} kg × ${suggestedReps} herhalingen voor ${uncompleted.length} resterende set(s).`
+      );
+    } catch (err) {
+      console.error("Fout bij opslaan sets na toepassen progressie:", err);
+    }
+  };
 
   // Laad de vaste oefeningdefinitie uit de bibliotheek voor blijvende technieknotities
   useEffect(() => {
@@ -876,6 +973,16 @@ export function ActiveWorkoutTracker({
               )}
             </div>
           </div>
+
+          {/* ------------------------------------------------------------------- */}
+          {/* PROGRESSIEVE OVERLOAD SUGGESTIE (DUBBELE PROGRESSIE - PROMPT 15) */}
+          {/* ------------------------------------------------------------------- */}
+          {progressionSuggestion && (
+            <ProgressiveOverloadCard
+              suggestion={progressionSuggestion}
+              onApplySuggestion={handleApplyProgressionSuggestion}
+            />
+          )}
 
           {/* ------------------------------------------------------------------- */}
           {/* ASSISTED OEFENING NOTIFICATIE */}

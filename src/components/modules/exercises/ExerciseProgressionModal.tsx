@@ -23,6 +23,8 @@ import {
   Table as TableIcon,
   LineChart as ChartIcon,
 } from "lucide-react";
+import { ProgressiveOverloadCard } from "../tracker/ProgressiveOverloadCard";
+import type { ProgressiveOverloadSuggestion } from "@/domain/strength/progressiveOverload";
 
 interface ExerciseProgressionModalProps {
   exercise: Exercise | null;
@@ -45,8 +47,9 @@ export function ExerciseProgressionModal({
   const [unit, setUnit] = useState<"metric" | "imperial">("metric");
   const [viewMode, setViewMode] = useState<"chart" | "table">("chart");
   const [hoveredPointIndex, setHoveredPointIndex] = useState<number | null>(null);
+  const [suggestion, setSuggestion] = useState<ProgressiveOverloadSuggestion | null>(null);
 
-  // Laad progressie datapunten
+  // Laad progressie datapunten en voorstel
   const loadProgression = useCallback(async () => {
     if (!exercise) return;
     setIsLoading(true);
@@ -56,11 +59,19 @@ export function ExerciseProgressionModal({
       const currentProfile = profiles[0];
       const bodyweightKg = currentProfile?.startWeightKg ?? null;
 
-      const result = await repositories.workout.getExerciseProgression(
-        exercise.id,
-        { userBodyweightKg: bodyweightKg }
-      );
+      const [result, sugg] = await Promise.all([
+        repositories.workout.getExerciseProgression(exercise.id, {
+          userBodyweightKg: bodyweightKg,
+        }),
+        repositories.workout.getProgressionSuggestion(
+          exercise.id,
+          undefined,
+          undefined,
+          exercise
+        ),
+      ]);
       setPoints(result.points);
+      setSuggestion(sugg);
     } catch (err) {
       console.error("Fout bij laden van oefenprogressie:", err);
     } finally {
@@ -287,6 +298,13 @@ export function ExerciseProgressionModal({
                 {allTimeStats.totalSets} sets
               </p>
             </div>
+          </div>
+        )}
+
+        {/* PROGRESSIEVE OVERLOAD SUGGESTIE (DUBBELE PROGRESSIE - PROMPT 15) */}
+        {suggestion && (
+          <div className="pt-1">
+            <ProgressiveOverloadCard suggestion={suggestion} />
           </div>
         )}
 
