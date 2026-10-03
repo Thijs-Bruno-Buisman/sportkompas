@@ -19,6 +19,7 @@ import {
   Sparkles,
   Info,
   ShieldAlert,
+  TrendingUp,
 } from "lucide-react";
 
 interface ExerciseDetailDialogProps {
@@ -27,6 +28,7 @@ interface ExerciseDetailDialogProps {
   onClose: () => void;
   onEdit: (exercise: Exercise) => void;
   onToggleArchive: (exercise: Exercise) => Promise<void>;
+  onViewProgression?: (exercise: Exercise) => void;
 }
 
 export function ExerciseDetailDialog({
@@ -35,6 +37,7 @@ export function ExerciseDetailDialog({
   onClose,
   onEdit,
   onToggleArchive,
+  onViewProgression,
 }: ExerciseDetailDialogProps) {
   const [isArchiving, setIsArchiving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -186,7 +189,21 @@ export function ExerciseDetailDialog({
         </div>
 
         <DialogFooter className="flex-col sm:flex-row gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            {/* Bekijk Progressie knop */}
+            {onViewProgression && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onViewProgression(exercise)}
+                leftIcon={<TrendingUp className="w-3.5 h-3.5 text-emerald-500" />}
+                className="w-full sm:w-auto text-xs font-semibold text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+              >
+                Bekijk Progressie
+              </Button>
+            )}
+
             {/* Archiveer / Dearchiveer knop */}
             <Button
               type="button"

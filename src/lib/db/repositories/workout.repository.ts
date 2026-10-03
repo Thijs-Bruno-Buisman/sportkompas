@@ -8,6 +8,7 @@ import type {
   WorkoutRoutineSnapshot,
   WorkoutExerciseSnapshot,
   PlannedExerciseInDay,
+  Exercise,
 } from "@/types/database";
 import {
   WorkoutRoutineSchema,
@@ -25,6 +26,13 @@ import {
   calculateExercisePRs,
   type ExercisePRs,
 } from "@/domain/strength/volumeAndPR";
+import {
+  buildExerciseProgressionPoints,
+  filterWorkoutSessions,
+  type ExerciseHistoryPoint,
+  type DateFilterType,
+  type CustomDateRange,
+} from "@/domain/strength/progression";
 
 export interface FinishSessionOptions {
   overallRpe?: number;
@@ -879,15 +887,46 @@ export class WorkoutRepository {
    */
   async addExerciseToActiveSession(
     sessionId: string,
-    exerciseData: WorkoutExerciseSnapshot
+    exerciseData: Partial<WorkoutExerciseSnapshot> & { exerciseId: string }
   ): Promise<WorkoutSession> {
     const session = await this.sessions.getById(sessionId);
     if (!session) {
       throw new Error(`Sessie met ID ${sessionId} niet gevonden.`);
     }
 
+    let snap: WorkoutExerciseSnapshot;
+    if (
+      !exerciseData.exerciseName ||
+      !exerciseData.primaryMuscleGroup ||
+      exerciseData.restSeconds === undefined ||
+      !exerciseData.measurementType
+    ) {
+      const ex = (await this.sessionsTable.db
+        .table("exercises")
+        .get(exerciseData.exerciseId)) as Exercise | undefined;
+      snap = {
+        ...exerciseData,
+        exerciseId: exerciseData.exerciseId,
+        exerciseName: exerciseData.exerciseName || ex?.name || "Oefening",
+        primaryMuscleGroup:
+          exerciseData.primaryMuscleGroup || ex?.primaryMuscleGroup || "full_body",
+        measurementType:
+          exerciseData.measurementType || ex?.measurementType || "gewicht_herhalingen",
+        targetSets: exerciseData.targetSets || 3,
+        targetWeightKg: exerciseData.targetWeightKg ?? null,
+        targetRepsMin: exerciseData.targetRepsMin ?? 8,
+        targetRepsMax: exerciseData.targetRepsMax ?? 10,
+        effortScale: exerciseData.effortScale || "rpe",
+        targetRpe: exerciseData.targetRpe ?? null,
+        targetRir: exerciseData.targetRir ?? null,
+        restSeconds: exerciseData.restSeconds || 90,
+      } as WorkoutExerciseSnapshot;
+    } else {
+      snap = exerciseData as WorkoutExerciseSnapshot;
+    }
+
     const isFirstExercise = session.snapshot.exercises.length === 0;
-    const updatedExercises = [...session.snapshot.exercises, exerciseData];
+    const updatedExercises = [...session.snapshot.exercises, snap];
 
     const updatedSession: WorkoutSession = {
       ...session,
@@ -899,7 +938,7 @@ export class WorkoutRepository {
         ? 0
         : session.currentExerciseIndex ?? 0,
       activeExerciseId: isFirstExercise
-        ? exerciseData.exerciseId
+        ? snap.exerciseId
         : session.activeExerciseId,
       updatedAt: new Date().toISOString(),
     };
@@ -1633,5 +1672,70 @@ export class WorkoutRepository {
       .where("calendarDate")
       .equals(calendarDate)
       .toArray();
+  }
+
+  /**
+   * Haalt alle datapunten op voor de progressie van een oefening over tijd.
+   */
+  async getExerciseProgression(
+    exerciseId: string,
+    options?: { userBodyweightKg?: number | null }
+  ): Promise<{
+    exercise: Exercise | null;
+    points: ExerciseHistoryPoint[];
+  }> {
+    const exercise = (await this.sessionsTable.db
+      .table("exercises")
+      .get(exerciseId)) as Exercise | undefined;
+    if (!exercise) {
+      return { exercise: null, points: [] };
+    }
+
+    const completedSessions = await this.sessionsTable
+      .where("status")
+      .equals("afgerond")
+      .toArray();
+
+    const sets = await this.setsTable
+      .where("exerciseId")
+      .equals(exerciseId)
+      .toArray();
+
+    const points = buildExerciseProgressionPoints(
+      exercise,
+      completedSessions,
+      sets,
+      options?.userBodyweightKg
+    );
+
+    return { exercise, points };
+  }
+
+  /**
+   * Zoekt en filtert door workoutsessies op basis van datumfilter en zoekopdracht.
+   */
+  async searchSessions(
+    queryOrOptions?:
+      | string
+      | {
+          filterType?: DateFilterType;
+          customRange?: CustomDateRange;
+          searchQuery?: string;
+          exerciseId?: string;
+        }
+  ): Promise<WorkoutSession[]> {
+    const opts =
+      typeof queryOrOptions === "string"
+        ? { searchQuery: queryOrOptions }
+        : queryOrOptions;
+
+    const all = await this.sessionsTable.toArray();
+    // Sorteer nieuwste eerst
+    all.sort((a, b) => b.calendarDate.localeCompare(a.calendarDate));
+    return filterWorkoutSessions(all, opts?.filterType || "all", {
+      customRange: opts?.customRange,
+      searchQuery: opts?.searchQuery,
+      exerciseId: opts?.exerciseId,
+    });
   }
 }

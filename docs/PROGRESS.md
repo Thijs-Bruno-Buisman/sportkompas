@@ -32,6 +32,7 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 | **14 / P10** | **Krachttraining: Sets Registreren (Prompt 10)** | `[x] KLAAR` | Snelle setregistratie, decimalen (komma/punt), vorige set kopiëren, assisted oefeningen. |
 | **15 / P11** | **Rusttimer & Trainingsnotities (Prompt 11)** | `[x] KLAAR` | Timestamp-gebaseerde timer met achtergrondresistentie, audio/tril fallback, gescheiden techniek- en sessienotities. |
 | **16 / P12** | **Training Afronden & Corrigeren (Prompt 12)** | `[x] KLAAR` | Afrondscherm met overzicht en volume, incomplete sets afhandeling (discard/voltooid), bewerken en veilig verwijderen. |
+| **P13** | **Geschiedenis en Oefenprogressie (Prompt 13)** | `[x] KLAAR` | Trainingsgeschiedenis met datumfilters (7d/30d/90d/1y/custom), zoekbalk, statistiekenribbon, oefenprogressiegrafieken (gewicht, reps, volume, RPE), lb/kg presentatie en tabelweergave. |
 | **17** | Krachttraining: Persoonlijke Records (PR) Tracking | `[ ] OPEN` | Automatische detectie van records op 1RM, volume en gewicht. |
 | **18** | Krachttraining: Kracht- en Volumegrafieken | `[ ] OPEN` | Visuele trends per spiergroep en progressie over tijd. |
 | **19** | Cardio: Activiteitstypen & Datamodel | `[ ] OPEN` | Hardlopen, fietsen, roeien, wandelen, zwemmen en crosstrainer. |
@@ -595,7 +596,53 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
   - Alleen daadwerkelijk uitgevoerde sets (`completed === true`) beïnvloeden volume en PR-statistieken.
   - Actieve trainingsstatus verdwijnt nooit zolang de IndexedDB write niet succesvol is afgerond.
 - **Volgende Stap:**
-  - Prompt 13: Stap 13 — Geschiedenis en oefenprogressie (Trainingsgeschiedenis met datumfilters, zoeken op oefening, sessiedetails, oefenpagina met grafieken voor gewicht, reps, volume en RPE over tijd, tabelweergave en lb conversie).
+  - Prompt 13: Stap 13 — Geschiedenis en oefenprogressie (Trainingsgeschiedenis met datumfilters, zoeken op oefening, sessiedetails, oefenpagina met grafieken voor gewicht, reps, volume en RPE over tijd, tabelweergave en lb conversie) [AFGEROND].
+
+### Stap 13: Geschiedenis en oefenprogressie (Prompt 13)
+- **Datum:** 2026-10-03
+- **Status:** `[x] KLAAR`
+- **Uitgevoerde Acties:**
+  - **Domeinlogica Trainingsgeschiedenis & Progressie (`src/domain/strength/progression.ts`):**
+    - `getStartDateForFilter(filterType, customRange, now)`: Berekent de exacte begindatum voor vooraf gedefinieerde filters (`all`, `7d`, `30d`, `90d`, `1y`, `custom`).
+    - `filterWorkoutSessions(sessions, filterType, options)`: Filtert workoutsessies op datumbereik, aangepast van-tot bereik, specifieke oefening ID en tekstuele zoekopdracht (zowel sessienaam, schemadagnaam, notities als oefeningnamen).
+    - `buildExerciseProgressionPoints(exercise, completedSessions, allSets, userBodyweightKg)`:
+      - Bouwt chronologische datapunten per sessie voor grafieken en tabellen.
+      - **Strikte scheiding meettypes:** Externe belasting (\(kg \times reps\)), assisted machines (tegengewicht machinehulp, volume tonnage = 0 kg, omgekeerde progressie waarbij minder hulp beter is) en lichaamsgewicht (volume alleen bij expliciet geregistreerd actueel lichaamsgewicht).
+      - **Nul en ontbrekend (null/undefined):** 0 kg getild is een expliciete nulwaarde; ontbrekend gewicht of ontbrekende RPE is `null` en verstoort het nulpunt van de grafiek niet.
+      - 1RM-schatting via de Epley-formule per sessie.
+      - `convertProgressionPointsToLbs(points)`: Converteert gewichten en tonnage naar lbs puur voor presentatie (canonieke database behoudt altijd kg).
+  - **Oefenprogressie Modal & Grafiek (`src/components/modules/exercises/ExerciseProgressionModal.tsx`):**
+    - Responsieve vector-grafiek (SVG) met vloeiende polylijn, rasterlijnen, interactieve datapunten met tooltips, en duidelijke y-as schaal.
+    - Robuuste weergave van randgevallen:
+      - Lege status: vriendelijke toelichting dat de oefening nog niet voltooid is in een sessie.
+      - Enkelpunts status (1 datapunt): toont een horizontale referentielijn en één gecentreerde interactieve punt (geen kapotte of schuine helling).
+    - Metriek-selector: snel schakelen tussen *Hoogste Gewicht*, *Herhalingen (Reps)*, *Werksetvolume (kg/lbs)* en *RPE over tijd*.
+    - Eenhedenschakelaar (kg / lbs) via pure presentatieconversie.
+    - Toegankelijke datatabel (`<table>`) met datum, sessie, max gewicht, reps, volume, RPE en status voor schermlezers en exacte vergelijking.
+    - Samenvattingskaarten met all-time PR's en toelichting op de gekozen volumeberekening conform AGENTS.md.
+  - **Trainingsgeschiedenis Weergave (`src/components/modules/history/WorkoutHistoryView.tsx`):**
+    - Filterbalk met zoekveld (naam, oefening, notities), datumfilter dropdown en aangepaste van-tot datumkiezers.
+    - Eenhedenswitch (kg / lbs) voor cumulatieve volumeweergave.
+    - Filter Ribbon met dynamische totalen: aantal sessies, totaal verplaatst gewichtsvolume, totale trainingstijd.
+    - Sessiekaarten met tags voor alle uitgevoerde oefeningen: klikken op een oefening opent direct de interactieve `ExerciseProgressionModal` voor die oefening.
+    - Snelle acties: "Bekijken & Bewerken" (opent `CompletedWorkoutDetailModal`), "Verwijderen" (opent `DeleteWorkoutConfirmDialog`), of "Hervatten" indien sessie actief is.
+  - **Integratie in Trainingpagina & Oefeningenbibliotheek:**
+    - `src/app/training/page.tsx`: Tabblad "Workouts" vervangen door `WorkoutHistoryView`.
+    - `ExerciseLibrary.tsx` en `ExerciseDetailDialog.tsx`: Uitgebreid met directe "Bekijk Progressie"-knop.
+    - `CompletedWorkoutDetailModal.tsx`: Uitgebreid met directe progressielinks per oefening.
+  - **Uitgebreide Tests:**
+    - `src/domain/strength/progression.test.ts`: 11 unit tests voor filters, datumbereiken, meettype-scheiding en lbs-conversie.
+    - `tests/workoutHistoryAndProgression.test.ts`: 9 integratietests met echte IndexedDB transacties voor filters, zoeken, realtime progressie-updates na bewerken/verwijderen van voltooide sessies, assisted machines, lichaamsgewicht en enkelpunts/lege grafieken.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): **0 fouten**.
+  - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
+  - Vitest testsuite (`npm test`): **182 van de 182 tests geslaagd** over 17 testbestanden.
+  - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 8 pagina's correct statisch gegenereerd.
+- **Beperkingen & Notities:**
+  - Externe gewichten en assisted tegengewichten worden strikt nooit opgeteld in één ambigu volumegetal.
+  - Oefenprogressie wordt altijd live samengesteld uit de actuele sets in IndexedDB; een bewerking of verwijdering van een oude training werkt onmiddellijk door in de grafiek.
+- **Volgende Stap:**
+  - Prompt 14: Stap 14 — Deload, rust en overbelasting (Geplande deloads, vermoeidheidsregistratie, volumevermindering en herstelindicaties).
 
 
 

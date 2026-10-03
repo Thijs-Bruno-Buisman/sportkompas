@@ -29,6 +29,7 @@ import { StartFreeWorkoutDialog } from "@/components/modules/tracker/StartFreeWo
 import { StartWorkoutConflictDialog } from "@/components/modules/tracker/StartWorkoutConflictDialog";
 import { CompletedWorkoutDetailModal } from "@/components/modules/tracker/CompletedWorkoutDetailModal";
 import { DeleteWorkoutConfirmDialog } from "@/components/modules/tracker/DeleteWorkoutConfirmDialog";
+import { WorkoutHistoryView } from "@/components/modules/history/WorkoutHistoryView";
 import type { WorkoutSession, WorkoutRoutine, RoutineDay, Exercise } from "@/types/database";
 
 export default function TrainingPage() {
@@ -239,121 +240,15 @@ export default function TrainingPage() {
           />
         </TabsContent>
 
-        {/* Tab 2: Sessies Historiek */}
+        {/* Tab 2: Sessies Historiek & Oefenprogressie */}
         <TabsContent value="sessies" className="space-y-4">
-          {sessions.length > 0 ? (
-            <div className="space-y-3">
-              {sessions.map((sessionItem) => (
-                <Card
-                  key={sessionItem.id}
-                  className={`p-4 sm:p-5 transition-colors ${
-                    sessionItem.status === "actief"
-                      ? "border-emerald-500/50 bg-emerald-50/10 dark:bg-emerald-950/20"
-                      : "hover:border-slate-300 dark:hover:border-slate-700"
-                  }`}
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-base text-slate-900 dark:text-white">
-                          {sessionItem.snapshot.routineDayName ||
-                            sessionItem.snapshot.routineName ||
-                            "Workout Sessie"}
-                        </span>
-                        <Badge
-                          variant={
-                            sessionItem.status === "afgerond"
-                              ? "success"
-                              : sessionItem.status === "actief"
-                              ? "default"
-                              : "outline"
-                          }
-                          className={
-                            sessionItem.status === "actief"
-                              ? "bg-emerald-500 text-white font-semibold"
-                              : ""
-                          }
-                        >
-                          {sessionItem.status === "afgerond"
-                            ? "Voltooid"
-                            : sessionItem.status === "actief"
-                            ? "Nu Actief"
-                            : "Geannuleerd"}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        {sessionItem.calendarDate} &bull;{" "}
-                        {sessionItem.snapshot.exercises.length} oefeningen
-                        {sessionItem.overallRpe
-                          ? ` &bull; RPE ${sessionItem.overallRpe}`
-                          : ""}
-                      </p>
-                      {sessionItem.notes && (
-                        <p className="text-xs text-slate-600 dark:text-slate-300 italic pt-0.5">
-                          &ldquo;{sessionItem.notes}&rdquo;
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2 self-start sm:self-center">
-                      {sessionItem.status === "actief" ? (
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          onClick={() => {
-                            setActiveSession(sessionItem);
-                            setActiveTab("actief");
-                          }}
-                          leftIcon={<Play className="w-3.5 h-3.5 fill-current" />}
-                          className="min-h-[44px] px-4 font-semibold"
-                        >
-                          Hervatten
-                        </Button>
-                      ) : (
-                        <>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setSelectedDetailSession(sessionItem)}
-                            leftIcon={<Eye className="w-3.5 h-3.5" />}
-                            className="min-h-[44px] text-xs font-semibold"
-                          >
-                            Bekijken &amp; Bewerken
-                          </Button>
-                          <button
-                            type="button"
-                            onClick={() => setSessionToDelete(sessionItem)}
-                            className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
-                            title="Training verwijderen"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </>
-                      )}
-                      <Badge variant="outline" className="text-xs">
-                        {sessionItem.provenance.source === "demo"
-                          ? "Demodata"
-                          : "Echt"}
-                      </Badge>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <EmptyState
-              icon={<Play className="w-6 h-6 fill-current ml-0.5" />}
-              title="Geen workouts gevonden"
-              description="Je hebt nog geen voltooide of actieve trainingssessies gelogd. Start direct een vrije training of plan een schema."
-              actionLabel="Vrije Training Starten"
-              onAction={() => setIsStartFreeOpen(true)}
-              secondaryAction={
-                <Button variant="outline" onClick={() => setActiveTab("schemas")}>
-                  Maak je eerste schema
-                </Button>
-              }
-            />
-          )}
+          <WorkoutHistoryView
+            onStartWorkout={() => setIsStartFreeOpen(true)}
+            onResumeWorkout={(sessionItem) => {
+              setActiveSession(sessionItem);
+              setActiveTab("actief");
+            }}
+          />
         </TabsContent>
 
         {/* Tab 3: Schema's & Routines */}
@@ -395,7 +290,7 @@ export default function TrainingPage() {
           loadTrainingData();
           refreshData();
         }}
-        onDeleteRequested={(s) => {
+        onDeleteRequested={(s: WorkoutSession) => {
           setSelectedDetailSession(null);
           setSessionToDelete(s);
         }}

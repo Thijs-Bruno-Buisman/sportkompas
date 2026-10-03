@@ -6,6 +6,7 @@ import { useDatabase } from "@/lib/db";
 import { ExerciseCard, MUSCLE_GROUP_LABELS, EQUIPMENT_LABELS, MEASUREMENT_TYPE_LABELS } from "./ExerciseCard";
 import { ExerciseDetailDialog } from "./ExerciseDetailDialog";
 import { ExerciseFormDialog } from "./ExerciseFormDialog";
+import { ExerciseProgressionModal } from "./ExerciseProgressionModal";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -71,6 +72,8 @@ export function ExerciseLibrary() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [exerciseToEdit, setExerciseToEdit] = useState<Exercise | null>(null);
+  const [isProgressionOpen, setIsProgressionOpen] = useState(false);
+  const [progressionExercise, setProgressionExercise] = useState<Exercise | null>(null);
 
   // Laad alle oefeningen uit de actieve IndexedDB repository
   const loadExercises = useCallback(async () => {
@@ -378,6 +381,11 @@ export function ExerciseLibrary() {
         onClose={() => setIsDetailOpen(false)}
         onEdit={handleStartEdit}
         onToggleArchive={handleToggleArchive}
+        onViewProgression={(ex) => {
+          setIsDetailOpen(false);
+          setProgressionExercise(ex);
+          setIsProgressionOpen(true);
+        }}
       />
 
       {/* Form Dialog (Nieuw / Bewerken) */}
@@ -389,6 +397,16 @@ export function ExerciseLibrary() {
           setExerciseToEdit(null);
         }}
         onSave={handleSaveExercise}
+      />
+
+      {/* Progressie Modal */}
+      <ExerciseProgressionModal
+        isOpen={isProgressionOpen}
+        onClose={() => {
+          setIsProgressionOpen(false);
+          setProgressionExercise(null);
+        }}
+        exercise={progressionExercise}
       />
     </div>
   );
