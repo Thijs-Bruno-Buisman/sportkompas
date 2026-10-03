@@ -1,7 +1,19 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Dumbbell, Plus, Play, Calendar, Layers, Search, Sparkles, CheckCircle2 } from "lucide-react";
+import {
+  Dumbbell,
+  Plus,
+  Play,
+  Calendar,
+  Layers,
+  Search,
+  Sparkles,
+  CheckCircle2,
+  Edit2,
+  Trash2,
+  Eye,
+} from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
@@ -15,6 +27,8 @@ import { ActiveWorkoutTracker } from "@/components/modules/tracker/ActiveWorkout
 import { ActiveWorkoutBanner } from "@/components/modules/tracker/ActiveWorkoutBanner";
 import { StartFreeWorkoutDialog } from "@/components/modules/tracker/StartFreeWorkoutDialog";
 import { StartWorkoutConflictDialog } from "@/components/modules/tracker/StartWorkoutConflictDialog";
+import { CompletedWorkoutDetailModal } from "@/components/modules/tracker/CompletedWorkoutDetailModal";
+import { DeleteWorkoutConfirmDialog } from "@/components/modules/tracker/DeleteWorkoutConfirmDialog";
 import type { WorkoutSession, WorkoutRoutine, RoutineDay, Exercise } from "@/types/database";
 
 export default function TrainingPage() {
@@ -30,6 +44,21 @@ export default function TrainingPage() {
   // Dialog State
   const [isStartFreeOpen, setIsStartFreeOpen] = useState(false);
   const [isConflictOpen, setIsConflictOpen] = useState(false);
+  const [selectedDetailSession, setSelectedDetailSession] = useState<WorkoutSession | null>(null);
+  const [sessionToDelete, setSessionToDelete] = useState<WorkoutSession | null>(null);
+
+  const handleConfirmDeleteSession = async () => {
+    if (!sessionToDelete) return;
+    try {
+      await repositories.workout.deleteCompletedSession(sessionToDelete.id);
+      setSessionToDelete(null);
+      setSelectedDetailSession(null);
+      refreshData();
+      await loadTrainingData();
+    } catch (err) {
+      console.error("Fout bij verwijderen training:", err);
+    }
+  };
 
   const loadTrainingData = useCallback(async () => {
     setIsLoading(true);
@@ -267,7 +296,7 @@ export default function TrainingPage() {
                     </div>
 
                     <div className="flex items-center gap-2 self-start sm:self-center">
-                      {sessionItem.status === "actief" && (
+                      {sessionItem.status === "actief" ? (
                         <Button
                           variant="primary"
                           size="sm"
@@ -280,6 +309,26 @@ export default function TrainingPage() {
                         >
                           Hervatten
                         </Button>
+                      ) : (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setSelectedDetailSession(sessionItem)}
+                            leftIcon={<Eye className="w-3.5 h-3.5" />}
+                            className="min-h-[44px] text-xs font-semibold"
+                          >
+                            Bekijken &amp; Bewerken
+                          </Button>
+                          <button
+                            type="button"
+                            onClick={() => setSessionToDelete(sessionItem)}
+                            className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+                            title="Training verwijderen"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
                       )}
                       <Badge variant="outline" className="text-xs">
                         {sessionItem.provenance.source === "demo"
@@ -335,6 +384,34 @@ export default function TrainingPage() {
           setActiveTab("actief");
         }}
         onDiscardAndStartNew={handleDiscardConflictAndStartNew}
+      />
+
+      {/* Detail en Bewerken Modal voor voltooide workouts */}
+      <CompletedWorkoutDetailModal
+        isOpen={Boolean(selectedDetailSession)}
+        onClose={() => setSelectedDetailSession(null)}
+        session={selectedDetailSession}
+        onSessionUpdated={() => {
+          loadTrainingData();
+          refreshData();
+        }}
+        onDeleteRequested={(s) => {
+          setSelectedDetailSession(null);
+          setSessionToDelete(s);
+        }}
+      />
+
+      {/* Verwijderbevestiging dialoog */}
+      <DeleteWorkoutConfirmDialog
+        isOpen={Boolean(sessionToDelete)}
+        onClose={() => setSessionToDelete(null)}
+        onConfirmDelete={handleConfirmDeleteSession}
+        workoutTitle={
+          sessionToDelete?.snapshot.routineDayName ||
+          sessionToDelete?.snapshot.routineName ||
+          "Workout Sessie"
+        }
+        calendarDate={sessionToDelete?.calendarDate || ""}
       />
     </div>
   );

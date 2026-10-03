@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   type WorkoutSession,
   type WorkoutSet,
@@ -8,6 +8,7 @@ import {
   type Exercise,
 } from "@/types/database";
 import { useDatabase } from "@/lib/db";
+import { calculateSessionVolume } from "@/domain/strength/volumeAndPR";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -499,17 +500,29 @@ export function ActiveWorkoutTracker({
   // ---------------------------------------------------------------------------
   // 7. FINISH / EXIT HANDLERS
   // ---------------------------------------------------------------------------
-  const handleConfirmFinish = async (overallRpe?: number, notes?: string) => {
-    const finished = await repositories.workout.finishSession(
-      session.id,
-      overallRpe,
-      notes
-    );
-    refreshData();
-    if (finished) {
-      onFinished(finished.id);
-    } else {
-      onExit();
+  const isFinishingRef = useRef(false);
+
+  const handleConfirmFinish = async (
+    overallRpe?: number,
+    notes?: string,
+    incompleteSetsAction: "discard" | "mark_completed" = "discard"
+  ) => {
+    if (isFinishingRef.current) return;
+    isFinishingRef.current = true;
+    try {
+      const finished = await repositories.workout.finishSession(session.id, {
+        overallRpe,
+        notes,
+        incompleteSetsAction,
+      });
+      refreshData();
+      if (finished) {
+        onFinished(finished.id);
+      } else {
+        onExit();
+      }
+    } finally {
+      isFinishingRef.current = false;
     }
   };
 
@@ -960,6 +973,12 @@ export function ActiveWorkoutTracker({
         durationFormatted={formatElapsed(elapsedSeconds)}
         totalSetsCompleted={completedSetsCount}
         totalSetsPlanned={totalSetsCount}
+        totalVolumeKg={calculateSessionVolume(sets)}
+        exerciseSummaries={session.snapshot.exercises.map((ex) => ({
+          exerciseId: ex.exerciseId,
+          exerciseName: ex.exerciseName,
+          sets: sets.filter((s) => s.exerciseId === ex.exerciseId),
+        }))}
         onConfirmFinish={handleConfirmFinish}
       />
 

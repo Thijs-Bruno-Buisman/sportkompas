@@ -29,10 +29,9 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 | **11 / P07** | **Krachttraining: Schema's & Routines Creator (Mijn Schema's)** | `[x] KLAAR` | Schema's maken, bewerken, dupliceren, archiveren, templates, versiebeheer en validatie. |
 | **12 / P08** | **Actief Programma & Weekplanning (Prompt 08)** | `[x] KLAAR` | Actief schema selecteren, interactieve weekplanning, verschuiven, overslaan, datumverwerking en Home widget. |
 | **13 / P09** | **Krachttraining: Training Starten & Hervatten (Prompt 09)** | `[x] KLAAR` | Snapshotting, single-active workout regel, persistente sessiestatus, hervatflow & cancel/discard opties. |
-| **14 / P10** | Krachttraining: Sets Registreren (Prompt 10) | `[ ] OPEN` | Snelle setregistratie, decimalen, vorige set kopiëren, assisted oefeningen. |
-| **14** | Krachttraining: Vorige Prestaties Inline | `[ ] OPEN` | Direct inzicht in eerdere gewichten en reps tijdens de oefening. |
-| **15** | Krachttraining: Trainingshistoriek & Detailweergave | `[ ] OPEN` | Historisch logboek, sessies inzien, bewerken en statusbeheer. |
-| **16** | Krachttraining: 1RM & Volume Domeinberekeningen | `[ ] OPEN` | Epley & Brzycki formules, tonnage berekening met unit tests. |
+| **14 / P10** | **Krachttraining: Sets Registreren (Prompt 10)** | `[x] KLAAR` | Snelle setregistratie, decimalen (komma/punt), vorige set kopiëren, assisted oefeningen. |
+| **15 / P11** | **Rusttimer & Trainingsnotities (Prompt 11)** | `[x] KLAAR` | Timestamp-gebaseerde timer met achtergrondresistentie, audio/tril fallback, gescheiden techniek- en sessienotities. |
+| **16 / P12** | **Training Afronden & Corrigeren (Prompt 12)** | `[x] KLAAR` | Afrondscherm met overzicht en volume, incomplete sets afhandeling (discard/voltooid), bewerken en veilig verwijderen. |
 | **17** | Krachttraining: Persoonlijke Records (PR) Tracking | `[ ] OPEN` | Automatische detectie van records op 1RM, volume en gewicht. |
 | **18** | Krachttraining: Kracht- en Volumegrafieken | `[ ] OPEN` | Visuele trends per spiergroep en progressie over tijd. |
 | **19** | Cardio: Activiteitstypen & Datamodel | `[ ] OPEN` | Hardlopen, fietsen, roeien, wandelen, zwemmen en crosstrainer. |
@@ -550,6 +549,53 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
   - Timer berekent resterende tijd altijd op basis van het verschil tussen systeemtijd en ingestelde doeltijdstempel.
   - Geluid en trillen werken zolang het tabblad geopend is; browsers blokkeren actieve audio bij volledig afgesloten apps (geen valse beloften).
 - **Volgende Stap:**
-  - Prompt 12: Stap 12 — Training afronden en corrigeren (Afrondscherm, bewerkbare voltooide training, herberekening van PR's en volume, incomplete sets afhandeling).
+  - Prompt 12: Stap 12 — Training afronden en corrigeren (Afrondscherm, bewerkbare voltooide training, herberekening van PR's en volume, incomplete sets afhandeling) [AFGEROND].
+
+### Stap 12: Training afronden en corrigeren (Prompt 12)
+- **Datum:** 2026-10-03
+- **Status:** `[x] KLAAR`
+- **Uitgevoerde Acties:**
+  - **Domeinberekeningen Krachttraining Volume & PR's (`src/domain/strength/volumeAndPR.ts`):**
+    - `calculateSetVolume(set)`: Berekent het volume per set (\(gewicht \times herhalingen\)). Alleen daadwerkelijk voltooide sets (`completed === true`) met positieve waarden tellen mee. Assisted sets (tegengewicht machinehulp) worden strikt uitgesloten van positief extern gewichtsvolume.
+    - `calculateSessionVolume(sets)`: Sommeert zuiver voltooide sets voor een accurate sessietonnage in kg.
+    - `estimate1RM(weightKg, reps, formula)`: Ondersteunt zowel Epley als Brzycki formules met veilige asymptootbeveiliging.
+    - `calculateExercisePRs(exerciseId, sets)`: Berekent dynamisch de zwaarste set (`maxWeightKg`), hoogste 1RM (`maxEstimated1RM`), maximaal volume in één set en cumulatief volume. PR's worden live afgeleid uit actuele voltooide sets, waardoor aanpassen of verwijderen direct correct doorwerkt zonder vervuilde historische records.
+  - **Afrondscherm & Incomplete Sets Handling (`src/components/modules/tracker/FinishWorkoutDialog.tsx`):**
+    - Samenvattingsheader met trainingsduur, voltooide sets vs geplande sets en totale tonnage in kg.
+    - Oefeningenoverzicht met alle gelogde sets en subtotalen per oefening.
+    - Duidelijke keuze bij niet-voltooide sets:
+      - *Optie A (Aanbevolen):* "Weglaten" — niet-voltooide sets worden gewist; alleen uitgevoerde sets tellen mee.
+      - *Optie B:* "Markeren als voltooid" — markeert alle resterende geplande sets als afgerond met de ingevulde waarden.
+    - RPE-scoreselector (1 t/m 10) met >= 48px touch-targets en tekstuele toelichting.
+    - Optioneel notitieveld voor sessie-ervaring.
+    - Dubbelklikbeveiliging (`isSubmitting` en `isFinishingRef`) op de afrondknoppen.
+  - **Atomaire Database Persistentie (`src/lib/db/repositories/workout.repository.ts`):**
+    - `finishSession(sessionId, options)`: Dexie transactie op `[workoutSessions, workoutSets, scheduledSessions]` garandeert atomaire afronding.
+    - Incomplete sets worden conform de gebruikerskeuze verwijderd (`discard`) of gemarkeerd (`mark_completed`).
+    - Koppeling aan geplande sessie: zet gekoppelde `scheduledSession.status = "afgerond"` en `completedSessionId = session.id` zonder duplicaten.
+    - Idempotent: dubbelklikken of gelijktijdige aanroepen geven veilig het afgeronde sessierecord terug.
+    - Weerbaarheid bij opslagfouten: actieve sessiestatus wordt **uitsluitend** opgeheven na succesvolle databasepersistentie.
+    - `updateCompletedSession(sessionId, updates)`: Maakt datum, RPE en notities bewerkbaar en synchroniseert de datum van een eventueel gekoppelde geplande sessie.
+    - `deleteCompletedSession(sessionId)`: Verwijdert sessie en sets en herstelt een eventueel gekoppelde geplande sessie atomair terug naar `status: "gepland"` met `completedSessionId: null`.
+    - `updateWorkoutSet(setId, updates)` & `addSetToSession(sessionId, exerciseId, initialValues)`: Maakt sets in voltooide trainingen bewerkbaar met automatische hernummering.
+  - **Gebruikersinterface voor Voltooide Trainingen (`src/components/modules/tracker/`, `src/app/training/page.tsx`):**
+    - `CompletedWorkoutDetailModal.tsx`:
+      - Detailweergave van voltooide training met statistieken, RPE, notities en uitsplitsing per oefening.
+      - Bewerkmodus met realtime volumeberekening tijdens het typen, datumkiezer, inline setbewerkingen (+ set toevoegen, gewicht/reps/type wijzigen, set wissen).
+    - `DeleteWorkoutConfirmDialog.tsx`: Duidelijke Nederlandse bevestigingsdialoog met waarschuwing over het wissen van sets en de automatische herstelkoppeling naar de weekplanning.
+    - "Workouts"-tabblad op `TrainingPage` uitgebreid met "Bekijken & Bewerken" en verwijderknoppen per sessiekaart.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): **0 fouten**.
+  - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
+  - Vitest testsuite (`npm test`): **162 van de 162 tests geslaagd** over 15 testbestanden:
+    - `src/domain/strength/volumeAndPR.test.ts` (13 tests voor volume, 1RM en dynamische PR-berekeningen).
+    - `tests/finishAndEditWorkout.test.ts` (8 gerichte tests voor incomplete sets discard/voltooid, geplande sessiekoppeling zonder duplicaten, dubbelklikken, storage failure resilience, sessie bewerken met datum/notities/sets, dynamische volume/PR herberekening en veilig verwijderen).
+  - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 8 pagina's correct gegenereerd.
+- **Beperkingen & Notities:**
+  - Alleen daadwerkelijk uitgevoerde sets (`completed === true`) beïnvloeden volume en PR-statistieken.
+  - Actieve trainingsstatus verdwijnt nooit zolang de IndexedDB write niet succesvol is afgerond.
+- **Volgende Stap:**
+  - Prompt 13: Stap 13 — Geschiedenis en oefenprogressie (Trainingsgeschiedenis met datumfilters, zoeken op oefening, sessiedetails, oefenpagina met grafieken voor gewicht, reps, volume en RPE over tijd, tabelweergave en lb conversie).
+
 
 

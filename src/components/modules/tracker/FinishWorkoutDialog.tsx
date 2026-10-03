@@ -6,7 +6,23 @@ import { Button } from "@/components/ui/Button";
 import { FormField } from "@/components/ui/FormField";
 import { Textarea } from "@/components/ui/Textarea";
 import { Alert } from "@/components/ui/Alert";
-import { CheckCircle2, Clock, Dumbbell, Award } from "lucide-react";
+import { Badge } from "@/components/ui/Badge";
+import {
+  CheckCircle2,
+  Clock,
+  Dumbbell,
+  AlertCircle,
+  TrendingUp,
+  Layers,
+} from "lucide-react";
+import type { WorkoutSet } from "@/types/database";
+import { calculateSetVolume } from "@/domain/strength/volumeAndPR";
+
+export interface ExerciseFinishSummary {
+  exerciseId: string;
+  exerciseName: string;
+  sets: WorkoutSet[];
+}
 
 interface FinishWorkoutDialogProps {
   isOpen: boolean;
@@ -15,7 +31,13 @@ interface FinishWorkoutDialogProps {
   durationFormatted: string;
   totalSetsCompleted: number;
   totalSetsPlanned: number;
-  onConfirmFinish: (overallRpe?: number, notes?: string) => Promise<void>;
+  totalVolumeKg?: number;
+  exerciseSummaries?: ExerciseFinishSummary[];
+  onConfirmFinish: (
+    overallRpe?: number,
+    notes?: string,
+    incompleteSetsAction?: "discard" | "mark_completed"
+  ) => Promise<void>;
 }
 
 export function FinishWorkoutDialog({
@@ -25,21 +47,31 @@ export function FinishWorkoutDialog({
   durationFormatted,
   totalSetsCompleted,
   totalSetsPlanned,
+  totalVolumeKg = 0,
+  exerciseSummaries = [],
   onConfirmFinish,
 }: FinishWorkoutDialogProps) {
   const [selectedRpe, setSelectedRpe] = useState<number | undefined>(8);
   const [notes, setNotes] = useState("");
+  const [incompleteSetsAction, setIncompleteSetsAction] = useState<
+    "discard" | "mark_completed"
+  >("discard");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
+  const incompleteSetsCount = Math.max(0, totalSetsPlanned - totalSetsCompleted);
+
   const handleFinish = async () => {
+    if (isSubmitting) return;
     setIsSubmitting(true);
     setErrorMessage("");
     try {
-      await onConfirmFinish(selectedRpe, notes);
+      await onConfirmFinish(selectedRpe, notes, incompleteSetsAction);
       onClose();
     } catch (err: any) {
-      setErrorMessage(err.message || "Fout bij afronden van training.");
+      setErrorMessage(
+        err.message || "Fout bij opslaan en afronden van de trainingssessie."
+      );
       setIsSubmitting(false);
     }
   };
@@ -47,22 +79,22 @@ export function FinishWorkoutDialog({
   return (
     <Dialog
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={isSubmitting ? () => {} : onClose}
       title="Training Voltooien 🎉"
       description={`Gefeliciteerd met je training! Registreer je ervaren inspanning en notities voor "${workoutName}".`}
-      maxWidth="md"
+      maxWidth="lg"
     >
-      <div className="space-y-4 py-2">
+      <div className="space-y-4 py-2 max-h-[75vh] overflow-y-auto pr-1">
         {errorMessage && (
-          <Alert variant="error" title="Fout">
+          <Alert variant="error" title="Fout bij opslaan">
             {errorMessage}
           </Alert>
         )}
 
-        {/* Samenvatting statistieken */}
-        <div className="grid grid-cols-2 gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+        {/* Samenvatting statistieken: Duur, Sets en Volume */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shrink-0">
               <Clock className="w-5 h-5" />
             </div>
             <div>
@@ -74,17 +106,141 @@ export function FinishWorkoutDialog({
           </div>
 
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shrink-0">
               <Dumbbell className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Sets Gelogd</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Sets Voltooid</p>
               <p className="text-base font-bold text-slate-900 dark:text-white">
-                {totalSetsCompleted} / {totalSetsPlanned} voltooid
+                {totalSetsCompleted} / {totalSetsPlanned} sets
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shrink-0">
+              <TrendingUp className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Totaal Volume</p>
+              <p className="text-base font-bold text-slate-900 dark:text-white">
+                {totalVolumeKg.toLocaleString("nl-NL")} kg
               </p>
             </div>
           </div>
         </div>
+
+        {/* Keuze voor niet-voltooide sets indien van toepassing */}
+        {incompleteSetsCount > 0 && (
+          <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20 space-y-2">
+            <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-semibold text-sm">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>Niet-voltooide sets ({incompleteSetsCount})</span>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-300">
+              Er zijn {incompleteSetsCount} geplande sets niet afgevinkt. Wat wil je met deze sets doen?
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setIncompleteSetsAction("discard")}
+                disabled={isSubmitting}
+                className={`p-3 rounded-lg text-left text-xs font-medium border transition-all ${
+                  incompleteSetsAction === "discard"
+                    ? "border-emerald-500 bg-emerald-50/80 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 ring-2 ring-emerald-500"
+                    : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                }`}
+              >
+                <span className="font-bold block text-sm mb-1 text-slate-900 dark:text-white">
+                  Weglaten (Aanbevolen)
+                </span>
+                Niet-uitgevoerde sets worden gewist. Alleen daadwerkelijk voltooide sets tellen mee.
+              </button>
+              <button
+                type="button"
+                onClick={() => setIncompleteSetsAction("mark_completed")}
+                disabled={isSubmitting}
+                className={`p-3 rounded-lg text-left text-xs font-medium border transition-all ${
+                  incompleteSetsAction === "mark_completed"
+                    ? "border-emerald-500 bg-emerald-50/80 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 ring-2 ring-emerald-500"
+                    : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                }`}
+              >
+                <span className="font-bold block text-sm mb-1 text-slate-900 dark:text-white">
+                  Markeren als voltooid
+                </span>
+                Markeer alle {incompleteSetsCount} sets als afgerond met de ingevulde waarden.
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Uitgevoerde oefeningen en sets overzicht */}
+        {exerciseSummaries.length > 0 && (
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
+              <Layers className="w-4 h-4 text-emerald-500" />
+              Uitgevoerde Oefeningen &amp; Sets
+            </label>
+            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+              {exerciseSummaries.map((summary) => {
+                const completedSets = summary.sets.filter((s) => s.completed);
+                const exVolume = summary.sets.reduce(
+                  (sum, s) => sum + calculateSetVolume(s),
+                  0
+                );
+
+                return (
+                  <div
+                    key={summary.exerciseId}
+                    className="p-3 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between font-semibold">
+                      <span className="text-slate-900 dark:text-white text-sm">
+                        {summary.exerciseName}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        {exVolume > 0 && (
+                          <span className="text-slate-500 dark:text-slate-400">
+                            {exVolume} kg
+                          </span>
+                        )}
+                        <Badge
+                          variant={
+                            completedSets.length === summary.sets.length
+                              ? "success"
+                              : "outline"
+                          }
+                          className="text-[11px]"
+                        >
+                          {completedSets.length} / {summary.sets.length} sets
+                        </Badge>
+                      </div>
+                    </div>
+
+                    {/* Sets opsomming */}
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
+                      {summary.sets.map((s, idx) => (
+                        <span
+                          key={s.id || idx}
+                          className={`px-2 py-0.5 rounded text-[11px] font-medium border ${
+                            s.completed
+                              ? "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
+                              : "bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-400 line-through"
+                          }`}
+                        >
+                          {s.isAssisted ? "-" : ""}
+                          {s.weightKg}kg × {s.reps}
+                          {s.actualRpe ? ` @${s.actualRpe}` : ""}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Ervaren inspanning (RPE 1-10) */}
         <div className="space-y-2">
@@ -105,7 +261,7 @@ export function FinishWorkoutDialog({
             </span>
           </div>
 
-          {/* RPE Knoppenrij (1 t/m 10) */}
+          {/* RPE Knoppenrij (1 t/m 10) met >= 48px touch targets */}
           <div className="grid grid-cols-5 sm:grid-cols-10 gap-1.5">
             {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((score) => {
               const isSelected = selectedRpe === score;
@@ -113,8 +269,9 @@ export function FinishWorkoutDialog({
                 <button
                   key={score}
                   type="button"
+                  disabled={isSubmitting}
                   onClick={() => setSelectedRpe(score)}
-                  className={`h-11 rounded-lg text-sm font-bold transition-all ${
+                  className={`h-12 rounded-lg text-sm font-bold transition-all ${
                     isSelected
                       ? "bg-emerald-500 text-white shadow-md shadow-emerald-500/25 ring-2 ring-emerald-500 ring-offset-2 ring-offset-card"
                       : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
@@ -132,6 +289,7 @@ export function FinishWorkoutDialog({
           <Textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
+            disabled={isSubmitting}
             placeholder="Hoe voelde de training? Nieuwe PRs, energielevel, pijnpunten of aandachtspunten voor de volgende keer..."
             rows={3}
             className="text-sm"
@@ -144,7 +302,7 @@ export function FinishWorkoutDialog({
           variant="outline"
           onClick={onClose}
           disabled={isSubmitting}
-          className="w-full sm:w-auto min-h-[44px]"
+          className="w-full sm:w-auto min-h-[48px]"
         >
           Verder trainen
         </Button>

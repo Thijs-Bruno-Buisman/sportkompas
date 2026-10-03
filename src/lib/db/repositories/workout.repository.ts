@@ -20,6 +20,26 @@ import { type Table } from "dexie";
 import { validateRoutineData } from "@/domain/strength/routineValidation";
 import { ValidationError } from "../errors";
 import { getLocalDateString } from "@/domain/dates/calendar";
+import {
+  calculateSessionVolume,
+  calculateExercisePRs,
+  type ExercisePRs,
+} from "@/domain/strength/volumeAndPR";
+
+export interface FinishSessionOptions {
+  overallRpe?: number;
+  notes?: string;
+  incompleteSetsAction?: "discard" | "mark_completed";
+}
+
+export interface UpdateCompletedSessionOptions {
+  calendarDate?: string;
+  startTime?: string;
+  endTime?: string;
+  durationMinutes?: number;
+  overallRpe?: number | null;
+  notes?: string;
+}
 
 export class WorkoutRepository {
   public readonly routines: BaseRepository<WorkoutRoutine>;
@@ -1232,31 +1252,134 @@ export class WorkoutRepository {
 
   /**
    * Rond een actieve trainingssessie af met eindtijd en RPE score.
+   * Atomair opgeslagen in Dexie:
+   * - Alleen voltooide sets tellen mee.
+   * - Incomplete sets worden naar keuze van de gebruiker afgehandeld ('discard' of 'mark_completed').
+   * - Koppelt atomair aan de geplande sessie (status 'afgerond', completedSessionId) zonder duplicaten.
+   * - Idempotent: dubbelklikken / herhaald afronden geeft veilig het bestaande record terug.
    */
   async finishSession(
     sessionId: string,
-    overallRpe?: number,
-    notes?: string
+    overallRpeOrOptions?: number | FinishSessionOptions,
+    maybeNotes?: string
   ): Promise<WorkoutSession | null> {
-    const session = await this.sessions.getById(sessionId);
-    if (!session) return null;
+    let overallRpe: number | undefined;
+    let notes: string | undefined;
+    let incompleteSetsAction: "discard" | "mark_completed" = "discard";
 
-    const now = new Date().toISOString();
-    const startTimeMs = new Date(session.startTime).getTime();
-    const endTimeMs = new Date(now).getTime();
-    const durationMinutes = Math.max(0, Math.round((endTimeMs - startTimeMs) / 60000));
+    if (
+      typeof overallRpeOrOptions === "object" &&
+      overallRpeOrOptions !== null
+    ) {
+      overallRpe = overallRpeOrOptions.overallRpe;
+      notes = overallRpeOrOptions.notes;
+      if (overallRpeOrOptions.incompleteSetsAction) {
+        incompleteSetsAction = overallRpeOrOptions.incompleteSetsAction;
+      }
+    } else {
+      overallRpe = overallRpeOrOptions;
+      notes = maybeNotes;
+    }
 
-    const updated: WorkoutSession = {
-      ...session,
-      endTime: now,
-      status: "afgerond",
-      durationMinutes,
-      overallRpe: overallRpe ?? session.overallRpe,
-      notes: notes !== undefined ? notes : session.notes,
-      updatedAt: now,
-    };
+    return await this.sessionsTable.db.transaction(
+      "rw",
+      [this.sessionsTable, this.setsTable, this.scheduledSessionsTable],
+      async () => {
+        const session = await this.sessionsTable.get(sessionId);
+        if (!session) return null;
 
-    return await this.sessions.save(updated);
+        // Idempotency guard: reeds afgerond
+        if (session.status === "afgerond") {
+          return session;
+        }
+
+        const now = new Date().toISOString();
+        const startTimeMs = new Date(session.startTime).getTime();
+        const endTimeMs = new Date(now).getTime();
+        const durationMinutes = Math.max(
+          0,
+          Math.round((endTimeMs - startTimeMs) / 60000)
+        );
+
+        // 1. Incomplete sets afhandeling
+        const existingSets = await this.setsTable
+          .where("sessionId")
+          .equals(sessionId)
+          .toArray();
+
+        const incompleteSets = existingSets.filter((s) => !s.completed);
+
+        if (incompleteSetsAction === "mark_completed") {
+          for (const s of incompleteSets) {
+            await this.setsTable.update(s.id, {
+              completed: true,
+              completedAt: now,
+            });
+          }
+        } else {
+          // Default: "discard" -> niet-voltooide sets worden verwijderd
+          for (const s of incompleteSets) {
+            await this.setsTable.delete(s.id);
+          }
+        }
+
+        // 2. Koppel aan geplande sessie indien aanwezig, zonder duplicaten
+        let linkedScheduledId = session.scheduledSessionId;
+
+        if (linkedScheduledId) {
+          const sched = await this.scheduledSessionsTable.get(linkedScheduledId);
+          if (sched) {
+            sched.status = "afgerond";
+            sched.completedSessionId = session.id;
+            sched.updatedAt = now;
+            await this.scheduledSessionsTable.put(
+              ScheduledSessionSchema.parse(sched)
+            );
+          }
+        } else if (session.routineId) {
+          // Zoek een geplande sessie op dezelfde datum zonder completedSessionId
+          const schedOnDate = await this.scheduledSessionsTable
+            .where("calendarDate")
+            .equals(session.calendarDate)
+            .filter(
+              (s) =>
+                s.routineId === session.routineId &&
+                (!session.routineDayId ||
+                  s.routineDayId === session.routineDayId) &&
+                s.status === "gepland" &&
+                !s.completedSessionId
+            )
+            .first();
+
+          if (schedOnDate) {
+            schedOnDate.status = "afgerond";
+            schedOnDate.completedSessionId = session.id;
+            schedOnDate.updatedAt = now;
+            await this.scheduledSessionsTable.put(
+              ScheduledSessionSchema.parse(schedOnDate)
+            );
+            linkedScheduledId = schedOnDate.id;
+          }
+        }
+
+        // 3. Update en persist WorkoutSession
+        const updated: WorkoutSession = {
+          ...session,
+          endTime: now,
+          status: "afgerond",
+          durationMinutes,
+          scheduledSessionId: linkedScheduledId ?? session.scheduledSessionId,
+          overallRpe: overallRpe !== undefined ? overallRpe : session.overallRpe,
+          notes: notes !== undefined ? notes : session.notes,
+          updatedAt: now,
+        };
+
+        const validatedSession = WorkoutSessionSchema.parse(updated);
+        await this.sessionsTable.put(validatedSession);
+
+        return validatedSession;
+      }
+    );
   }
 
   /**
@@ -1264,13 +1387,225 @@ export class WorkoutRepository {
    */
   async finishActiveSession(
     sessionId: string,
-    options?: { sessionRpe?: number; notes?: string }
+    options?: FinishSessionOptions | { sessionRpe?: number; notes?: string }
   ): Promise<WorkoutSession | null> {
-    return await this.finishSession(
-      sessionId,
-      options?.sessionRpe,
-      options?.notes
+    const opts: FinishSessionOptions = {
+      overallRpe: (options as any)?.overallRpe ?? (options as any)?.sessionRpe,
+      notes: options?.notes,
+      incompleteSetsAction: (options as any)?.incompleteSetsAction,
+    };
+    return await this.finishSession(sessionId, opts);
+  }
+
+  /**
+   * Werkt een voltooide workoutsessie bij (bv. datum, duur, notities of overall RPE).
+   * Atomair en veilig.
+   */
+  async updateCompletedSession(
+    sessionId: string,
+    updates: UpdateCompletedSessionOptions
+  ): Promise<WorkoutSession> {
+    return await this.sessionsTable.db.transaction(
+      "rw",
+      [this.sessionsTable, this.scheduledSessionsTable],
+      async () => {
+        const session = await this.sessionsTable.get(sessionId);
+        if (!session) {
+          throw new ValidationError(`Sessie met ID ${sessionId} niet gevonden`);
+        }
+
+        const now = new Date().toISOString();
+
+        const updatedSession: WorkoutSession = {
+          ...session,
+          calendarDate: updates.calendarDate ?? session.calendarDate,
+          startTime: updates.startTime ?? session.startTime,
+          endTime: updates.endTime ?? session.endTime,
+          durationMinutes:
+            updates.durationMinutes !== undefined
+              ? updates.durationMinutes
+              : session.durationMinutes,
+          overallRpe:
+            updates.overallRpe !== undefined
+              ? updates.overallRpe
+              : session.overallRpe,
+          notes: updates.notes !== undefined ? updates.notes : session.notes,
+          updatedAt: now,
+        };
+
+        const validated = WorkoutSessionSchema.parse(updatedSession);
+        await this.sessionsTable.put(validated);
+
+        // Als de kalenderdatum is aangepast en er is een gekoppelde geplande sessie,
+        // synchroniseer dan ook de kalenderdatum van de geplande sessie
+        if (updates.calendarDate && session.scheduledSessionId) {
+          const sched = await this.scheduledSessionsTable.get(
+            session.scheduledSessionId
+          );
+          if (sched) {
+            sched.calendarDate = updates.calendarDate;
+            sched.updatedAt = now;
+            await this.scheduledSessionsTable.put(
+              ScheduledSessionSchema.parse(sched)
+            );
+          }
+        }
+
+        return validated;
+      }
     );
+  }
+
+  /**
+   * Verwijdert een voltooide workoutsessie veilig met opschoning van alle sets
+   * en ontkoppeling van eventuele geplande sessies (status weer teruggezet naar 'gepland').
+   */
+  async deleteCompletedSession(sessionId: string): Promise<void> {
+    await this.sessionsTable.db.transaction(
+      "rw",
+      [this.sessionsTable, this.setsTable, this.scheduledSessionsTable],
+      async () => {
+        const session = await this.sessionsTable.get(sessionId);
+        if (!session) return;
+
+        const now = new Date().toISOString();
+
+        // 1. Verwijder alle sets van deze sessie
+        await this.setsTable.where("sessionId").equals(sessionId).delete();
+
+        // 2. Indien gekoppeld aan geplande sessie, ontkoppel en herstel status naar "gepland"
+        if (session.scheduledSessionId) {
+          const sched = await this.scheduledSessionsTable.get(
+            session.scheduledSessionId
+          );
+          if (sched) {
+            sched.status = "gepland";
+            sched.completedSessionId = null;
+            sched.updatedAt = now;
+            await this.scheduledSessionsTable.put(
+              ScheduledSessionSchema.parse(sched)
+            );
+          }
+        }
+
+        // Ook controleren of een andere scheduledSession naar deze sessie verwees
+        const linkedScheds = await this.scheduledSessionsTable
+          .filter((s) => s.completedSessionId === sessionId)
+          .toArray();
+
+        for (const ls of linkedScheds) {
+          ls.status = "gepland";
+          ls.completedSessionId = null;
+          ls.updatedAt = now;
+          await this.scheduledSessionsTable.put(
+            ScheduledSessionSchema.parse(ls)
+          );
+        }
+
+        // 3. Verwijder de sessie zelf
+        await this.sessionsTable.delete(sessionId);
+      }
+    );
+  }
+
+  /**
+   * Voegt een nieuwe set toe aan een specifieke oefening binnen een sessie.
+   */
+  async addSetToSession(
+    sessionId: string,
+    exerciseId: string,
+    initialValues?: Partial<WorkoutSet>
+  ): Promise<WorkoutSet> {
+    const existingSets = await this.setsTable
+      .where("sessionId")
+      .equals(sessionId)
+      .filter((s) => s.exerciseId === exerciseId)
+      .toArray();
+
+    const nextSetNumber =
+      existingSets.length > 0
+        ? Math.max(...existingSets.map((s) => s.setNumber)) + 1
+        : 1;
+
+    const newSet: WorkoutSet = {
+      id: crypto.randomUUID(),
+      sessionId,
+      exerciseId,
+      setNumber: nextSetNumber,
+      setType: initialValues?.setType ?? "normal",
+      weightKg: initialValues?.weightKg ?? 0,
+      reps: initialValues?.reps ?? 0,
+      durationSeconds: initialValues?.durationSeconds ?? null,
+      targetRpe: initialValues?.targetRpe ?? null,
+      actualRpe: initialValues?.actualRpe ?? null,
+      targetRir: initialValues?.targetRir ?? null,
+      actualRir: initialValues?.actualRir ?? null,
+      isAssisted: initialValues?.isAssisted ?? false,
+      restTimeSeconds: initialValues?.restTimeSeconds ?? 90,
+      completed: initialValues?.completed ?? true,
+      completedAt: initialValues?.completed ? new Date().toISOString() : null,
+      loggedAt: new Date().toISOString(),
+    };
+
+    const validated = WorkoutSetSchema.parse(newSet);
+    await this.setsTable.put(validated);
+    return validated;
+  }
+
+  /**
+   * Werkt velden van een individuele set bij (bv. gewicht, reps, type, voltooid).
+   */
+  async updateWorkoutSet(
+    setId: string,
+    updates: Partial<WorkoutSet>
+  ): Promise<WorkoutSet> {
+    const existing = await this.setsTable.get(setId);
+    if (!existing) {
+      throw new ValidationError(`Set met ID ${setId} niet gevonden`);
+    }
+
+    const updated: WorkoutSet = {
+      ...existing,
+      ...updates,
+      id: existing.id,
+      sessionId: existing.sessionId,
+      exerciseId: updates.exerciseId ?? existing.exerciseId,
+    };
+
+    const validated = WorkoutSetSchema.parse(updated);
+    await this.setsTable.put(validated);
+    return validated;
+  }
+
+  /**
+   * Berekent het totale volume (in kg) voor een sessie op basis van actuele voltooide sets.
+   */
+  async calculateSessionVolume(sessionId: string): Promise<number> {
+    const sets = await this.getSetsForSession(sessionId);
+    return calculateSessionVolume(sets);
+  }
+
+  /**
+   * Berekent dynamisch de PR's voor een oefening op basis van alle voltooide sessies.
+   */
+  async getExercisePRs(exerciseId: string): Promise<ExercisePRs> {
+    const completedSessions = await this.sessionsTable
+      .where("status")
+      .equals("afgerond")
+      .toArray();
+
+    const completedSessionIds = new Set(completedSessions.map((s) => s.id));
+
+    const setsForExercise = await this.setsTable
+      .where("exerciseId")
+      .equals(exerciseId)
+      .toArray();
+
+    const validSets = setsForExercise.filter((s) =>
+      completedSessionIds.has(s.sessionId)
+    );
+
+    return calculateExercisePRs(exerciseId, validSets);
   }
 
   /**
