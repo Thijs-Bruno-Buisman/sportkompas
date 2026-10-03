@@ -58,4 +58,14 @@ export class SettingsRepository extends BaseRepository<AppSettings> {
     await this.setFavoriteExerciseIds(updated);
     return updated;
   }
+
+  async getWeeklyWorkoutGoal(): Promise<number> {
+    const settings = await this.getSettings();
+    return settings.weeklyWorkoutGoal ?? 3;
+  }
+
+  async setWeeklyWorkoutGoal(goal: number): Promise<AppSettings> {
+    const validGoal = Math.max(1, Math.min(7, Math.round(goal)));
+    return await this.updateSettings({ weeklyWorkoutGoal: validGoal });
+  }
 }

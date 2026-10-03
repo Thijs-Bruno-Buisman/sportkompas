@@ -89,33 +89,25 @@ export type ExerciseMeasurementType =
   | "assisted"
   | "tijd";
 
+export type MuscleGroup =
+  | "borst"
+  | "rug"
+  | "benen"
+  | "schouders"
+  | "armen"
+  | "core"
+  | "kuiten"
+  | "cardio"
+  | "full_body";
+
 // 2. Oefeningen
 export interface Exercise {
   id: EntityId;
   name: string;
   alternativeNames?: string[];
   category: "kracht" | "cardio" | "lichaamsgewicht" | "stretching";
-  primaryMuscleGroup:
-    | "borst"
-    | "rug"
-    | "benen"
-    | "schouders"
-    | "armen"
-    | "core"
-    | "kuiten"
-    | "cardio"
-    | "full_body";
-  secondaryMuscleGroups: (
-    | "borst"
-    | "rug"
-    | "benen"
-    | "schouders"
-    | "armen"
-    | "core"
-    | "kuiten"
-    | "cardio"
-    | "full_body"
-  )[];
+  primaryMuscleGroup: MuscleGroup;
+  secondaryMuscleGroups: MuscleGroup[];
   equipment:
     | "geen"
     | "lichaamsgewicht"
@@ -392,6 +384,7 @@ export interface AppSettings {
   demoModeActive: boolean;
   activeProgramRoutineId: EntityId | null;
   weekStartsOn?: "maandag" | "zondag";
+  weeklyWorkoutGoal?: number; // Ingesteld weekdoel (bv. 3, 4 of 5 trainingen per week)
   favoriteExerciseIds?: EntityId[];
   lastBackupAt: string | null; // UTC ISO
   updatedAt: string; // UTC ISO

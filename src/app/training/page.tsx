@@ -30,6 +30,8 @@ import { StartWorkoutConflictDialog } from "@/components/modules/tracker/StartWo
 import { CompletedWorkoutDetailModal } from "@/components/modules/tracker/CompletedWorkoutDetailModal";
 import { DeleteWorkoutConfirmDialog } from "@/components/modules/tracker/DeleteWorkoutConfirmDialog";
 import { WorkoutHistoryView } from "@/components/modules/history/WorkoutHistoryView";
+import { MuscleVolumeOverview } from "@/components/modules/history/MuscleVolumeOverview";
+import { WeeklyConsistencyWidget } from "@/components/modules/history/WeeklyConsistencyWidget";
 import type { WorkoutSession, WorkoutRoutine, RoutineDay, Exercise } from "@/types/database";
 
 export default function TrainingPage() {
@@ -207,6 +209,7 @@ export default function TrainingPage() {
           <TabsTrigger value="schemas">
             Schema&apos;s &amp; Routines ({routines.length})
           </TabsTrigger>
+          <TabsTrigger value="volume">Spiergroepen &amp; Volume</TabsTrigger>
           <TabsTrigger value="oefeningen">Oefeningen</TabsTrigger>
         </TabsList>
 
@@ -256,7 +259,13 @@ export default function TrainingPage() {
           <RoutineList />
         </TabsContent>
 
-        {/* Tab 4: Oefeningenbibliotheek */}
+        {/* Tab 4: Spiergroepen & Volume (Prompt 16) */}
+        <TabsContent value="volume" className="space-y-6">
+          <WeeklyConsistencyWidget />
+          <MuscleVolumeOverview />
+        </TabsContent>
+
+        {/* Tab 5: Oefeningenbibliotheek */}
         <TabsContent value="oefeningen" className="space-y-4">
           <ExerciseLibrary />
         </TabsContent>

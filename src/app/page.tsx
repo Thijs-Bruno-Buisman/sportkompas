@@ -25,6 +25,7 @@ import { useProfile } from "@/lib/hooks/useProfile";
 import { TodayTrainingCard } from "@/components/modules/planning/TodayTrainingCard";
 import { HomeRecentPRsWidget } from "@/components/modules/history/HomeRecentPRsWidget";
 import { HomeFavoriteExercisesWidget } from "@/components/modules/history/HomeFavoriteExercisesWidget";
+import { WeeklyConsistencyWidget } from "@/components/modules/history/WeeklyConsistencyWidget";
 import { getLocalDateString } from "@/domain/dates/calendar";
 import type { MealLog, WorkoutSession, CardioSession } from "@/types/database";
 
@@ -251,6 +252,11 @@ export default function HomePage() {
             )}
           </div>
         )}
+      </section>
+
+      {/* Trainingsconsistentie & Weekdoel (Prompt 16) */}
+      <section>
+        <WeeklyConsistencyWidget />
       </section>
 
       {/* Persoonlijke Records & Voortgang Cockpit */}

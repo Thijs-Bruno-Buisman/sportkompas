@@ -45,6 +45,14 @@ import {
   type ProgressiveOverloadSuggestion,
   type ProgressiveOverloadTarget,
 } from "@/domain/strength/progressiveOverload";
+import {
+  calculateWeeklyMuscleVolume,
+  calculateWeeklyConsistency,
+  type WeeklyMuscleVolumeReport,
+  type ConsistencyReport,
+} from "@/domain/strength/muscleVolume";
+import { type WeekStartDay, getWeekStartDate } from "@/domain/dates/calendar";
+import type { AppSettings } from "@/types/database";
 
 export interface FinishSessionOptions {
   overallRpe?: number;
@@ -1947,6 +1955,68 @@ export class WorkoutRepository {
       customRange: opts?.customRange,
       searchQuery: opts?.searchQuery,
       exerciseId: opts?.exerciseId,
+    });
+  }
+
+  /**
+   * Berekent het weekoverzicht van werksets per spiergroep (Prompt 16).
+   * Primaire en secundaire spiergroepen worden apart geteld zonder dubbeltelling.
+   */
+  async getWeeklyMuscleVolume(
+    weekStartDate?: string,
+    weekStartsOn?: WeekStartDay
+  ): Promise<WeeklyMuscleVolumeReport> {
+    const settings = (await this.sessionsTable.db
+      .table("appSettings")
+      .get("app_settings")) as AppSettings | undefined;
+
+    const chosenWeekStart = weekStartsOn || settings?.weekStartsOn || "maandag";
+    const actualWeekStart =
+      weekStartDate || getWeekStartDate(new Date(), chosenWeekStart);
+
+    const [completedSessions, allSets, allExercises] = await Promise.all([
+      this.sessionsTable.where("status").equals("afgerond").toArray(),
+      this.setsTable.toArray(),
+      this.sessionsTable.db.table("exercises").toArray() as Promise<Exercise[]>,
+    ]);
+
+    return calculateWeeklyMuscleVolume({
+      sessions: completedSessions,
+      sets: allSets,
+      exercises: allExercises,
+      weekStartDate: actualWeekStart,
+      weekStartsOn: chosenWeekStart,
+    });
+  }
+
+  /**
+   * Berekent trainingsconsistentie over de afgelopen N weken t.o.v. het weekdoel (Prompt 16).
+   * Rustdagen tellen expliciet als herstel en NOOIT als falen.
+   */
+  async getWeeklyConsistency(
+    historyWeeksCount = 4,
+    referenceDateStr?: string,
+    weekStartsOn?: WeekStartDay,
+    weeklyGoalOverride?: number
+  ): Promise<ConsistencyReport> {
+    const settings = (await this.sessionsTable.db
+      .table("appSettings")
+      .get("app_settings")) as AppSettings | undefined;
+
+    const chosenWeekStart = weekStartsOn || settings?.weekStartsOn || "maandag";
+    const chosenGoal = weeklyGoalOverride || settings?.weeklyWorkoutGoal || 3;
+
+    const completedSessions = await this.sessionsTable
+      .where("status")
+      .equals("afgerond")
+      .toArray();
+
+    return calculateWeeklyConsistency({
+      sessions: completedSessions,
+      weeklyGoal: chosenGoal,
+      referenceDateStr,
+      weekStartsOn: chosenWeekStart,
+      historyWeeksCount,
     });
   }
 }

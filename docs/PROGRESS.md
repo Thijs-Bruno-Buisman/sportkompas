@@ -35,7 +35,7 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 | **P13** | **Geschiedenis en Oefenprogressie (Prompt 13)** | `[x] KLAAR` | Trainingsgeschiedenis met datumfilters (7d/30d/90d/1y/custom), zoekbalk, statistiekenribbon, oefenprogressiegrafieken (gewicht, reps, volume, RPE), lb/kg presentatie en tabelweergave. |
 | **17 / P14** | **Krachttraining: Persoonlijke Records (PR) Tracking (Prompt 14)** | `[x] KLAAR` | Automatische PR-detectie in 5 categorieën, 1-10 reps 1RM wetenschappelijke grens, formuletransparantie, tie-bescherming, omgekeerde progressie bij assisted machines, dynamisch herberekenen bij sessieverwijdering, Home recente PRs widget & favoriete oefeningen cockpit voortgangsgrafiek. |
 | **P15** | **Progressieve Overload & Dubbele Progressie (Prompt 15)** | `[x] KLAAR` | Uitlegbare dubbele progressie (reps uitbouwen naar max, daarna instelbare gewichtsstap en reset naar min), apparatuurspecifieke stappen (barbell 2.5kg, dumbbell 2kg, machine/kabel 2.5kg, kettlebell 4kg), omgekeerde progressie bij assisted machines, doel-RPE/RIR overloadbescherming (consolideren bij te hoge inspanning), disclaimer en 1-klik toepassing in actieve training. |
-| **18** | Krachttraining: Kracht- en Volumegrafieken | `[ ] OPEN` | Visuele trends per spiergroep en progressie over tijd. |
+| **18 / P16** | **Spiergroepen, Weekvolume & Consistentie (Prompt 16)** | `[x] KLAAR` | Weekoverzicht werksets per spiergroep (gescheiden primaire 1.0x en secundaire 0.5x telling), interactieve anatomische SVG lichaamsvisualisatie (voor- en achterzijde), instelbaar weekdoel, respectvolle rustdagen (herstel, nooit falen), streaks en maand-/jaargrensbewaking. |
 | **19** | Cardio: Activiteitstypen & Datamodel | `[ ] OPEN` | Hardlopen, fietsen, roeien, wandelen, zwemmen en crosstrainer. |
 | **20** | Cardio: Handmatige Sessie Logger | `[ ] OPEN` | Afstand, tijd, hartslag, calorieën, gevoel/RPE en notities. |
 | **21** | Cardio: Live Tracker & Stopwatch | `[ ] OPEN` | Live timer met pauze/hervat en tussentijdse statistieken. |
@@ -768,7 +768,64 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
   - Suggesties baseren zich strikt op voltooide werksets (warming-up sets worden genegeerd).
   - Als er nog geen afgeronde sets bestaan, geeft het systeem `insufficient_data` en wordt geen willekeurige verhoging gefingeerd.
 - **Volgende Stap:**
-  - Prompt 16 / Stap 18: Krachttraining: Kracht- en Volumegrafieken (Visuele trends per spiergroep, tonnage per week en progressie over tijd).
+  - Prompt 16: Stap 16 — Spiergroepen en consistentie.
+
+---
+
+### Prompt 16 — Spiergroepen en Consistentie
+- **Datum:** 2026-10-03
+- **Status:** `[x] KLAAR`
+- **Uitgevoerde Acties:**
+  - **Pure Domeinlogica Spiergroepen Volume & Consistentie (`src/domain/strength/muscleVolume.ts`):**
+    - `calculateWeeklyMuscleVolume(options)`:
+      - **Transparante Telmethode:** Primaire spiergroepen tellen als 1,0 werkset (direct volume). Secundaire spiergroepen tellen apart als 0,5 werkset (fractioneel indirect volume). Eén set wordt nooit ongemerkt als een volledige set geteld voor iedere hulpspier.
+      - **Strikte Werksetfilter:** Uitsluitend voltooide sets (`completed === true`) in afgeronde sessies (`status === 'afgerond'`) tellen mee. Warming-up sets (`setType === 'warmup'`) worden standaard uitgesloten.
+      - **Spiergroepaggregatie:** Berekent directe sets, indirecte sets, fractioneel totaal, totaal tonnage (kg) en categoriseert indicatief (geen, laag, optimaal, hoog) per spiergroep (borst, rug, benen, schouders, armen, core, kuiten).
+      - **Maand- en Jaargrenzen:** Correcte afhandeling van weken die over maand- of jaargrenzen lopen (bijv. 31 december naar 1 januari).
+    - `calculateWeeklyConsistency(options)`:
+      - Berekent consistentie als het aantal behaalde trainingsweken t.o.v. een instelbaar weekdoel (standaard 3 trainingen/week).
+      - **Herstellende Rustdagen:** Rustdagen worden expliciet respectvol behandeld als herstel (`isRestDay: true`) en **nooit** als falen of rood kruis weergegeven.
+      - Berekent actieve wekenstreaks en het algehele consistentiepercentage over een instelbaar venster (bijv. afgelopen 4 weken).
+      - **Disclaimer (AGENTS.md Regel 7):** Geen claims dat het overzicht overtraining voorkomt. Het is een transparant planning- en analysetool.
+  - **Database & Instellingen Integratie:**
+    - `weeklyWorkoutGoal?: number` toegevoegd aan `AppSettings` en `AppSettingsSchema` (standaard 3, begrensd tussen 1 en 7).
+    - `SettingsRepository` uitgebreid met `getWeeklyWorkoutGoal()` en `setWeeklyWorkoutGoal(goal)`.
+    - `WorkoutRepository` uitgebreid met:
+      - `getWeeklyMuscleVolume(weekStartDate?, weekStartsOn?)`: Haalt gegevens op uit IndexedDB en levert het volledige weekrapport.
+      - `getWeeklyConsistency(historyWeeksCount?, referenceDateStr?, weekStartsOn?, weeklyGoalOverride?)`: Levert actuele en historische consistentiecijfers.
+  - **Gebruikersinterface Components:**
+    - `BodyVisualizationSVG.tsx` (`src/components/modules/history/BodyVisualizationSVG.tsx`):
+      - Interactief anatomisch silhouet met voorzijde (borst, schouders, armen, core, benen, kuiten) en achterzijde (rug, achterste schouders, triceps, glutes/hamstrings, kuiten).
+      - Dynamische kleurvulling op basis van sets: neutraal leeg (0 sets), zacht groen (1-9 sets), optimaal groen (10-20 sets) en diepgroen (>20 sets).
+      - Aanklikbaar: selecteert een spiergroep en toont direct details en bijdragende oefeningen.
+    - `MuscleVolumeOverview.tsx` (`src/components/modules/history/MuscleVolumeOverview.tsx`):
+      - Weeknavigator (vorige/volgende/deze week).
+      - Samenvattingsribbon: totaal werksets, totaal tonnage en meest getrainde spiergroep.
+      - Zichtbare toelichting op telmethode (direct vs indirect).
+      - Weergaveschakelaar: interactieve Lichaamskaart (SVG) of gedetailleerde Spiergroeplijst met progressiebalken.
+      - Detailkaart voor geselecteerde spiergroep met directe/indirecte uitsplitsing, tonnage en lijst met geregistreerde oefeningen.
+      - Verplichte disclaimer inzake trainingsplanning en herstel.
+    - `WeeklyConsistencyWidget.tsx` (`src/components/modules/history/WeeklyConsistencyWidget.tsx`):
+      - Visualisatie van weekdoel met inline aanpassing (2x, 3x, 4x, 5x per week).
+      - 7-dagen strip (Ma t/m Zo) met duidelijke checkmarks voor trainingen en rustige `Moon` indicatoren voor hersteldagen.
+      - Voortgangsbalk naar weekdoel met viering bij behalen (`(Doel behaald! 🎯)`).
+      - Historische consistentiebadge (% van afgelopen weken behaald) en actieve wekenstreak.
+  - **Applicatie-integratie:**
+    - `src/app/page.tsx` (Home): `WeeklyConsistencyWidget` prominent toegevoegd in de cockpit voor directe dagelijkse motivatie en consistentietracking.
+    - `src/app/training/page.tsx`: Nieuw tabblad `"Spiergroepen & Volume"` toegevoegd met zowel `WeeklyConsistencyWidget` als de volledige `MuscleVolumeOverview`.
+  - **Uitgebreide Tests:**
+    - `src/domain/strength/muscleVolume.test.ts`: 9 pure domeintests voor gescheiden primaire/secundaire telling, uitsluiting van warming-up en incomplete sets, jaargrens (31 dec -> 1 jan), weekStartsOn (maandag vs zondag), en respectvolle rustdagen zonder falen.
+    - `tests/muscleVolumeIntegration.test.ts`: 5 integratietests met echte Dexie IndexedDB opslag voor spiergroepenvolume, telmethode, data-integriteit bij verwijderen van sessies, weekdoel consistentie en jaargrenzen.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): **0 fouten**.
+  - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
+  - Vitest testsuite (`npm test`): **229 van de 229 tests geslaagd** over 23 testbestanden.
+  - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 8 routes statisch gegenereerd.
+- **Beperkingen & Notities:**
+  - Primaire sets tellen als 1.0; secundaire sets als 0.5 (fractioneel) om dubbeltelling te voorkomen.
+  - Rustdagen tellen bewust nooit als falen of rode kruisen.
+- **Volgende Stap:**
+  - Prompt 17: Cardio: Activiteitstypen, datamodel en handmatige sessielogger (hardlopen, fietsen, roeien, wandelen, zwemmen, crosstrainer met afstand, duur, hartslag en MET-calorieën).
 
 
 
