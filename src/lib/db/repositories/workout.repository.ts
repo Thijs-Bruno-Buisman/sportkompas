@@ -33,6 +33,13 @@ import {
   type DateFilterType,
   type CustomDateRange,
 } from "@/domain/strength/progression";
+import {
+  detectSessionPRs,
+  detectAllPRsAcrossHistory,
+  getRecentAchievedPRs,
+  evaluateSetForPRs,
+  type AchievedPR,
+} from "@/domain/strength/personalRecords";
 
 export interface FinishSessionOptions {
   overallRpe?: number;
@@ -1645,6 +1652,129 @@ export class WorkoutRepository {
     );
 
     return calculateExercisePRs(exerciseId, validSets);
+  }
+
+  /**
+   * Berekent en retourneert alle behaalde persoonlijke records (PR's) voor een specifieke sessie.
+   * Houdt rekening met eerdere afgeronde sessies, assisted oefeningen, 1-10 reps 1RM regels en tie-bescherming.
+   */
+  async getSessionPRs(
+    sessionId: string,
+    formula: "epley" | "brzycki" = "epley"
+  ): Promise<AchievedPR[]> {
+    const session = await this.sessionsTable.get(sessionId);
+    if (!session) return [];
+
+    const allSessions = await this.sessionsTable
+      .where("status")
+      .equals("afgerond")
+      .toArray();
+
+    // Als de sessie zelf nog niet in allSessions zit (bv. actieve tracking), voeg hem toe
+    if (!allSessions.some((s) => s.id === session.id)) {
+      allSessions.push(session);
+    }
+
+    const allSets = await this.setsTable.toArray();
+    const exercises: Exercise[] = await this.sessionsTable.db
+      .table("exercises")
+      .toArray();
+
+    return detectSessionPRs(session, allSessions, allSets, exercises, formula);
+  }
+
+  /**
+   * Berekent alle behaalde PR's over de gehele trainingshistorie.
+   */
+  async getAllPRs(
+    formula: "epley" | "brzycki" = "epley"
+  ): Promise<AchievedPR[]> {
+    const completedSessions = await this.sessionsTable
+      .where("status")
+      .equals("afgerond")
+      .toArray();
+
+    const allSets = await this.setsTable.toArray();
+    const exercises: Exercise[] = await this.sessionsTable.db
+      .table("exercises")
+      .toArray();
+
+    return detectAllPRsAcrossHistory(
+      completedSessions,
+      allSets,
+      exercises,
+      formula
+    );
+  }
+
+  /**
+   * Haalt de behaalde records op van de afgelopen N dagen (standaard 7 dagen / deze week).
+   * Ideaal voor de Home cockpit widget.
+   */
+  async getRecentPRs(
+    days = 7,
+    referenceDate = new Date(),
+    formula: "epley" | "brzycki" = "epley"
+  ): Promise<AchievedPR[]> {
+    const completedSessions = await this.sessionsTable
+      .where("status")
+      .equals("afgerond")
+      .toArray();
+
+    const allSets = await this.setsTable.toArray();
+    const exercises: Exercise[] = await this.sessionsTable.db
+      .table("exercises")
+      .toArray();
+
+    return getRecentAchievedPRs(
+      completedSessions,
+      allSets,
+      exercises,
+      days,
+      referenceDate,
+      formula
+    );
+  }
+
+  /**
+   * Evalueert een kandidaat-set tijdens actieve tracking tegen alle eerdere afgeronde sets.
+   */
+  async evaluateCandidateSet(
+    set: WorkoutSet,
+    sessionId: string,
+    formula: "epley" | "brzycki" = "epley"
+  ): Promise<AchievedPR[]> {
+    const session = await this.sessionsTable.get(sessionId);
+    if (!session) return [];
+
+    const exercise: Exercise | undefined = await this.sessionsTable.db
+      .table("exercises")
+      .get(set.exerciseId);
+    if (!exercise) return [];
+
+    const completedSessions = await this.sessionsTable
+      .where("status")
+      .equals("afgerond")
+      .toArray();
+
+    const sessionStart = session.startTime || session.calendarDate;
+    const priorCompletedSessions = completedSessions.filter((s) => {
+      if (s.id === session.id) return false;
+      const sDate = s.startTime || s.calendarDate;
+      return sDate.localeCompare(sessionStart) <= 0;
+    });
+
+    const priorSessionIds = new Set(priorCompletedSessions.map((s) => s.id));
+    const exerciseSets = await this.setsTable
+      .where("exerciseId")
+      .equals(set.exerciseId)
+      .toArray();
+
+    const priorSets = exerciseSets.filter(
+      (s) => priorSessionIds.has(s.sessionId) && s.completed && s.id !== set.id
+    );
+
+    return evaluateSetForPRs(set, exercise, session, priorSets, formula);
   }
 
   /**

@@ -364,6 +364,7 @@ export const AppSettingsSchema = z.object({
   demoModeActive: z.boolean(),
   activeProgramRoutineId: z.string().uuid().nullable(),
   weekStartsOn: z.enum(["maandag", "zondag"]).default("maandag"),
+  favoriteExerciseIds: z.array(z.string()).default([]).optional(),
   lastBackupAt: z.string().regex(isoDateRegex).nullable(),
   updatedAt: z.string().regex(isoDateRegex),
 });

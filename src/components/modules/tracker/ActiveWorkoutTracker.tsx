@@ -39,6 +39,7 @@ import { SetRow } from "./SetRow";
 import { RestTimerBar } from "./RestTimerBar";
 import { ExerciseNotesCard } from "./ExerciseNotesCard";
 import { duplicateSetValues } from "@/domain/strength/setParser";
+import type { AchievedPR } from "@/domain/strength/personalRecords";
 import {
   type RestTimerState,
   startRestTimer,
@@ -100,6 +101,23 @@ export function ActiveWorkoutTracker({
 
   // Feedback banner
   const [feedback, setFeedback] = useState<string | null>(null);
+
+  // Behaalde PR's in deze actieve sessie
+  const [sessionPRs, setSessionPRs] = useState<AchievedPR[]>([]);
+
+  useEffect(() => {
+    let isCancelled = false;
+    repositories.workout
+      .getSessionPRs(session.id)
+      .then((prs) => {
+        if (!isCancelled) setSessionPRs(prs);
+      })
+      .catch(console.error);
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [session.id, allSessionSets, repositories]);
 
   // ---------------------------------------------------------------------------
   // 1. LIVE VERSTREKEN TIJD BEREKENING
@@ -392,6 +410,23 @@ export function ActiveWorkoutTracker({
 
       // Start automatisch rusttimer indien set zojuist voltooid is
       if (nextCompleted) {
+        // Controleer of deze set een PR behaalt
+        try {
+          const detectedPRs = await repositories.workout.evaluateCandidateSet(
+            updatedSet,
+            session.id
+          );
+          if (detectedPRs.length > 0) {
+            const pr = detectedPRs[0];
+            setFeedback(
+              `🏆 Nieuw PR voor ${currentExercise?.exerciseName || "oefening"}! ${pr.categoryLabel}: ${pr.formattedValue}`
+            );
+            setTimeout(() => setFeedback(null), 4500);
+          }
+        } catch (prErr) {
+          console.error("Fout bij evalueren van set PR:", prErr);
+        }
+
         const restDuration =
           currentExercise?.restSeconds || set.restTimeSeconds || 90;
         const newTimer = startRestTimer(
@@ -918,17 +953,22 @@ export function ActiveWorkoutTracker({
                 </div>
 
                 {/* Set Rijen met SetRow component */}
-                {sets.map((set, sIdx) => (
-                  <SetRow
-                    key={set.id}
-                    set={set}
-                    index={sIdx}
-                    measurementType={currentExercise.measurementType ?? "gewicht_herhalingen"}
-                    onUpdateSetValue={handleUpdateSetValue}
-                    onToggleComplete={handleToggleCompleteSet}
-                    onDeleteSet={handleDeleteSet}
-                  />
-                ))}
+                {sets.map((set, sIdx) => {
+                  const setPR = sessionPRs.find((p) => p.setId === set.id);
+                  return (
+                    <SetRow
+                      key={set.id}
+                      set={set}
+                      index={sIdx}
+                      measurementType={currentExercise.measurementType ?? "gewicht_herhalingen"}
+                      isPR={Boolean(setPR)}
+                      prLabel={setPR?.description}
+                      onUpdateSetValue={handleUpdateSetValue}
+                      onToggleComplete={handleToggleCompleteSet}
+                      onDeleteSet={handleDeleteSet}
+                    />
+                  );
+                })}
               </div>
             )}
 
@@ -979,6 +1019,7 @@ export function ActiveWorkoutTracker({
           exerciseName: ex.exerciseName,
           sets: sets.filter((s) => s.exerciseId === ex.exerciseId),
         }))}
+        achievedPRs={sessionPRs}
         onConfirmFinish={handleConfirmFinish}
       />
 

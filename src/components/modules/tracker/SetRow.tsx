@@ -1,7 +1,7 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Check, Trash2, HelpCircle } from "lucide-react";
+import { Check, Trash2, HelpCircle, Trophy } from "lucide-react";
 import type { WorkoutSet, ExerciseMeasurementType } from "@/types/database";
 import {
   parseDecimalInput,
@@ -14,6 +14,8 @@ export interface SetRowProps {
   set: WorkoutSet;
   index: number;
   measurementType?: ExerciseMeasurementType;
+  isPR?: boolean;
+  prLabel?: string;
   onUpdateSetValue: (setId: string, updates: Partial<WorkoutSet>) => void;
   onToggleComplete: (set: WorkoutSet) => void;
   onDeleteSet: (setId: string) => void;
@@ -23,6 +25,8 @@ export function SetRow({
   set,
   index,
   measurementType = "gewicht_herhalingen",
+  isPR = false,
+  prLabel,
   onUpdateSetValue,
   onToggleComplete,
   onDeleteSet,
@@ -135,6 +139,16 @@ export function SetRow({
           >
             {set.setNumber}
           </span>
+
+          {isCompleted && isPR && (
+            <span
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-black bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 shrink-0"
+              title={prLabel || "Nieuw record behaald met deze set!"}
+            >
+              <Trophy className="w-2.5 h-2.5 text-amber-500" />
+              <span>PR</span>
+            </span>
+          )}
 
           <select
             value={set.setType}

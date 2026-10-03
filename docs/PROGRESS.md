@@ -33,7 +33,7 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 | **15 / P11** | **Rusttimer & Trainingsnotities (Prompt 11)** | `[x] KLAAR` | Timestamp-gebaseerde timer met achtergrondresistentie, audio/tril fallback, gescheiden techniek- en sessienotities. |
 | **16 / P12** | **Training Afronden & Corrigeren (Prompt 12)** | `[x] KLAAR` | Afrondscherm met overzicht en volume, incomplete sets afhandeling (discard/voltooid), bewerken en veilig verwijderen. |
 | **P13** | **Geschiedenis en Oefenprogressie (Prompt 13)** | `[x] KLAAR` | Trainingsgeschiedenis met datumfilters (7d/30d/90d/1y/custom), zoekbalk, statistiekenribbon, oefenprogressiegrafieken (gewicht, reps, volume, RPE), lb/kg presentatie en tabelweergave. |
-| **17** | Krachttraining: Persoonlijke Records (PR) Tracking | `[ ] OPEN` | Automatische detectie van records op 1RM, volume en gewicht. |
+| **17 / P14** | **Krachttraining: Persoonlijke Records (PR) Tracking (Prompt 14)** | `[x] KLAAR` | Automatische PR-detectie in 5 categorieën, 1-10 reps 1RM wetenschappelijke grens, formuletransparantie, tie-bescherming, omgekeerde progressie bij assisted machines, dynamisch herberekenen bij sessieverwijdering, Home recente PRs widget & favoriete oefeningen cockpit voortgangsgrafiek. |
 | **18** | Krachttraining: Kracht- en Volumegrafieken | `[ ] OPEN` | Visuele trends per spiergroep en progressie over tijd. |
 | **19** | Cardio: Activiteitstypen & Datamodel | `[ ] OPEN` | Hardlopen, fietsen, roeien, wandelen, zwemmen en crosstrainer. |
 | **20** | Cardio: Handmatige Sessie Logger | `[ ] OPEN` | Afstand, tijd, hartslag, calorieën, gevoel/RPE en notities. |
@@ -642,7 +642,72 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
   - Externe gewichten en assisted tegengewichten worden strikt nooit opgeteld in één ambigu volumegetal.
   - Oefenprogressie wordt altijd live samengesteld uit de actuele sets in IndexedDB; een bewerking of verwijdering van een oude training werkt onmiddellijk door in de grafiek.
 - **Volgende Stap:**
-  - Prompt 14: Stap 14 — Deload, rust en overbelasting (Geplande deloads, vermoeidheidsregistratie, volumevermindering en herstelindicaties).
+  - Prompt 14: Stap 14 — Persoonlijke records en geschatte 1RM.
+
+---
+
+### Stap 14: Persoonlijke records en geschatte 1RM (Prompt 14)
+- **Datum:** 2026-10-03
+- **Status:** `[x] KLAAR`
+- **Uitgevoerde Acties:**
+  - **Domeinlogica Persoonlijke Records (`src/domain/strength/personalRecords.ts`):**
+    - `calculateEligible1RM(weightKg, reps, measurementType, formula)`:
+      - Wetenschappelijke rep-bereik validatie: strikt beperkt tot \(1 \le reps \le 10\). Boven 10 reps is een 1RM-schatting onbetrouwbaar en wordt `null` geretourneerd.
+      - Meettype validatie: alleen voor `gewicht_herhalingen` en `extra_gewicht`. Assisted machines en pure lichaamsgewichtoefeningen krijgen expliciet geen 1RM.
+      - 1 rep = 100% werkelijke meting (`isEstimated: false`); 2 t/m 10 reps = Epley of Brzycki formule met zichtbaar label `"Geschat"`.
+    - `evaluateSetForPRs(candidateSet, exercise, session, priorSets, formula)`:
+      - Evalueert een voltooide werkset tegen alle chronologisch eerdere sets over 5 officiële categorieën:
+        1. **Zwaarste gewicht (`max_weight`):** Maximaal extern gewicht.
+        2. **Meeste herhalingen bij een bepaald gewicht (`reps_at_weight`):** Meer reps bij ditzelfde gewicht dan ooit eerder.
+        3. **Geschatte 1RM (`estimated_1rm`):** Hoogste 1RM (\(1 \le reps \le 10\)).
+        4. **Minste tegengewicht (`least_assistance`):** Omgekeerde progressie bij assisted machines (bv. 20 kg hulp is een nieuw PR ten opzichte van eerdere 30 kg hulp).
+        5. **Zwaarste set-volume (`max_volume_set`):** Hoogste tonnage in één werkset.
+      - **Tie-bescherming:** Een gelijke prestatie is **geen** nieuw record; de eer en oorspronkelijke datum blijven behouden.
+      - **Incomplete sets:** Sets met `completed === false` worden uitgesloten van PR-toekenning.
+    - `detectSessionPRs(session, allSessions, allSets, exercises, formula)`:
+      - Detecteert alle in een trainingssessie behaalde records door chronologisch te vergelijken met voorafgaande sessies.
+    - `detectAllPRsAcrossHistory(allSessions, allSets, exercises, formula)`:
+      - Berekent alle behaalde PR's over de volledige trainingshistorie.
+    - `getRecentAchievedPRs(allSessions, allSets, exercises, days, now, formula)`:
+      - Filtert behaalde PR's binnen de afgelopen N dagen (standaard 7 dagen / "deze week").
+  - **Dynamische Herberekening & Data-integriteit:**
+    - PR's worden 100% dynamisch afgeleid van de werkelijk opgeslagen sets en sessies in IndexedDB.
+    - Bij bewerken of verwijderen van een training (`deleteCompletedSession`) herstelt het direct voorgaande record zich automatisch als actief record, zonder achterblijvende vervuilde database-records.
+  - **Favoriete Oefeningen in AppSettings & Repository:**
+    - `favoriteExerciseIds?: EntityId[]` toegevoegd aan `AppSettings` en `AppSettingsSchema`.
+    - `SettingsRepository` uitgebreid met `getFavoriteExerciseIds()`, `setFavoriteExerciseIds(ids)` en `toggleFavoriteExerciseId(id)`.
+  - **Home Cockpit Widgets (`src/app/page.tsx`):**
+    - `HomeRecentPRsWidget`: Toont 'Deze week behaalde records' (afgelopen 7 dagen) met trofee-styling, categoriebadges, nieuwe waarde, vorige waarde en datum.
+    - `HomeFavoriteExercisesWidget`:
+      - Interactieve tabbladen voor favoriete compound oefeningen (bijv. Bankdrukken, Barbell Squat, Deadlift).
+      - Quick-select modal dialog om favorieten aan te vinken of te ontkoppelen.
+      - Metriekschakelaar (Geschatte 1RM, Max Gewicht, Werksetvolume).
+      - Zichtbaar label "Geschat (Epley)" bij 1RM.
+      - Responsieve SVG mini-grafiek met vloeiende polylijn, raster en eindwaarde.
+      - Doorklikknop naar de volledige `ExerciseProgressionModal`.
+  - **Trainingssessies & Tracker UI Integratie:**
+    - `ActiveWorkoutTracker.tsx`:
+      - Realtime feedback banner bij het afronden van een set die een nieuw PR vestigt (`🏆 Nieuw PR voor ...!`).
+      - Rusttimer blijft direct na voltooien functioneren.
+      - `SetRow.tsx`: Toont een gouden `🏆 PR` badge op voltooide sets die een nieuw record vestigden.
+      - `FinishWorkoutDialog.tsx`: Toont een feestelijk "Behaalde Records" overzicht met alle in deze workout behaalde PR's.
+    - `CompletedWorkoutDetailModal.tsx`:
+      - Toont een prominente "Behaalde Records in deze training" banner met exercise badges, categorie, oude vs nieuwe waarde en formule.
+      - Toont gouden `🏆 PR` indicatoren in de set-tabelrijen.
+  - **Uitgebreide Tests:**
+    - `src/domain/strength/personalRecords.test.ts`: 11 pure domeintests voor alle 5 PR-categorieën, 1-10 reps 1RM grenzen, afkeuren van assisted 1RM, tie-bescherming, omgekeerde assisted progressie en recente PR's filtering.
+    - `tests/personalRecordsIntegration.test.ts`: 6 integratietests met echte Dexie/IndexedDB database voor sessie-PR's, tie-beveiliging, uitsluiten van incomplete sets, omgekeerde progressie bij assisted machines, dynamisch herstel van voorgaand PR na verwijdering van een sessie, en favoriete oefeningen persistentie in AppSettings.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): **0 fouten**.
+  - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
+  - Vitest testsuite (`npm test`): **199 van de 199 tests geslaagd** over 19 testbestanden.
+  - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 8 routes statisch gegenereerd.
+- **Beperkingen & Notities:**
+  - 1RM-schattingen worden strikt begrensd tot maximaal 10 herhalingen conform wetenschappelijke standaarden (boven 10 reps is 1RM onbetrouwbaar).
+  - Geen PR-confetti of badges voor niet-afgevinkte sets of gelijke scores (ties).
+- **Volgende Stap:**
+  - Prompt 15: Stap 15 — Rusttimer, trainingsnotities en volume-optimalisaties / Deload & overbelasting (geavanceerde volume-analyses en deload-planning).
+
 
 
 

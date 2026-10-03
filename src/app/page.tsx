@@ -23,6 +23,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { useDatabase } from "@/lib/db";
 import { useProfile } from "@/lib/hooks/useProfile";
 import { TodayTrainingCard } from "@/components/modules/planning/TodayTrainingCard";
+import { HomeRecentPRsWidget } from "@/components/modules/history/HomeRecentPRsWidget";
+import { HomeFavoriteExercisesWidget } from "@/components/modules/history/HomeFavoriteExercisesWidget";
 import { getLocalDateString } from "@/domain/dates/calendar";
 import type { MealLog, WorkoutSession, CardioSession } from "@/types/database";
 
@@ -249,6 +251,12 @@ export default function HomePage() {
             )}
           </div>
         )}
+      </section>
+
+      {/* Persoonlijke Records & Voortgang Cockpit */}
+      <section className="space-y-4">
+        <HomeRecentPRsWidget />
+        <HomeFavoriteExercisesWidget />
       </section>
 
       {/* De Vier Kernmodules Navigatie */}

@@ -392,6 +392,7 @@ export interface AppSettings {
   demoModeActive: boolean;
   activeProgramRoutineId: EntityId | null;
   weekStartsOn?: "maandag" | "zondag";
+  favoriteExerciseIds?: EntityId[];
   lastBackupAt: string | null; // UTC ISO
   updatedAt: string; // UTC ISO
 }

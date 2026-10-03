@@ -14,9 +14,11 @@ import {
   AlertCircle,
   TrendingUp,
   Layers,
+  Trophy,
 } from "lucide-react";
 import type { WorkoutSet } from "@/types/database";
 import { calculateSetVolume } from "@/domain/strength/volumeAndPR";
+import type { AchievedPR } from "@/domain/strength/personalRecords";
 
 export interface ExerciseFinishSummary {
   exerciseId: string;
@@ -33,6 +35,7 @@ interface FinishWorkoutDialogProps {
   totalSetsPlanned: number;
   totalVolumeKg?: number;
   exerciseSummaries?: ExerciseFinishSummary[];
+  achievedPRs?: AchievedPR[];
   onConfirmFinish: (
     overallRpe?: number,
     notes?: string,
@@ -49,6 +52,7 @@ export function FinishWorkoutDialog({
   totalSetsPlanned,
   totalVolumeKg = 0,
   exerciseSummaries = [],
+  achievedPRs = [],
   onConfirmFinish,
 }: FinishWorkoutDialogProps) {
   const [selectedRpe, setSelectedRpe] = useState<number | undefined>(8);
@@ -129,6 +133,39 @@ export function FinishWorkoutDialog({
             </div>
           </div>
         </div>
+
+        {/* Behaalde Persoonlijke Records (PR's) in deze training */}
+        {achievedPRs && achievedPRs.length > 0 && (
+          <div className="p-3.5 bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent rounded-xl border border-amber-500/30 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-bold text-amber-700 dark:text-amber-400">
+                <Trophy className="w-4 h-4 text-amber-500 shrink-0" />
+                <span>
+                  {achievedPRs.length} Persoonlijk{achievedPRs.length === 1 ? " Record" : "e Records"} Behaald!
+                </span>
+              </div>
+              <Badge variant="warning" className="text-[10px] px-1.5 py-0 font-semibold">
+                Gefeliciteerd! 🏆
+              </Badge>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {achievedPRs.map((pr) => (
+                <div
+                  key={pr.id}
+                  className="p-2 rounded-lg bg-card border border-amber-500/20 text-xs flex flex-col gap-0.5 shadow-xs"
+                >
+                  <div className="flex items-center justify-between font-semibold text-foreground">
+                    <span className="truncate">{pr.exerciseName}</span>
+                    <span className="text-[10px] text-muted-foreground">{pr.categoryLabel}</span>
+                  </div>
+                  <div className="font-extrabold text-amber-600 dark:text-amber-400 text-sm">
+                    {pr.formattedValue}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Keuze voor niet-voltooide sets indien van toepassing */}
         {incompleteSetsCount > 0 && (

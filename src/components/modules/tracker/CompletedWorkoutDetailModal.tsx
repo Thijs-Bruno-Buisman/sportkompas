@@ -19,8 +19,10 @@ import {
   TrendingUp,
   AlertCircle,
   Save,
+  Trophy,
 } from "lucide-react";
 import { calculateSetVolume } from "@/domain/strength/volumeAndPR";
+import type { AchievedPR } from "@/domain/strength/personalRecords";
 
 export interface CompletedWorkoutDetailModalProps {
   isOpen: boolean;
@@ -47,6 +49,7 @@ export function CompletedWorkoutDetailModal({
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [achievedPRs, setAchievedPRs] = useState<AchievedPR[]>([]);
 
   // Edit form states
   const [editCalendarDate, setEditCalendarDate] = useState("");
@@ -61,13 +64,15 @@ export function CompletedWorkoutDetailModal({
     setIsLoading(true);
     setErrorMsg("");
     try {
-      const [loadedSets, loadedExercises] = await Promise.all([
+      const [loadedSets, loadedExercises, sessionPRs] = await Promise.all([
         repositories.workout.getSetsForSession(session.id),
         repositories.exercises.getAll(),
+        repositories.workout.getSessionPRs(session.id),
       ]);
 
       setSets(loadedSets);
       setExercises(loadedExercises);
+      setAchievedPRs(sessionPRs);
       setEditableSets(JSON.parse(JSON.stringify(loadedSets)));
 
       setEditCalendarDate(session.calendarDate || "");
@@ -317,6 +322,54 @@ export function CompletedWorkoutDetailModal({
           </div>
         )}
 
+        {/* Behaalde Persoonlijke Records (PR's) in deze training */}
+        {achievedPRs.length > 0 && (
+          <div className="p-3.5 bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent rounded-xl border border-amber-500/30 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-bold text-amber-700 dark:text-amber-400">
+                <Trophy className="w-4 h-4 text-amber-500 shrink-0" />
+                <span>
+                  {achievedPRs.length} Persoonlijk{achievedPRs.length === 1 ? " Record" : "e Records"} Behaald!
+                </span>
+              </div>
+              <Badge variant="warning" className="text-[10px] px-1.5 py-0 font-semibold">
+                Nieuwe Records
+              </Badge>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {achievedPRs.map((pr) => (
+                <div
+                  key={pr.id}
+                  className="p-2.5 rounded-lg bg-card border border-amber-500/30 text-xs flex flex-col justify-between gap-1 shadow-xs"
+                >
+                  <div className="flex items-center justify-between gap-1 font-semibold text-foreground">
+                    <span className="truncate">{pr.exerciseName}</span>
+                    <Badge variant="default" className="text-[9px] px-1.5 py-0 shrink-0">
+                      {pr.categoryLabel}
+                    </Badge>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-1">
+                    <span className="text-sm font-extrabold text-amber-600 dark:text-amber-400">
+                      {pr.formattedValue}
+                    </span>
+                    {pr.previousValue !== null && (
+                      <span className="text-[10px] text-muted-foreground">
+                        was {pr.previousValue} {pr.isAssisted ? "kg hulp" : "kg"}
+                      </span>
+                    )}
+                  </div>
+                  {pr.isEstimated && (
+                    <div className="text-[9px] text-muted-foreground italic">
+                      Geschat 1RM ({pr.formulaUsed})
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Oefeningen & Sets Lijst */}
         <div className="space-y-4">
           <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -402,9 +455,17 @@ export function CompletedWorkoutDetailModal({
                                 className="w-20 text-xs h-7 py-0 px-1"
                               />
                             ) : (
-                              <span className="font-semibold text-slate-800 dark:text-slate-200">
-                                {s.weightKg} kg
-                              </span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                  {s.weightKg} kg
+                                </span>
+                                {achievedPRs.some((p) => p.setId === s.id) && (
+                                  <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.2 rounded-md bg-amber-500/20 text-amber-700 dark:text-amber-300">
+                                    <Trophy className="w-2.5 h-2.5" />
+                                    <span>PR</span>
+                                  </span>
+                                )}
+                              </div>
                             )}
                           </td>
                           <td className="py-2 px-3">

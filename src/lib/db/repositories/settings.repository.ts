@@ -39,4 +39,23 @@ export class SettingsRepository extends BaseRepository<AppSettings> {
     };
     return await this.save(updated);
   }
+
+  async getFavoriteExerciseIds(): Promise<string[]> {
+    const settings = await this.getSettings();
+    return settings.favoriteExerciseIds ?? [];
+  }
+
+  async setFavoriteExerciseIds(ids: string[]): Promise<AppSettings> {
+    return await this.updateSettings({ favoriteExerciseIds: ids });
+  }
+
+  async toggleFavoriteExerciseId(exerciseId: string): Promise<string[]> {
+    const current = await this.getFavoriteExerciseIds();
+    const exists = current.includes(exerciseId);
+    const updated = exists
+      ? current.filter((id) => id !== exerciseId)
+      : [...current, exerciseId];
+    await this.setFavoriteExerciseIds(updated);
+    return updated;
+  }
 }
