@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Calendar,
   Flame,
+  Copy,
 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -22,12 +23,14 @@ interface DailyNutritionHeaderProps {
   selectedDate: string;
   onDateChange: (date: string) => void;
   totals: DailyNutritionTotals;
+  onCopyYesterday?: () => void;
 }
 
 export function DailyNutritionHeader({
   selectedDate,
   onDateChange,
   totals,
+  onCopyYesterday,
 }: DailyNutritionHeaderProps) {
   const todayStr = getLocalDateString();
   const isToday = selectedDate === todayStr;
@@ -91,6 +94,19 @@ export function DailyNutritionHeader({
               className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold"
             >
               Vandaag
+            </Button>
+          )}
+
+          {onCopyYesterday && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={onCopyYesterday}
+              leftIcon={<Copy className="w-3.5 h-3.5 text-slate-500" />}
+              className="text-xs text-slate-600 dark:text-slate-400"
+              title="Kopieer alle maaltijden van gisteren naar deze dag"
+            >
+              <span className="hidden md:inline">Kopieer gisteren</span>
             </Button>
           )}
         </div>

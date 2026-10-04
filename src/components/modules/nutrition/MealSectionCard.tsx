@@ -9,7 +9,8 @@ import {
   Plus,
   Trash2,
   Edit2,
-  Utensils,
+  Copy,
+  BookmarkPlus,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -21,6 +22,8 @@ interface MealSectionCardProps {
   onAddItem: (mealType: MealLog["mealType"]) => void;
   onEditItem: (logId: string, itemIndex: number, currentItem: MealItemEntry) => void;
   onDeleteItem: (logId: string, itemIndex: number) => void;
+  onCopyFromYesterday?: (mealType: MealLog["mealType"]) => void;
+  onSaveAsRecipe?: (summary: MealTypeSummary) => void;
 }
 
 export function MealSectionCard({
@@ -28,6 +31,8 @@ export function MealSectionCard({
   onAddItem,
   onEditItem,
   onDeleteItem,
+  onCopyFromYesterday,
+  onSaveAsRecipe,
 }: MealSectionCardProps) {
   const getMealIcon = (type: MealLog["mealType"]) => {
     switch (type) {
@@ -45,7 +50,7 @@ export function MealSectionCard({
 
   return (
     <Card className="border-slate-200 dark:border-slate-800">
-      <CardHeader className="py-3.5 px-4 sm:px-5 flex flex-row items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800/80">
+      <CardHeader className="py-3.5 px-4 sm:px-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800/80">
         <div className="flex items-center gap-2.5">
           <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800">
             {getMealIcon(summary.mealType)}
@@ -69,15 +74,46 @@ export function MealSectionCard({
           </div>
         </div>
 
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => onAddItem(summary.mealType)}
-          leftIcon={<Plus className="w-3.5 h-3.5" />}
-          className="text-xs shrink-0"
-        >
-          Toevoegen
-        </Button>
+        <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0 flex-wrap">
+          {/* Knop: Kopieer van gisteren */}
+          {onCopyFromYesterday && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => onCopyFromYesterday(summary.mealType)}
+              leftIcon={<Copy className="w-3.5 h-3.5" />}
+              className="text-xs text-slate-500 hover:text-slate-900 dark:hover:text-slate-200"
+              title="Kopieer items van gisteren"
+            >
+              <span className="hidden md:inline">Van gisteren</span>
+            </Button>
+          )}
+
+          {/* Knop: Opslaan als recept (alleen als maaltijd items bevat) */}
+          {onSaveAsRecipe && summary.itemsCount > 0 && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => onSaveAsRecipe(summary)}
+              leftIcon={<BookmarkPlus className="w-3.5 h-3.5 text-amber-500" />}
+              className="text-xs text-slate-500 hover:text-slate-900 dark:hover:text-slate-200"
+              title="Sla deze maaltijd op als herbruikbaar recept"
+            >
+              <span className="hidden md:inline">Als Recept</span>
+            </Button>
+          )}
+
+          {/* Knop: Toevoegen */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onAddItem(summary.mealType)}
+            leftIcon={<Plus className="w-3.5 h-3.5" />}
+            className="text-xs shrink-0"
+          >
+            Toevoegen
+          </Button>
+        </div>
       </CardHeader>
 
       <CardContent className="p-4 sm:p-5">

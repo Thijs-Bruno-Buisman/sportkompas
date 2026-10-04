@@ -4,6 +4,12 @@ import { FoodItemSchema, MealLogSchema, WaterLogSchema, RecipeSchema } from "../
 import { type Table } from "dexie";
 import { DEFAULT_FOOD_ITEMS } from "@/domain/nutrition/defaultFoods";
 import { filterFoods, filterRecipes } from "@/domain/nutrition/calculations";
+import {
+  extractRecentMealItems,
+  type RecentMealItemSummary,
+  createRecipeFromMealLog,
+  duplicateMealItems,
+} from "@/domain/nutrition/quickLog";
 
 export class NutritionRepository {
   public readonly foods: BaseRepository<FoodItem>;
@@ -293,5 +299,87 @@ export class NutritionRepository {
 
       await this.meals.save(log);
     }
+  }
+
+  /**
+   * Haalt unieke recent gebruikte items op uit eerdere maaltijdlogs.
+   */
+  async getRecentMealItems(limit: number = 20): Promise<RecentMealItemSummary[]> {
+    const allLogs = await this.meals["table"].toArray();
+    return extractRecentMealItems(allLogs, limit);
+  }
+
+  /**
+   * Kopieert alle items van een maaltijdmoment van een brondatum naar een doeldatum.
+   */
+  async copyMealFromDate(
+    sourceDate: string,
+    targetDate: string,
+    mealType: MealLog["mealType"]
+  ): Promise<MealLog | null> {
+    const sourceLogs = await this.meals["table"]
+      .where("calendarDate")
+      .equals(sourceDate)
+      .filter((m: MealLog) => m.mealType === mealType)
+      .toArray();
+
+    if (sourceLogs.length === 0) return null;
+
+    let updatedTargetLog: MealLog | null = null;
+    for (const sLog of sourceLogs) {
+      const clonedItems = duplicateMealItems(sLog.items);
+      for (const item of clonedItems) {
+        updatedTargetLog = await this.addItemToMeal(targetDate, mealType, item);
+      }
+    }
+
+    return updatedTargetLog;
+  }
+
+  /**
+   * Kopieert alle maaltijden van een brondatum naar een doeldatum.
+   * Retourneert het totale aantal gekopieerde items.
+   */
+  async copyAllMealsFromDate(
+    sourceDate: string,
+    targetDate: string
+  ): Promise<number> {
+    const sourceLogs = await this.meals["table"]
+      .where("calendarDate")
+      .equals(sourceDate)
+      .toArray();
+
+    let count = 0;
+    for (const log of sourceLogs) {
+      const clonedItems = duplicateMealItems(log.items);
+      for (const item of clonedItems) {
+        await this.addItemToMeal(targetDate, log.mealType, item);
+        count++;
+      }
+    }
+
+    return count;
+  }
+
+  /**
+   * Converteert een geregistreerde maaltijdlog naar een herbruikbaar Recept in de database.
+   */
+  async saveMealAsRecipe(
+    mealLogId: string,
+    recipeName: string,
+    portions: number = 1
+  ): Promise<Recipe> {
+    const log = await this.meals.getById(mealLogId);
+    if (!log || log.items.length === 0) {
+      throw new Error("Maaltijdlog niet gevonden of bevat geen items om op te slaan als recept");
+    }
+
+    const recipeData = createRecipeFromMealLog(log, recipeName, portions);
+    const newRecipe: Recipe = {
+      ...recipeData,
+      id: crypto.randomUUID(),
+    };
+
+    return await this.recipes.save(newRecipe);
   }
 }

@@ -1048,5 +1048,47 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 - **Volgende Stap:**
   - **Stap 27 / Prompt 22**: Voeding: Maaltijdlogger & Snelle Invoer (snelknoppen voor favorieten, lijst met recent gelogde producten, kopiëren van maaltijden van eerdere dagen en maaltijdsjablonen).
 
+---
+
+### Stap 27 / Prompt 22 — Voeding: Maaltijdlogger & Snelle Invoer (`[x] KLAAR`)
+- **Doel & Bereik:**
+  - Snelle en wrijvingsloze maaltijdregistratie via recente items, favorieten en slimme portieknoppen.
+  - Mogelijkheid om eerdere maaltijden of een complete dag van gisteren direct naar vandaag te kopiëren zonder handmatig overtikken.
+  - Opslaan van een samengestelde maaltijd als een herbruikbaar recept (`Recipe`) in de bibliotheek met automatische macro-calculatie.
+  - Uitgebreide dialoog met 4 gerichte tabs: Recent, Favorieten, Database & Handmatig.
+  - Snelle portie-presets (bijv. ½ portie, 1 portie, 1½ portie, 2 porties, 100g, 200g) voor directe aanpassing met één tik.
+- **Geïmplementeerde Wijzigingen:**
+  - **Domeinlogica (`src/domain/nutrition/quickLog.ts` & `src/domain/nutrition/quickLog.test.ts`):**
+    - `extractRecentMealItems(logs, limit)`: Haalt unieke items op uit recente `MealLog` records, ontdubbelt op product-ID/naam, berekent gebruiksfrequentie (`timesLogged`), onthoudt de laatst gekozen portiegrootte en sorteert chronologisch aflopend.
+    - `createRecipeFromMealLog(mealLog, recipeName, portions)`: Converteert een gelogde maaltijd met al zijn items naar een formeel `Recipe` object met automatische aggregatie van gewicht, calorieën en macro's (totaal, per portie en per 100g).
+    - `getQuickPortionOptions(defaultPortionGrams)`: Genereert handige snelknoppen (½ portie, 1 portie, 1½ portie, 2 porties, plus standaardgrammen 50g, 100g, 150g, 200g).
+    - `duplicateMealItems(items)`: Veilige kloning van item-records zonder neveneffecten.
+    - `quickLog.test.ts`: 4 pure unit tests (100% geslaagd).
+  - **Repository Uitbreidingen (`src/lib/db/repositories/nutrition.repository.ts`):**
+    - `getRecentMealItems(limit)`: Haalt maaltijdlogs op en levert dedupliceerde recente items.
+    - `copyMealFromDate(sourceDate, targetDate, mealType)`: Kopieert alle items van een specifiek maaltijdmoment van dag A naar dag B.
+    - `copyAllMealsFromDate(sourceDate, targetDate)`: Kopieert alle geregistreerde maaltijden van een bronkalenderdag naar de doeldatum en retourneert het aantal gekopieerde items.
+    - `saveMealAsRecipe(mealLogId, recipeName, portions)`: Transformeert een bestaande maaltijdlog naar een recept en persisteert dit in IndexedDB `recipes`.
+  - **Gebruikersinterface (`src/components/modules/nutrition/` & `src/app/voeding/page.tsx`):**
+    - `AddMealItemDialog.tsx`: Geüpgraded met 4 tabs (Recent met gebruiksbadges, Favorieten gemarkeerd met ster, Database met zoekfunctie, Handmatig voor snelle macro-invoer) en dynamische snelknoppen voor porties (touch-targets >= 44px).
+    - `SaveMealAsRecipeDialog.tsx`: Nieuw dialoogvenster om een geregistreerde maaltijd om te dopen tot een herbruikbaar recept inclusief ingrediëntenoverzicht en portiekeuze.
+    - `MealSectionCard.tsx`: Toegevoegde actieknoppen voor "Van gisteren" (kopieer specifiek dit maaltijdmoment) en "Als Recept" (sla maaltijd op in receptenbibliotheek).
+    - `DailyNutritionHeader.tsx`: Nieuwe knop "Kopieer gisteren" voor het dupliceren van een complete eetdag met één klik.
+    - `DailyNutritionView.tsx`: Volledige orchestratie van recente items, kopieeracties en receptcreatie-modals.
+    - `src/app/voeding/page.tsx`: Reactive state voor `recentItems` die automatisch wordt bijgewerkt na elke maaltijd-, kopieer- of bewerkactie.
+  - **Integratietests (`tests/nutritionQuickLogIntegration.test.ts`):**
+    - 4 integratietests met Dexie en `fake-indexeddb` die recente items ophalen, individuele maaltijdkopieën, complete dagkopieën en maaltijd-naar-recept conversie valideren.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): **0 fouten**.
+  - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
+  - Vitest testsuite (`npm test`): **294 van de 294 tests geslaagd** over 35 testbestanden (100% slagingspercentage).
+  - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 8 Next.js routes statisch gegenereerd.
+  - Bestandsintegriteit: 0-byte bestandscontrole uitgevoerd en geverifieerd (0 lege bestanden).
+- **Beperkingen & Notities:**
+  - Gekopieerde items worden als onafhankelijke nieuwe entries gelogd op de doeldatum, zodat latere bewerkingen geen invloed hebben op de historische brondatum.
+- **Volgende Stap:**
+  - **Stap 28 / Prompt 23**: Voeding: Voedingsdoelen & Caloriebalans (koppeling met gebruikersprofiel BMR/TDEE, dynamische berekening van calorie- en macro-doelen, resterend budget en visuele voortgangsindicatoren).
+
+
 
 
