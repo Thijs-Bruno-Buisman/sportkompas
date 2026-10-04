@@ -21,16 +21,20 @@ import {
   getActivityMetadata,
 } from "@/domain/cardio/calculations";
 
+import { CardioHistoryCharts } from "./CardioHistoryCharts";
+
 interface CardioStatsTabProps {
   stats: CardioSummaryStats;
   sessions: CardioSession[];
   userWeightKg?: number | null;
+  userAge?: number | null;
 }
 
 export function CardioStatsTab({
   stats,
   sessions,
   userWeightKg,
+  userAge,
 }: CardioStatsTabProps) {
   const totalKm = (stats.totalDistanceMeters / 1000).toFixed(1);
   const totalHours = (stats.totalDurationSeconds / 3600).toFixed(1);
@@ -114,6 +118,9 @@ export function CardioStatsTab({
           </p>
         </Card>
       </div>
+
+      {/* Interactieve Historiek Grafieken (Afstand, Tempo & Hartslagzones) */}
+      <CardioHistoryCharts sessions={sessions} userAge={userAge} />
 
       {/* Uitsplitsing per sport / activiteit */}
       <Card className="p-5 border-slate-200 dark:border-slate-800 space-y-4">

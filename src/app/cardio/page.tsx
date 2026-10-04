@@ -381,6 +381,7 @@ export default function CardioPage() {
               stats={summaryStats}
               sessions={sessions}
               userWeightKg={userWeightKg}
+              userAge={userAge}
             />
           ) : (
             <div className="py-12 text-center text-sm text-slate-400">

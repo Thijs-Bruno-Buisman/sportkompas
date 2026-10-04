@@ -38,8 +38,7 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 | **18 / P16** | **Spiergroepen, Weekvolume & Consistentie (Prompt 16)** | `[x] KLAAR` | Weekoverzicht werksets per spiergroep (gescheiden primaire 1.0x en secundaire 0.5x telling), interactieve anatomische SVG lichaamsvisualisatie (voor- en achterzijde), instelbaar weekdoel, respectvolle rustdagen (herstel, nooit falen), streaks en maand-/jaargrensbewaking. |
 | **19-20 / P17** | **Cardio: Activiteitstypen, Datamodel & Handmatige Logger (Prompt 17)** | `[x] KLAAR` | Ondersteuning voor 7 sporten (hardlopen, fietsen, roeien, wandelen, zwemmen, crosstrainer, overig), canonieke eenheden (m, s), sportspecifieke splits (500m split, 100m zwemtempo, min/km, km/u), MET-calorieën o.b.v. snelheid en gewicht, Gellish HR-zones (Z1-Z5), live berekeningspreview in modal, filterbalk, bewerk/verwijder flows en statistiekentab. |
 | **21-22 / P18** | **Cardio: Live Tracker, Stopwatch & Berekeningen (Prompt 18)** | `[x] KLAAR` | Timestamp-gebaseerde live stopwatch zonder tab-drift, achtergrondresistentie via localStorage, live pauzeer/hervat, ronde/split tracking met tussentijden, live tempo- en calorie-indicatoren, actieve cardio banner, finish- & discard dialogen, sportspecifieke afstands-incrementen en 9 tests. |
-| **23** | Cardio: Historiek & Periode-statistieken | `[ ] OPEN` | Wekelijkse en maandelijkse totalen per activiteitstype. |
-| **24** | Cardio: Grafieken & Pace-analyse | `[ ] OPEN` | Tempo- en hartslagverloop over tijd in Recharts. |
+| **23-24 / P19** | **Cardio: Historiek, Periode-statistieken & Grafieken (Prompt 19)** | `[x] KLAAR` | Periodefiltering (7d/30d/90d/1j/alles), bucket aggregatie (dag/week/maand), interactieve pure SVG bar chart (volume), SVG line chart (tempo & snelheid verloop met atletische omkering voor hardlopen) en hartslagzone distributie (Z1-Z5). |
 | **25** | Voeding: Voedingsmiddelen & Recepten Database | `[ ] OPEN` | Lokale database met kcal, eiwit, koolhydraat, vet, vezels per 100g. |
 | **26** | Voeding: Dagelijks Voedingsdagboek | `[ ] OPEN` | Indeling: Ontbijt, Lunch, Diner, Snacks met datumkiezer. |
 | **27** | Voeding: Maaltijdlogger & Snelle Invoer | `[ ] OPEN` | Producten selecteren, porties berekenen, favorieten markeren. |
@@ -920,4 +919,44 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
   - Vitest testsuite (`npm test`): **259 van de 259 tests geslaagd** over 27 testbestanden (100% slagingspercentage).
   - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 8 Next.js routes statisch gegenereerd.
 - **Volgende Stap:**
-  - Prompt 19 / Stap 23-24: Cardio Historiek, Periode-statistieken & Pace/Hartslaggrafieken (Recharts grafieken voor tempo- en hartslagverloop over tijd, week- en maandtotalen per activiteitstype).
+  - Prompt 19 / Stap 23-24: Cardio Historiek, Periode-statistieken & Pace/Hartslaggrafieken (Recharts/SVG grafieken voor tempo- en hartslagverloop over tijd, week- en maandtotalen per activiteitstype).
+
+---
+
+### Stap 23-24 / Prompt 19 — Cardio: Historiek, Periode-statistieken & Grafieken (`[x] KLAAR`)
+- **Doel & Bereik:**
+  - Cardio geschiedenis uitbreiden met interactieve periode-filters (7d, 30d, 90d, 1j, alles) en dynamische sportfiltering.
+  - Tijd-aggregatie (buckets) berekenen voor dag-, week- en maandtotalen (afstand, tijd, calorieën, gemiddelde snelheid).
+  - Pure SVG grafieken implementeren voor:
+    - Afstand en volume per periode (interactieve Bar Chart met hover tooltips en sport-uitsplitsing).
+    - Tempo- en snelheidsverloop over tijd (interactieve Line Chart met atletische omkering voor hardlopen/wandelen: snellere pace hoger weergegeven).
+    - Hartslagzoneverdeling over de 5 fysiologische Gellish-zones (Zone 1 t/m 5) met progressiebalken en percentages.
+- **Geïmplementeerde Wijzigingen:**
+  - **Domeinlogica (`src/domain/cardio/statistics.ts`):**
+    - `filterSessionsByPeriod(sessions, period, referenceDateStr)`: Filtert sessies op 7d, 30d, 90d, 1j of alles; sluit conform AGENTS.md automatisch geannuleerde sessies uit.
+    - `groupSessionsByBucket(sessions, period)`: Groepeert sessies per dag (bij 7d), week (bij 30d/90d) of maand (bij 1j/alles). Aggregeert meters, seconden, calorieën, sessietelling en uitsplitsing per sport.
+    - `calculatePaceTrend(sessions, activityType)`: Extraheert chronologische tempo- en snelheidspunten met sportspecifieke metric formatting (min/km voor hardlopen/wandelen, km/u voor fietsen/crosstrainer, 500m split voor roeien, 100m pace voor zwemmen).
+    - `calculateHeartRateDistribution(sessions, userAge)`: Berekent de fysiologische zoneverdeling (Z1 Herstel t/m Z5 Maximaal) op basis van de Gellish-leeftijdsformule.
+    - `src/domain/cardio/statistics.test.ts`: 6 pure domeintests voor periodefiltering, aggregatie in buckets, pace trends en hartslagzones (100% geslaagd).
+  - **Gebruikersinterface (`src/components/modules/cardio/CardioHistoryCharts.tsx`):**
+    - Periode-knoppen (`7d`, `30d`, `90d`, `1j`, `Alles`) en sport-selector chips.
+    - Periode-samenvattingsstrook met totale kilometers, trainingsuren, calorieën en aantal sessies.
+    - `SvgCardioBarChart`: Responsieve SVG staafdiagram met dynamische Y-as schaling, afgeronde staven, interactieve selectie/hover en gedetailleerde tooltip met verantwoorde uitsplitsing per sport.
+    - `SvgPaceTrendChart`: Responsieve SVG lijndiagram met vloeiende polyline, datapunten met grote touch hitzones (18px), en atletische Y-as omkering voor hardloopsessies.
+    - Hartslagzone distributiekaart met kleurgecodeerde balken (emerald, sky, amber, orange, rose), zone-uitleg en percentages.
+  - **Tab & Pagina Integratie:**
+    - `src/components/modules/cardio/CardioStatsTab.tsx`: `CardioHistoryCharts` geïntegreerd inclusief doorgifte van `userAge`.
+    - `src/app/cardio/page.tsx`: Gekoppeld aan het profiel (`userAge`, `userWeightKg`) en reactieve IndexedDB updates.
+  - **Integratietests (`tests/cardioStatisticsIntegration.test.ts`):**
+    - Dexie integratietest met `fake-indexeddb` die volledige end-to-end opslag, Zod UUID validatie, chronologische sortering, periodefiltering, bucketaggregatie, pace trends en zoneverdeling valideert.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): **0 fouten**.
+  - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
+  - Vitest testsuite (`npm test`): **266 van de 266 tests geslaagd** over 29 testbestanden (100% slagingspercentage).
+  - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 8 Next.js routes statisch gegenereerd.
+- **Beperkingen & Notities:**
+  - Pure SVG visualisaties zijn gebruikt i.p.v. externe zware bibliotheken om volledige React 19 compatibiliteit, SSR-veiligheid en nul hydratatie-mismatches te garanderen.
+  - OneDrive bestandsintegriteit is gecontroleerd en geverifieerd (0-byte detectie en herstel).
+- **Volgende Stap:**
+  - **Module 4: Voeding & Hydratatie (Stap 25 / Prompt 20)**: Voedingsmiddelen & Recepten Database (lokale database met kcal, eiwit, koolhydraat, vet, vezels per 100g, Dexie tabellen, Zod schema's en CRUD beheer).
+

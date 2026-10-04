@@ -104,8 +104,8 @@ describe("Stap 08 — Actief Programma, Weekplanning en Datumverwerking (Prompt 
       expect(formatFriendlyDate(tomorrowStr)).toBe("Morgen");
       expect(formatFriendlyDate(yesterdayStr)).toBe("Gisteren");
 
-      // Vaste datum controle
-      const fixedFormatted = formatFriendlyDate("2026-10-05");
+      // Vaste datum controle (buiten Vandaag/Morgen/Gisteren venster)
+      const fixedFormatted = formatFriendlyDate("2026-10-25");
       expect(fixedFormatted).toContain("okt");
     });
 
