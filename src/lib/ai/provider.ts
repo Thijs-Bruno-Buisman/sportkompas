@@ -25,6 +25,18 @@ Als taak 'overload_suggestions' is, beantwoord dan bij voorkeur met een geldig J
   "confidence": "hoog" | "gemiddeld" | "laag",
   "requiresConfirmation": true
 }`;
+  } else if (task === "nutrition_advice") {
+    taskGuidance = `
+Als taak 'nutrition_advice' is, beantwoord dan bij voorkeur met een geldig JSON object conform dit schema:
+{
+  "summary": string,
+  "isTrainingDay": boolean,
+  "calorieAdjustmentKcal": number,
+  "proteinTargetGrams": number,
+  "carbsTargetGrams": number,
+  "recommendations": string[],
+  "rationale": string (inclusief '(schatting)')
+}`;
   }
 
   return `Je bent de ingebouwde assistent van SportKompas, een persoonlijke en rustige fitness applicatie.
@@ -119,21 +131,37 @@ export function generateLocalHeuristicResponse(
 
     case "nutrition_advice": {
       const isTrainingDay = Boolean(payload.context?.isTrainingDay ?? true);
+      const weightKg = Number(payload.context?.weightKg) || 75;
+      const currentCalories = Number((payload.context?.currentTargets as Record<string, unknown> | undefined)?.calories) || 2200;
+      const calorieAdjustment = isTrainingDay ? 200 : 0;
+      const targetCalories = currentCalories + calorieAdjustment;
+      const suggestedProtein = Math.round(weightKg * (isTrainingDay ? 2.0 : 1.8));
+      const fatKcal = Math.round(targetCalories * 0.25);
+      const remainingKcal = Math.max(0, targetCalories - (suggestedProtein * 4 + fatKcal));
+      const suggestedCarbs = Math.max(50, Math.round(remainingKcal / 4));
+
       const structured = NutritionAdviceSchema.parse({
         summary: isTrainingDay
-          ? "Trainingsdag: focus op extra complexe koolhydraten en hydratatie."
-          : "Rustdag: stabiele eiwitinname voor spierherstel.",
+          ? `Trainingsdag advies: ${targetCalories} kcal (+${calorieAdjustment} kcal) & ${suggestedProtein}g eiwit (schatting)`
+          : `Rustdag advies: ${targetCalories} kcal & ${suggestedProtein}g eiwit voor herstel (schatting)`,
         isTrainingDay,
-        calorieAdjustmentKcal: isTrainingDay ? 200 : 0,
-        proteinTargetGrams: 160,
-        carbsTargetGrams: isTrainingDay ? 280 : 220,
-        recommendations: [
-          "Neem een eiwitrijke maaltijd binnen 2 uur na je training.",
-          "Drink minimaal 2,5 liter water verspreid over de dag.",
-          "Kies voor trage koolhydraten (havermout, zilvervliesrijst, volkoren pasta).",
-        ],
-        rationale:
-          "Op trainingsdagen verbruik je meer glycogeen; een lichte ophoging van ~200 kcal (schatting) bevordert herstel en energie.",
+        calorieAdjustmentKcal: calorieAdjustment,
+        proteinTargetGrams: suggestedProtein,
+        carbsTargetGrams: suggestedCarbs,
+        recommendations: isTrainingDay
+          ? [
+              "Neem een eiwit- en koolhydraatrijke maaltijd binnen 2 uur na je training.",
+              "Drink minimaal 2,5 tot 3 liter water voor optimale spierhydratatie.",
+              "Kies voor complexe koolhydraten (havermout, zilvervliesrijst, volkoren pasta).",
+            ]
+          : [
+              "Behoud een gelijkmatige eiwitverdeling over 3 tot 4 maaltijden.",
+              "Focus op vezelrijke groenten en gezonde vetten (olijfolie, noten, avocado).",
+              "Blijf goed hydrateren (minimaal 2 liter water).",
+            ],
+        rationale: isTrainingDay
+          ? "Op trainingsdagen verbruiken je spieren extra glycogeen; een lichte ophoging van ~200 kcal (schatting) bevordert herstel en energie."
+          : "Op rustdagen herstelt je lichaam; een stabiel onderhoudsniveau met focus op eiwitten en herstel (schatting) is optimaal.",
       });
 
       return {
@@ -250,6 +278,17 @@ ${payload.userPrompt || "Genereer een analyse conform je taak."}`;
         }
       } catch {
         // Fallback naar gestructureerde data via lokale heuristiek als Gemini vrije tekst retourneerde
+        const fallback = generateLocalHeuristicResponse(payload, config.modelName);
+        structuredData = fallback.structuredData;
+      }
+    } else if (payload.task === "nutrition_advice") {
+      try {
+        const jsonMatch = candidateText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          structuredData = NutritionAdviceSchema.parse(parsed);
+        }
+      } catch {
         const fallback = generateLocalHeuristicResponse(payload, config.modelName);
         structuredData = fallback.structuredData;
       }

@@ -10,6 +10,7 @@ import { EditMealItemDialog } from "./EditMealItemDialog";
 import { SaveMealAsRecipeDialog } from "./SaveMealAsRecipeDialog";
 import { NutritionBudgetCard } from "./NutritionBudgetCard";
 import { NutritionGoalsModal } from "./NutritionGoalsModal";
+import { AiNutritionAdvisorModal } from "./AiNutritionAdvisorModal";
 import {
   calculateDailyTotals,
   groupLogsByMealType,
@@ -77,6 +78,7 @@ export function DailyNutritionView({
   } | null>(null);
   const [mealToSaveAsRecipe, setMealToSaveAsRecipe] = useState<MealTypeSummary | null>(null);
   const [isGoalsModalOpen, setIsGoalsModalOpen] = useState(false);
+  const [isAiNutritionOpen, setIsAiNutritionOpen] = useState(false);
 
   // Group logs and calculate daily totals
   const dailyTotals = useMemo(() => {
@@ -125,6 +127,7 @@ export function DailyNutritionView({
         targets={nutritionTargets}
         progress={progress}
         onOpenGoalsModal={() => setIsGoalsModalOpen(true)}
+        onOpenAiAdvisor={() => setIsAiNutritionOpen(true)}
       />
 
       {/* Waterinname Widget */}
@@ -192,6 +195,23 @@ export function DailyNutritionView({
           currentTargets={nutritionTargets}
           profile={profile}
           onSaveTargets={onSaveNutritionTargets}
+        />
+      )}
+
+      {/* AI Voedingsadviezen Modal (Stap 43) */}
+      {isAiNutritionOpen && (
+        <AiNutritionAdvisorModal
+          isOpen={isAiNutritionOpen}
+          onClose={() => setIsAiNutritionOpen(false)}
+          currentTargets={nutritionTargets}
+          profile={profile}
+          consumedToday={dailyTotals}
+          initialIsTrainingDay={true}
+          onAccept={async (newTargets) => {
+            if (onSaveNutritionTargets) {
+              await onSaveNutritionTargets(newTargets);
+            }
+          }}
         />
       )}
     </div>

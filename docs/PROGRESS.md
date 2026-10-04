@@ -1641,7 +1641,48 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 - **Beperkingen & Notities:**
   - Zowel online (met Gemini API-sleutel) als 100% offline (lokale dubbele progressie heuristiek) gegarandeerd identieke UX en veilige guardrails conform Regel 7 en 8.
 - **Volgende Stap:**
-  - **Stap 43 / Prompt 37**: AI Voedingsadviezen & Macro-Balans (Module 7: Slimme voedingssuggesties op trainings- vs rustdagen, macro-verdeling advies met expliciete 'Accepteren'/'Negeren' keuzes).
+  - **Stap 43 / Prompt 37**: AI Voedingsadviezen & Macro-Balans (Afgerond).
+
+---
+
+### Stap 43 / Prompt 37 — AI Voedingsadviezen & Macro-Balans (`[x] KLAAR`)
+- **Doel & Bereik:**
+  - Implementatie van de AI Voedingsassistent conform **Rule 7 ("AI als Assistent, NOOIT autonoom")** en **Rule 8 ("Lokale fallback & privacy zonder externe accounts")**:
+    - **Domeinlogica & Veiligheidsbegrenzing (`src/domain/ai/nutritionAdvisor.ts`):**
+      - `buildNutritionContext`: Bundelt profielstatistieken (gewicht, lengte, leeftijd, geslacht, formulevoorkeur), berekent BMR & TDEE, huidige doelstellingen, en trainingsdag-indicator.
+      - `sanitizeNutritionAdvice`: Fysiologische guardrails met harde ondergrens van 1200 kcal om crashdiëten te weren, eiwitgrenzen tussen 1.4 en 2.5 g/kg, vetminimum van 0.6 g/kg, en verplichte markering met `(schatting)`.
+      - Differentieert tussen trainingsdagen (+200 kcal complexe koolhydraten en verhoogd eiwit voor glycogeenherstel) en rustdagen (onderhoud/spierherstel).
+      - `applyNutritionAdviceToTargets`: Past het goedgekeurde voedingsadvies uitsluitend na expliciete bevestiging toe op de dagelijkse doelen.
+    - **Gebruikersinterface (`AiNutritionAdvisorModal.tsx`):**
+      - Volledig toegankelijke dialoog met dagtype-schakelaar ("Trainingsdag" vs "Rustdag").
+      - Vergelijkingsgrid: Huidig doel vs AI Voorstel voor calorieën, eiwitten, koolhydraten, vetten en vezels.
+      - Prominente `(schatting)` badge en transparante bronvermelding (`Google Gemini` vs `Lokale Heuristiek`).
+      - AI Coaching Richtlijnen met praktische tips (timing rond training, hydratatie, maaltijdsamenstelling).
+      - Gebruikersinvoer om het advies bij te sturen op basis van persoonlijke doelen ("bv. vetverlies versnellen").
+      - Uitklapbare niet-medische disclaimer conform Regel 7.
+      - **Strikte Bevestiging:** "Accepteren & Toepassen" (groene primaire knop) vs "Negeren" (outline knop). Geen enkele autonome wijziging zonder gebruikersactie.
+    - **Integratie in de App:**
+      - **Calorie- & Macrobudget Kaart (`NutritionBudgetCard.tsx`):** Directe knop "AI Advies" naast "Doel Wijzigen".
+      - **Dagoverzicht Voeding (`DailyNutritionView.tsx`):** Volledig gekoppeld aan de database; updates worden direct opgeslagen in IndexedDB via `onSaveNutritionTargets`.
+- **Geïmplementeerde Wijzigingen:**
+  - `src/domain/ai/nutritionAdvisor.ts`: Pure domeinlogica voor contextvoorbereiding, guardrails en target-updaters.
+  - `src/domain/ai/nutritionAdvisor.test.ts`: 5 gerichte unit tests (100% geslaagd).
+  - `src/components/modules/nutrition/AiNutritionAdvisorModal.tsx`: Complete interactieve modal component.
+  - `src/components/modules/nutrition/NutritionBudgetCard.tsx`: Knop "AI Advies" toegevoegd.
+  - `src/components/modules/nutrition/DailyNutritionView.tsx`: Gekoppeld aan de database en modal.
+  - `src/lib/ai/provider.ts`: Dynamische berekening op trainings- vs rustdagen en gestructureerde JSON extractie voor voedingstaken.
+  - `tests/aiNutritionIntegration.test.ts`: 5 integratietests voor dagdifferentiatie, guardrails, non-autonome bevestiging en target-upgrades (100% geslaagd).
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): **0 fouten**.
+  - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
+  - Vitest testsuite (`npm test`): **455 van de 455 tests geslaagd** over 67 testbestanden (100% slagingspercentage).
+  - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 10 routes (inclusief `/voeding` en `/api/ai`) correct gebouwd.
+  - Bestandsintegriteit: 0-byte bestandscontrole geverifieerd (**0 lege bestanden**).
+- **Beperkingen & Notities:**
+  - Werkt 100% offline via lokale wetenschappelijk onderbouwde formules (Mifflin-St Jeor, TDEE activiteitsfactoren en macro-balansen).
+- **Volgende Stap:**
+  - **Stap 44 / Prompt 38**: AI Wekelijkse & Periodieke Reviews (Module 7: Slimme wekelijkse terugblik op trainingsvolume, progressie, cardio- en voedingsconsistentie, met positieve highlights en concrete focuspunten voor volgende week).
+
 
 
 

@@ -10,12 +10,14 @@ interface NutritionBudgetCardProps {
   targets: DailyNutritionTargets;
   progress: NutritionProgress;
   onOpenGoalsModal: () => void;
+  onOpenAiAdvisor?: () => void;
 }
 
 export function NutritionBudgetCard({
   targets,
   progress,
   onOpenGoalsModal,
+  onOpenAiAdvisor,
 }: NutritionBudgetCardProps) {
   const getStrategyLabel = (strategy?: string) => {
     switch (strategy) {
@@ -63,15 +65,30 @@ export function NutritionBudgetCard({
           </div>
         </div>
 
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={onOpenGoalsModal}
-          leftIcon={<Sliders className="w-3.5 h-3.5" />}
-          className="text-xs"
-        >
-          Doel Wijzigen
-        </Button>
+        <div className="flex items-center gap-2">
+          {onOpenAiAdvisor && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onOpenAiAdvisor}
+              leftIcon={<Sparkles className="w-3.5 h-3.5 text-emerald-500" />}
+              className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
+              title="Vraag AI assistent om voedingsadvies op maat voor trainings- of rustdagen"
+            >
+              AI Advies
+            </Button>
+          )}
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onOpenGoalsModal}
+            leftIcon={<Sliders className="w-3.5 h-3.5" />}
+            className="text-xs"
+          >
+            Doel Wijzigen
+          </Button>
+        </div>
       </CardHeader>
 
       <CardContent className="p-4 sm:p-5 space-y-4">
