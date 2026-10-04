@@ -3,11 +3,22 @@ import "./globals.css";
 import { ThemeProvider } from "@/lib/theme/ThemeProvider";
 import { DatabaseProvider } from "@/lib/db";
 import { AppShell } from "@/components/layout/AppShell";
+import { PwaRegister } from "@/components/layout/PwaRegister";
 
 export const metadata: Metadata = {
   title: "SportKompas — Persoonlijke Sport & Gezondheid",
   description:
     "Jouw persoonlijke, rustige alles-in-één sportapp voor krachttraining, cardio, voeding en voortgang.",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "SportKompas",
+  },
+  icons: {
+    icon: "/icons/icon-192.svg",
+    apple: "/icons/icon-192.svg",
+  },
 };
 
 export const viewport: Viewport = {
@@ -28,6 +39,7 @@ export default function RootLayout({
       <body className="min-h-screen bg-slate-50 dark:bg-[#090d16] text-slate-900 dark:text-slate-100 antialiased selection:bg-emerald-500/20 selection:text-emerald-300 overflow-x-hidden">
         <ThemeProvider>
           <DatabaseProvider>
+            <PwaRegister />
             <AppShell>{children}</AppShell>
           </DatabaseProvider>
         </ThemeProvider>

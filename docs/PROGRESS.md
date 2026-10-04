@@ -54,7 +54,7 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 | **37 / P31** | **Data-soevereiniteit: Volledige JSON Export & Import (Prompt 31)** | `[x] KLAAR` | Eén-klik JSON export van alle 16 IndexedDB tabellen, Zod-schemavalidatie, preview-dialoog met recordoverzicht, en veilige import in vervang- of samenvoegmodus. |
 | **38 / P32** | **Data-soevereiniteit: Spreadsheet CSV Export (Prompt 32)** | `[x] KLAAR` | Exporteren van krachttraining (sets, reps, volume, 1RM), cardio (km, min, tempo, kcal), voeding (dagboekitems & macro's) en metingen naar UTF-8/BOM CSV bestanden (Excel NL ';' of RFC 4180 ',') en 407 tests. |
 | **39 / P33** | **Data-soevereiniteit: Databasemigraties & Integriteitscontrole (Prompt 33)** | `[x] KLAAR` | Diepgaande validatie van alle 16 Dexie tabellen, referentiële integriteit, wees-record herstel, v1->v7 migratieverificatie en 412 tests. |
-| **40** | PWA: Offline Werking & Installatie | `[ ] OPEN` | Web App Manifest en Service Worker caching voor volledige offline werking. |
+| **40 / P34** | **PWA: Offline Werking & Installatie (Prompt 34)** | `[x] KLAAR` | Web App Manifest route, Service Worker offline caching (stale-while-revalidate), standalone detectie, PwaInstallSection, offline statusbalk en 424 tests. |
 | **41** | AI Fundament: Veilige Server API & Rate Limits | `[ ] OPEN` | Server-side endpoints (`/api/ai`), .env beveiliging en rate limits. |
 | **42** | AI Assistent: Progressieve Overload Suggesties | `[ ] OPEN` | Slimme gewichtsverhogingssuggesties met verplichte confirm-stap. |
 | **43** | AI Assistent: Slimme Voedingsadviezen | `[ ] OPEN` | Aanbevelingen voor maaltijdafstemming op trainingsdagen. |
@@ -1509,6 +1509,53 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 - **Beperkingen & Notities:**
   - Integriteitscontroles draaien 100% lokaal in de browser en belasten noch netwerk noch externe servers.
 - **Volgende Stap:**
-  - **Stap 40 / Prompt 34**: PWA: Offline Werking & Installatie (Module 6: Web App Manifest, Service Worker caching van app-shells en statische assets voor volledige offline werking op iOS en Android).
+  - **Stap 40 / Prompt 34**: PWA: Offline Werking & Installatie (Afgerond).
+
+---
+
+### Stap 40 / Prompt 34 — PWA: Offline Werking & Installatie (`[x] KLAAR`)
+> **Mijlpaal:** Hiermee is **Module 6 (Geheugen, Data-soevereiniteit & PWA: Stappen 37 t/m 40)** 100% afgerond!
+- **Doel & Bereik:**
+  - Realisatie van een volwaardige Progressive Web App (PWA) met gegarandeerde offline werking conform de eisen van `docs/PRODUCT.md` en `AGENTS.md`:
+    - **Web App Manifest (`src/app/manifest.ts`):** Officiële Next.js Metadata Route die `/manifest.webmanifest` serveert met Nederlandse metadata, standalone weergavemodus, themakleur (`#10b981`), donkere achtergrond (`#090d16`), oriëntatie en categorieën.
+    - **App Iconenset (`public/icons/`):** Hoogwaardige SVG iconen in 192x192 (`icon-192.svg`), 512x512 (`icon-512.svg`) en maskable variant (`icon-maskable.svg`) met het karakteristieke SportKompas kompaslogo.
+    - **Service Worker (`public/sw.js`):**
+      - Pre-cache van de app-shell en alle 5 hoofdroutes (`/`, `/training`, `/cardio`, `/voeding`, `/profiel`) en iconen.
+      - Network-first navigatiestrategie met offline fallback naar de lokale gecachede schil.
+      - Stale-while-revalidate voor statische CSS/JS chunks en fonts.
+      - Automatische cache-verversing bij updates via `activate` event.
+    - **Automatische Registratie & Offline Indicator (`PwaRegister.tsx`):**
+      - Registreert de service worker in `src/app/layout.tsx`.
+      - Toont een rustige, niet-blokkerende waarschuwingsbalk wanneer het netwerk wegvalt ("Offline modus actief — SportKompas werkt 100% lokaal door").
+    - **Installatie UI & Beheer (`PwaInstallSection.tsx`):**
+      - Geïntegreerd in het instellingenscherm (`/profiel`, tabblad Voorkeuren).
+      - Eén-klik installatieknop via het `beforeinstallprompt` event voor Android, Chrome en Edge.
+      - Duidelijk 3-stappenplan voor iOS Safari ("Deel-icoon > Zet op beginscherm").
+      - Automatische standalone-detectie (`isStandalone`) en weergave van de offline functionaliteitsmatrix.
+- **Geïmplementeerde Wijzigingen:**
+  - **Domeinlogica & Hook (`src/domain/pwa/pwaManager.ts`, `src/domain/pwa/pwaManager.test.ts` & `src/lib/hooks/usePwa.ts`):**
+    - `checkIsStandalone`: Detectie via iOS `navigator.standalone` en W3C `display-mode: standalone` queries.
+    - `formatPwaStatus`: Nederlandse statusbepaling en badge-variant.
+    - `getBrowserPlatform`: Platformherkenning (iOS, Android, Desktop).
+    - `usePwa`: Custom React hook met online/offline listeners en installatiemethode.
+    - 9 pure unit tests in `src/domain/pwa/pwaManager.test.ts` (100% geslaagd).
+  - **Gebruikersinterface:**
+    - `src/components/layout/PwaRegister.tsx`: Client-registratie en offline waarschuwingsbanner.
+    - `src/components/modules/profile/PwaInstallSection.tsx`: Complete PWA installatie- en statuskaart.
+    - `src/app/layout.tsx`: Gekoppeld aan manifest, apple-web-app metatags en `PwaRegister`.
+    - `src/app/profiel/page.tsx`: Opgenomen op het tabblad Voorkeuren.
+  - **Integratietests (`tests/pwaOfflineIntegration.test.ts`):**
+    - Testen van manifest-generatie, fysieke aanwezigheid van `sw.js` en iconen op schijf, en platformdetectie.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): **0 fouten**.
+  - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
+  - Vitest testsuite (`npm test`): **424 van de 424 tests geslaagd** over 60 testbestanden (100% slagingspercentage).
+  - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 9 routes (inclusief `/manifest.webmanifest`) statisch gegenereerd.
+  - Bestandsintegriteit: 0-byte bestandscontrole geverifieerd via Node script (**0 lege bestanden**).
+- **Beperkingen & Notities:**
+  - Omdat alle data lokaal in IndexedDB (Dexie) persistent is, blijft de app 100% functioneel in de sportschool of in het vliegtuig zonder netwerkverbinding.
+- **Volgende Stap:**
+  - **Stap 41 / Prompt 35**: AI Fundament: Veilige Server API & Rate Limits (Module 7: AI Assistent & Slimme Inzichten — Veilige server-side endpoints `/api/ai/...`, .env isolatie zonder `NEXT_PUBLIC_` conform Rule 6 van `AGENTS.md`, rate limiting en structured JSON streaming).
+
 
 

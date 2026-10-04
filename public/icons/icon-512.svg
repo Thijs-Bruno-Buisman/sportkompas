@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#020617" />
+    </linearGradient>
+    <linearGradient id="emerald" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34d399" />
+      <stop offset="100%" stop-color="#10b981" />
+    </linearGradient>
+    <linearGradient id="emerald-glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#059669" />
+      <stop offset="100%" stop-color="#047857" />
+    </linearGradient>
+  </defs>
+
+  <!-- Achtergrond afgerond vierkant -->
+  <rect width="512" height="512" rx="112" fill="url(#bg)" />
+
+  <!-- Buitenste Kompas Ring -->
+  <circle cx="256" cy="256" r="180" fill="none" stroke="#1e293b" stroke-width="14" />
+  <circle cx="256" cy="256" r="180" fill="none" stroke="url(#emerald)" stroke-width="14" stroke-dasharray="120 40 80 40" stroke-linecap="round" />
+
+  <!-- Kardinale markeringen (N, O, Z, W) -->
+  <line x1="256" y1="96" x2="256" y2="116" stroke="#10b981" stroke-width="8" stroke-linecap="round" />
+  <line x1="416" y1="256" x2="396" y2="256" stroke="#64748b" stroke-width="6" stroke-linecap="round" />
+  <line x1="256" y1="416" x2="256" y2="396" stroke="#64748b" stroke-width="6" stroke-linecap="round" />
+  <line x1="96" y1="256" x2="116" y2="256" stroke="#64748b" stroke-width="6" stroke-linecap="round" />
+
+  <!-- Kompas Naald (Noord = Emerald, Zuid = Slate) -->
+  <polygon points="256,128 290,256 256,236" fill="url(#emerald)" />
+  <polygon points="256,128 222,256 256,236" fill="#059669" />
+  <polygon points="256,384 290,256 256,276" fill="#475569" />
+  <polygon points="256,384 222,256 256,276" fill="#334155" />
+
+  <!-- Centrale Kompas Hub -->
+  <circle cx="256" cy="256" r="22" fill="#0f172a" stroke="url(#emerald)" stroke-width="8" />
+  <circle cx="256" cy="256" r="8" fill="#10b981" />
+</svg>

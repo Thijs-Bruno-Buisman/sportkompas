@@ -165,3 +165,4 @@ describe("Domain: integrityCheck", () => {
     expect(postReport.status).toBe("gezond");
   });
 });
+

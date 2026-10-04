@@ -100,3 +100,4 @@ describe("Database Migration Verification (Stap 39 / Prompt 33)", () => {
     await Dexie.delete(dbName);
   });
 });
+

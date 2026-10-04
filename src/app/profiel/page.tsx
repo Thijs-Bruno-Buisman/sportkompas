@@ -31,6 +31,7 @@ import { Badge } from "@/components/ui/Badge";
 import { BackupRestoreSection } from "@/components/modules/profile/BackupRestoreSection";
 import { CsvExportSection } from "@/components/modules/profile/CsvExportSection";
 import { DatabaseIntegritySection } from "@/components/modules/profile/DatabaseIntegritySection";
+import { PwaInstallSection } from "@/components/modules/profile/PwaInstallSection";
 import {
   parseLocalizedNumber,
   isValidBirthDate,
@@ -747,6 +748,9 @@ export default function ProfielPage() {
 
           {/* Database Integriteit & Migraties */}
           <DatabaseIntegritySection />
+
+          {/* Progressive Web App & Offline Installatie */}
+          <PwaInstallSection />
         </TabsContent>
 
         {/* Tab 3: Lichaamsmetingen */}
