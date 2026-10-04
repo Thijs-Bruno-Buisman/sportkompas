@@ -29,6 +29,7 @@ import { Alert } from "@/components/ui/Alert";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Badge } from "@/components/ui/Badge";
 import { BackupRestoreSection } from "@/components/modules/profile/BackupRestoreSection";
+import { CsvExportSection } from "@/components/modules/profile/CsvExportSection";
 import {
   parseLocalizedNumber,
   isValidBirthDate,
@@ -739,6 +740,9 @@ export default function ProfielPage() {
             lastBackupAt={settings?.lastBackupAt}
             onDataRestored={reloadProfile}
           />
+
+          {/* Spreadsheet CSV Export */}
+          <CsvExportSection />
         </TabsContent>
 
         {/* Tab 3: Lichaamsmetingen */}

@@ -52,7 +52,7 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 | **35 / P29** | **Home: Consistentie & Activity Streaks (Prompt 29)** | `[x] KLAAR` | Multi-pijler kalender-heatmap (8w/12w) met intensiteitsgradaties, streakbehoud en rustdagwaardering. |
 | **36 / P30** | **Algemeen: Universele Zoek- en Filterfunctie (Prompt 30)** | `[x] KLAAR` | Client-side multi-token zoekdialoog (`Ctrl+K`) door alle 4 pijlers met categoriefilters en relevantiescoring. |
 | **37 / P31** | **Data-soevereiniteit: Volledige JSON Export & Import (Prompt 31)** | `[x] KLAAR` | Eén-klik JSON export van alle 16 IndexedDB tabellen, Zod-schemavalidatie, preview-dialoog met recordoverzicht, en veilige import in vervang- of samenvoegmodus. |
-| **38** | Data-soevereiniteit: CSV Export voor Spreadsheets | `[ ] OPEN` | Exporteren van ruwe logs naar CSV voor externe analyse. |
+| **38 / P32** | **Data-soevereiniteit: Spreadsheet CSV Export (Prompt 32)** | `[x] KLAAR` | Exporteren van krachttraining (sets, reps, volume, 1RM), cardio (km, min, tempo, kcal), voeding (dagboekitems & macro's) en metingen naar UTF-8/BOM CSV bestanden (Excel NL ';' of RFC 4180 ',') en 407 tests. |
 | **39** | Data-soevereiniteit: Databasemigraties & Integriteitscontrole | `[ ] OPEN` | Automatische integriteitscontrole en migratieverificatie. |
 | **40** | PWA: Offline Werking & Installatie | `[ ] OPEN` | Web App Manifest en Service Worker caching voor volledige offline werking. |
 | **41** | AI Fundament: Veilige Server API & Rate Limits | `[ ] OPEN` | Server-side endpoints (`/api/ai`), .env beveiliging en rate limits. |
@@ -1436,4 +1436,41 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 - **Beperkingen & Notities:**
   - Geen cloud-opslag vereist of geforceerd: de gebruiker behoudt 100% eigenaarschap over al zijn data.
 - **Volgende Stap:**
-  - **Stap 38 / Prompt 32**: Data-soevereiniteit: Spreadsheet CSV Export (Workouts, Cardio, Voeding en Metingen naar heldere CSV-bestanden voor Excel, Numbers en Google Sheets).
+  - **Stap 38 / Prompt 32**: Data-soevereiniteit: Spreadsheet CSV Export (Afgerond).
+
+---
+
+### Stap 38 / Prompt 32 — Data-soevereiniteit: Spreadsheet CSV Export (`[x] KLAAR`)
+- **Doel & Bereik:**
+  - Realisatie van flexibele, tabelgerichte CSV-exports voor externe gegevensanalyse in Excel, Google Sheets, LibreOffice Calc en Apple Numbers:
+    - **Krachttraining Sets:** Datum, start/eindtijd, routinenaam, status, oefening, spiergroep, setnummer, settype, gewicht (kg), herhalingen, berekend volume (kg), geschatte 1RM (Epley), RPE/RIR doelen & realisaties, rusttijd en sessienotities.
+    - **Cardiosessies:** Datum, start/eindtijd, activiteitstype, afstand in km, duur in min, gemiddeld tempo (min:sec/km), snelheid (km/u), geschatte calorieën, gemiddelde/maximale hartslag, hoogtemeters en loopnotities.
+    - **Voedingsdagboek:** Datum, tijdstip, maaltijdtype, productnaam/item, portiegrootte (gram), calorieën, eiwitten, koolhydraten, vetten en voedingsvezels.
+    - **Lichaamsmetingen:** Datum, tijdstip, gewicht (kg), vetpercentage (%), omtrekken in centimeters (borst, taille, heupen, armen, bovenbenen) en notities bij de weging.
+  - Exportopties & Ergonomie:
+    - Keuze tussen **Excel Nederland** (puntkomma `;` scheidingsteken en decimale komma `,` zodat getallen direct als getal worden herkend in Nederlandse/Europese Excel-installaties) en **Internationaal RFC 4180** (komma `,` en decimale punt `.`).
+    - Standaard UTF-8 Byte Order Mark (`\uFEFF`) waardoor Excel speciale tekens en accenten direct foutloos decodeert.
+    - Datumfilter met presets: "Alles", "Laatste 30 dagen", "Laatste 90 dagen", "Dit kalenderjaar".
+    - Losse exportknoppen per categorie én een centrale knop "Download Alle 4 Spreadsheets".
+- **Geïmplementeerde Wijzigingen:**
+  - **Domeinlogica (`src/domain/export/csvExport.ts` & `src/domain/export/csvExport.test.ts`):**
+    - `escapeCsvField`: RFC 4180 compliant CSV veld-formatter met quote-verdubbeling en configureerbare decimale scheidingstekens.
+    - `exportWorkoutsToCsv`, `exportCardioToCsv`, `exportNutritionToCsv`, `exportMeasurementsToCsv`: Pure generatiefuncties met data-verrijking (Epley 1RM, tempo, conversie van meters naar cm).
+    - `downloadCsvString`: Veilige browser-download via Blob & tijdelijke anchor click.
+    - 14 pure unit tests in `src/domain/export/csvExport.test.ts` (100% geslaagd).
+  - **Gebruikersinterface (`src/components/modules/profile/CsvExportSection.tsx` & `src/app/profiel/page.tsx`):**
+    - `CsvExportSection.tsx`: Responsieve kaart met categorie-tegels, optiebalk voor periode en formaat, alerts en één-klik downloadacties.
+    - `src/app/profiel/page.tsx`: Naadloos opgenomen in het tabblad Voorkeuren ("voorkeuren") direct onder de JSON back-up sectie.
+  - **Integratietests (`tests/csvExportIntegration.test.ts`):**
+    - End-to-end Dexie integratietest met vullen van alle 4 modules in `fake-indexeddb`, controleren van velden, berekeningen, datumfiltering en BOM-headers.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): **0 fouten**.
+  - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
+  - Vitest testsuite (`npm test`): **407 van de 407 tests geslaagd** over 55 testbestanden (100% slagingspercentage).
+  - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 8 Next.js routes statisch gegenereerd.
+  - Bestandsintegriteit: 0-byte bestandscontrole geverifieerd via Node script (**0 lege bestanden**).
+- **Beperkingen & Notities:**
+  - CSV exports zijn bedoeld voor externe analyse en rapportage in spreadsheets; voor een volledige restore/back-up blijft de JSON export (Stap 37) het canonieke formaat.
+- **Volgende Stap:**
+  - **Stap 39 / Prompt 33**: Data-soevereiniteit: Databasemigraties & Integriteitscontrole (Module 6: automatische integriteitscontrole van Dexie IndexedDB stores, weergave van databasegezondheid en gecontroleerde testbare schemamigraties).
+
