@@ -263,3 +263,101 @@ export async function searchOpenFoodFacts(
     clearTimeout(timeoutId);
   }
 }
+
+/**
+ * Realistische mock-producten voor offline tests, demomodus en integratietesten conform Rule 8.
+ */
+export function getMockOpenFoodFactsProducts(): ParsedExternalFood[] {
+  return [
+    {
+      barcode: "8710400041234",
+      name: "Arla Skyr Naturel",
+      brand: "Arla",
+      category: "zuivel",
+      caloriesPer100g: 63,
+      proteinGramsPer100g: 11.0,
+      carbsGramsPer100g: 4.0,
+      fatGramsPer100g: 0.2,
+      fiberGramsPer100g: 0.0,
+      defaultPortionGrams: 150,
+      imageUrl: null,
+      source: "openfoodfacts",
+    },
+    {
+      barcode: "8712100012345",
+      name: "Calvé Pindakaas 100%",
+      brand: "Calvé",
+      category: "noten_zaden",
+      caloriesPer100g: 664,
+      proteinGramsPer100g: 21.0,
+      carbsGramsPer100g: 11.0,
+      fatGramsPer100g: 58.0,
+      fiberGramsPer100g: 8.5,
+      defaultPortionGrams: 20,
+      imageUrl: null,
+      source: "openfoodfacts",
+    },
+    {
+      barcode: "8710400123456",
+      name: "Quaker Havermout Volkoren",
+      brand: "Quaker",
+      category: "granen_brood",
+      caloriesPer100g: 375,
+      proteinGramsPer100g: 11.0,
+      carbsGramsPer100g: 60.0,
+      fatGramsPer100g: 8.0,
+      fiberGramsPer100g: 9.0,
+      defaultPortionGrams: 50,
+      imageUrl: null,
+      source: "openfoodfacts",
+    },
+    {
+      barcode: "8710400987654",
+      name: "Alpro Sojadrink Ongezoet",
+      brand: "Alpro",
+      category: "dranken",
+      caloriesPer100g: 33,
+      proteinGramsPer100g: 3.3,
+      carbsGramsPer100g: 0.0,
+      fatGramsPer100g: 1.8,
+      fiberGramsPer100g: 0.6,
+      defaultPortionGrams: 200,
+      imageUrl: null,
+      source: "openfoodfacts",
+    },
+  ];
+}
+
+/**
+ * Offline-first barcode opzoeker met lokale IndexedDB cache voorrang.
+ * Controleert eerst de lokale database; raadpleegt pas bij afwezigheid Open Food Facts.
+ */
+export async function fetchProductWithLocalCache(
+  barcode: string,
+  getLocalProductFn?: (code: string) => Promise<FoodItem | undefined>,
+  options: FetchOptions = {}
+): Promise<{
+  product: ParsedExternalFood | FoodItem | null;
+  isFromLocalCache: boolean;
+}> {
+  const cleanBarcode = barcode.trim();
+  if (!cleanBarcode) {
+    return { product: null, isFromLocalCache: false };
+  }
+
+  // 1. Lokale cache controle
+  if (getLocalProductFn) {
+    try {
+      const local = await getLocalProductFn(cleanBarcode);
+      if (local) {
+        return { product: local, isFromLocalCache: true };
+      }
+    } catch {
+      // Ga door naar online opzoeking indien lokale query faalt
+    }
+  }
+
+  // 2. Online opzoeken via Open Food Facts
+  const external = await fetchProductByBarcode(cleanBarcode, options);
+  return { product: external, isFromLocalCache: false };
+}

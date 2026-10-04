@@ -5,6 +5,8 @@ import {
   convertExternalToFoodItem,
   fetchProductByBarcode,
   searchOpenFoodFacts,
+  getMockOpenFoodFactsProducts,
+  fetchProductWithLocalCache,
 } from "./openFoodFacts";
 
 describe("Open Food Facts Domain & Parsing (Prompt 25 / Stap 30)", () => {
@@ -199,6 +201,66 @@ describe("Open Food Facts Domain & Parsing (Prompt 25 / Stap 30)", () => {
       const results = await searchOpenFoodFacts("   ", { fetchFn: mockFetch });
       expect(results).toEqual([]);
       expect(mockFetch).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("getMockOpenFoodFactsProducts", () => {
+    it("levert realistische Nederlandse mock-producten met geldige barcodes", () => {
+      const mocks = getMockOpenFoodFactsProducts();
+      expect(mocks.length).toBeGreaterThanOrEqual(4);
+
+      mocks.forEach((m) => {
+        expect(m.barcode).toMatch(/^\d{13}$/);
+        expect(m.name.length).toBeGreaterThan(0);
+        expect(m.caloriesPer100g).toBeGreaterThan(0);
+        expect(m.source).toBe("openfoodfacts");
+      });
+    });
+  });
+
+  describe("fetchProductWithLocalCache", () => {
+    it("geeft direct het lokale product terug indien aanwezig in de cache (100% offline)", async () => {
+      const mockLocalGet = vi.fn().mockResolvedValue({
+        id: "local-food-1",
+        name: "Gecachte Kwark",
+        barcode: "8710400012345",
+        caloriesPer100g: 65,
+        proteinGramsPer100g: 11,
+      });
+
+      const mockFetch = vi.fn();
+      const result = await fetchProductWithLocalCache("8710400012345", mockLocalGet, {
+        fetchFn: mockFetch,
+      });
+
+      expect(result.isFromLocalCache).toBe(true);
+      expect(result.product).toBeDefined();
+      expect((result.product as any).name).toBe("Gecachte Kwark");
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("haalt product extern op indien niet aanwezig in de lokale cache", async () => {
+      const mockLocalGet = vi.fn().mockResolvedValue(undefined);
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          status: 1,
+          product: {
+            code: "8710400012345",
+            product_name: "Verse Zuivel Online",
+            nutriments: { "energy-kcal_100g": 50, proteins_100g: 4 },
+          },
+        }),
+      });
+
+      const result = await fetchProductWithLocalCache("8710400012345", mockLocalGet, {
+        fetchFn: mockFetch,
+      });
+
+      expect(result.isFromLocalCache).toBe(false);
+      expect(result.product).toBeDefined();
+      expect(result.product?.name).toBe("Verse Zuivel Online");
+      expect(mockFetch).toHaveBeenCalled();
     });
   });
 });

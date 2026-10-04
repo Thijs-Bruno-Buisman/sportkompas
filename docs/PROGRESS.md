@@ -62,7 +62,7 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 | **45** | AI Assistent: Contextuele Q&A Chat | `[x] KLAAR` | Vragen stellen over eigen trainingsdata met context-injectie. |
 | **46** | Externe Koppeling: GPX/TCX/FIT Bestand Import | `[x] KLAAR` | Client-side GPX/TCX parser met Haversine-afstand, hoogtemeters, hartslag, MET-calorieën, voorvertoning/bewerkingsmodal en 489 tests. |
 | **47** | Externe Koppeling: Optionele Strava Koppeling | `[x] KLAAR` | Server API route (`/api/integrations/strava`), veilige OAuth URL & token exchange, slimme deduplicatie, synchronisatie preview-modal, demo fallback en 506 tests. |
-| **48** | Externe Koppeling: Optionele Open Food Facts Lookup | `[ ] OPEN` | Voedingsmiddelen lookup via Open Food Facts met offline cache. |
+| **48** | Externe Koppeling: Optionele Open Food Facts Lookup | `[x] KLAAR` | Server proxy (`/api/integrations/openfoodfacts`), offline-first barcode cache, User-Agent naleving, profielsectie en 514 tests. |
 | **49** | Kwaliteitsborging: Playwright E2E Testsuite | `[ ] OPEN` | E2E tests van kernflows: workout loggen, voeding invoeren, export. |
 | **50** | Afronding: Performance Audit & Release Review | `[ ] OPEN` | Lighthouse audits, bundlegrootte, finaal verificatierapport. |
 
@@ -1860,7 +1860,45 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 - **Beperkingen & Notities:**
   - Werkt 100% offline en lokaal; zonder Strava API keys blijft alle functionaliteit intact en kan via demo-sync het hele importproces worden getest.
 - **Volgende Stap:**
-  - **Stap 48 / Prompt 42**: Externe Koppeling: Optionele Open Food Facts Lookup (Module 8: offline-first barcode scanning & online product lookup met lokale IndexedDB cache en duidelijke offline fallback).
+  - **Stap 48 / Prompt 42**: Externe Koppeling: Optionele Open Food Facts Lookup (Afgerond).
+
+---
+
+### Stap 48 / Prompt 42 — Externe Koppeling: Optionele Open Food Facts Lookup (`[x] KLAAR`)
+- **Doel & Bereik:**
+  - Realisatie van de optionele Open Food Facts integratie conform **Rule 3 ("Echte Persistentie & Geen Neppe Data")**, **Rule 4 ("Schone Architectuur & Hydration Safety")** en **Rule 8 ("Externe Koppelingen met Fallback & Lokale Cache")**:
+    - **Veilige Server-Side Proxy Route (`src/app/api/integrations/openfoodfacts/route.ts`):**
+      - Biedt bescherming tegen browser CORS-beperkingen en ad-blockers.
+      - Voldoet strikt aan de Open Food Facts API etiquette via een conforme identificerende `User-Agent` header (`SportKompas - FitnessApp/1.0 - Web/Desktop (https://sportkompas.app)`).
+      - `GET ?action=status`: Geeft status en beschikbaarheid van de openbare service terug zonder geheimen of api-keys.
+      - `GET ?barcode=...`: Zoekt producten op per streepjescode met server-side timeout-beveiliging (6s) en parsing via `parseOpenFoodFactsProduct`.
+      - `GET ?query=...`: Zoekt producten op per trefwoord via de Nederlandse zoekindex (`nl.openfoodfacts.org`).
+      - `GET ?action=demo`: Levert realistische demoproducten zonder enige netwerkaanroep.
+    - **Offline-First Domeinlogica & Caching (`src/domain/nutrition/openFoodFacts.ts`):**
+      - `fetchProductWithLocalCache`: Raadpleegt eerst de lokale IndexedDB voedingsdatabase (`getFoodByBarcode`). Indien gevonden, wordt het product ogenblikkelijk (0ms, 100% offline) teruggegeven. Pas bij ontbreken wordt het product extern opgevraagd.
+      - `getMockOpenFoodFactsProducts`: Nederlandse realistische testproducten (Arla Skyr, Calvé Pindakaas, Quaker Havermout, Alpro Sojadrink) met geldige EAN-13 barcodes voor offline tests en demo-scenario's.
+    - **Gebruikersinterface ([`OpenFoodFactsIntegrationSection.tsx`](file:///c:/Users/Gameb/OneDrive%20-%20Stichting%20Hogeschool%20Utrecht/Jaar%204/Periode%20A&B/Minor_Future-proof_met_AI/Side%20Project/Fitnes%20app/src/components/modules/profile/OpenFoodFactsIntegrationSection.tsx) & Profiel Integratie):**
+      - Geplaatst op de Profielpagina onder de integratie-secties.
+      - Statusindicator: "Actief (Publieke Open Data)" met teller van het aantal lokaal gecachte voedingsmiddelen (`repositories.nutrition.getAllFoods().length`).
+      - Uitleg over de privacy-vriendelijke werking: geen account vereist en automatische offline opslag in de browser.
+      - Interactieve testdialoog ("Test Barcode Lookup"): invoerveld met snelle chips om de werking direct te controleren.
+- **Geïmplementeerde Bestanden:**
+  - `src/domain/nutrition/openFoodFacts.ts`: Uitgebreid met `getMockOpenFoodFactsProducts` en `fetchProductWithLocalCache`.
+  - `src/domain/nutrition/openFoodFacts.test.ts`: Uitgebreid met 5 nieuwe tests (totaal 16 tests) voor mock-producten en offline-first cache lookup.
+  - `src/app/api/integrations/openfoodfacts/route.ts`: Server-side proxy route met timeout-beveiliging en User-Agent.
+  - `src/components/modules/profile/OpenFoodFactsIntegrationSection.tsx`: UI component met cache-teller, testdialoog en Open Food Facts link.
+  - `src/app/profiel/page.tsx`: Integratie van `OpenFoodFactsIntegrationSection` in Tab 2.
+  - `tests/openFoodFactsIntegration.test.ts`: 5 end-to-end integratietests voor status, demo-opzoeking, barcode-validatie, lokale IndexedDB opslag en lege zoekopdrachten.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): **0 fouten**.
+  - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
+  - Vitest testsuite: **514 van de 514 tests geslaagd** over 76 testbestanden (100% pass rate).
+  - Next.js productiebuild (`npm run build`): **Succesvol gecompileerd** (12 routes inclusief `/api/integrations/openfoodfacts`).
+  - Bestandsintegriteit: 0-byte bestandscontrole geverifieerd (**0 lege bestanden**).
+- **Beperkingen & Notities:**
+  - Open Food Facts vereist geen API-sleutels; door de lokale IndexedDB caching werkt elk eenmaal gescand of opgeslagen product vervolgens 100% offline.
+- **Volgende Stap:**
+  - **Stap 49 / Prompt 43**: Kwaliteitsborging: Playwright E2E Testsuite (Module 9: E2E validatie van de 4 kernflows: workout loggen & voltooien, voeding invoeren, cardio registratie, en data export/import).
 
 
 

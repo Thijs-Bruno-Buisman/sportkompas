@@ -33,6 +33,7 @@ import { CsvExportSection } from "@/components/modules/profile/CsvExportSection"
 import { DatabaseIntegritySection } from "@/components/modules/profile/DatabaseIntegritySection";
 import { PwaInstallSection } from "@/components/modules/profile/PwaInstallSection";
 import { StravaIntegrationSection } from "@/components/modules/profile/StravaIntegrationSection";
+import { OpenFoodFactsIntegrationSection } from "@/components/modules/profile/OpenFoodFactsIntegrationSection";
 import {
   parseLocalizedNumber,
   isValidBirthDate,
@@ -743,6 +744,9 @@ export default function ProfielPage() {
             settings={settings}
             onSettingsUpdated={reloadProfile}
           />
+
+          {/* Externe Integraties: Open Food Facts Voedingsdatabase */}
+          <OpenFoodFactsIntegrationSection />
 
           {/* Lokale Opslag & Data-soevereiniteit */}
           <BackupRestoreSection
