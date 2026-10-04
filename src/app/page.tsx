@@ -9,6 +9,7 @@ import {
   User,
   ArrowRight,
   Sparkles,
+  Search,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -21,6 +22,7 @@ import { WeeklyConsistencyWidget } from "@/components/modules/history/WeeklyCons
 import { HomeCockpitDashboard } from "@/components/modules/home/HomeCockpitDashboard";
 import { CombinedProgressHub } from "@/components/modules/home/CombinedProgressHub";
 import { ActivityStreakHeatmap } from "@/components/modules/home/ActivityStreakHeatmap";
+import { UniversalSearchDialog } from "@/components/modules/home/UniversalSearchDialog";
 import { getLocalDateString, addDaysToDateString } from "@/domain/dates/calendar";
 import {
   calculateDailyCockpitSummary,
@@ -67,6 +69,19 @@ export default function HomePage() {
   >([]);
   const [nutritionTargets, setNutritionTargets] =
     useState<DailyNutritionTargets>(DEFAULT_NUTRITION_TARGETS);
+  const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
+
+  // Sneltoets Ctrl+K / Cmd+K voor universele zoekbalk
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setIsSearchOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const loadCockpitData = useCallback(
     async (date: string) => {
@@ -166,6 +181,24 @@ export default function HomePage() {
 
   return (
     <div className="space-y-6">
+      {/* 0. UNIVERSELE ZOEKFUNCTIE TRIGGER */}
+      <div className="flex items-center justify-between gap-3">
+        <button
+          onClick={() => setIsSearchOpen(true)}
+          className="w-full flex items-center justify-between px-4 py-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 hover:border-emerald-500/50 hover:text-slate-700 dark:hover:text-slate-200 transition-all shadow-2xs group cursor-pointer"
+        >
+          <div className="flex items-center gap-2.5">
+            <Search className="w-4 h-4 text-emerald-500" />
+            <span className="font-medium">
+              Zoeken in trainingen, gerechten, cardio en gewicht...
+            </span>
+          </div>
+          <kbd className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-mono font-semibold bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-slate-500 dark:text-slate-400">
+            Ctrl + K
+          </kbd>
+        </button>
+      </div>
+
       {/* 1. CENTRALE COCKPIT DASHBOARD (DAGSAMENVATTING & ACTIES) */}
       {summary ? (
         <HomeCockpitDashboard
@@ -358,6 +391,18 @@ export default function HomePage() {
           </Link>
         </div>
       </section>
+
+      {/* 8. UNIVERSELE ZOEKFUNCTIE MODAL */}
+      <UniversalSearchDialog
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+        workoutSessions={historyWorkouts}
+        workoutSets={historySets}
+        cardioSessions={historyCardio}
+        mealLogs={historyMeals}
+        measurements={historyMeasurements}
+        referenceDate={selectedDate}
+      />
     </div>
   );
 }
