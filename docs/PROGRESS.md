@@ -48,10 +48,10 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 | **31 / P26** | **Voeding: Voedingsgrafieken & Wekelijkse Balans (Prompt 26)** | `[x] KLAAR` | Pure SVG calorieën staafdiagram met streefdoellijn en cardio-verbranding overlay, macronutriënten energieverdeling (eiwit/koolhydraten/vetten), daggemiddelden, wekelijkse balans & geschat gewichtseffect, vezel- & hydratatietrends en 350 tests. |
 | **32** | Voeding: Maaltijdplanning & Boodschappenlijst | `[x] KLAAR` | Geïntegreerd in stap 29 (weekplanner, prep-checklist, klembord-export en statusbeheer). |
 | **33 / P27** | **Home: Centrale Cockpit & Dagsamenvatting (Prompt 27)** | `[x] KLAAR` | Geïntegreerde cockpit met datumwisselaar, holistische energie- en caloriebalans (inname vs verbranding), 1-klik snelle acties (water toevoegen, gewicht noteren via modal), 4-pijlers grid (kracht, cardio, voeding, hydratatie) en 364 tests. |
-| **34** | Home: Gecombineerde Voortgang Hub | `[ ] OPEN` | Correlaties tussen workoutvolume, calorie-inname en lichaamsgewicht. |
-| **35** | Home: Consistentie & Activity Streaks | `[ ] OPEN` | Visuele streaks en trainingsfrequentie monitoring. |
-| **36** | Algemeen: Universele Zoek- en Filterfunctie | `[ ] OPEN` | Zoeken door alle workouts, cardio-sessies en maaltijden. |
-| **37** | Data-soevereiniteit: Volledige JSON Export & Import | `[ ] OPEN` | Eén-klik back-up en herstel met schema-validatie via Zod. |
+| **34 / P28** | **Home: Gecombineerde Voortgang Hub (Prompt 28)** | `[x] KLAAR` | Correlaties tussen workoutvolume, cardio, calorie-inname en gewichtsverloop met interactieve SVG-trendgrafieken en Wishnofsky-balans. |
+| **35 / P29** | **Home: Consistentie & Activity Streaks (Prompt 29)** | `[x] KLAAR` | Multi-pijler kalender-heatmap (8w/12w) met intensiteitsgradaties, streakbehoud en rustdagwaardering. |
+| **36 / P30** | **Algemeen: Universele Zoek- en Filterfunctie (Prompt 30)** | `[x] KLAAR` | Client-side multi-token zoekdialoog (`Ctrl+K`) door alle 4 pijlers met categoriefilters en relevantiescoring. |
+| **37 / P31** | **Data-soevereiniteit: Volledige JSON Export & Import (Prompt 31)** | `[x] KLAAR` | Eén-klik JSON export van alle 16 IndexedDB tabellen, Zod-schemavalidatie, preview-dialoog met recordoverzicht, en veilige import in vervang- of samenvoegmodus. |
 | **38** | Data-soevereiniteit: CSV Export voor Spreadsheets | `[ ] OPEN` | Exporteren van ruwe logs naar CSV voor externe analyse. |
 | **39** | Data-soevereiniteit: Databasemigraties & Integriteitscontrole | `[ ] OPEN` | Automatische integriteitscontrole en migratieverificatie. |
 | **40** | PWA: Offline Werking & Installatie | `[ ] OPEN` | Web App Manifest en Service Worker caching voor volledige offline werking. |
@@ -1360,7 +1360,80 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 - **Beperkingen & Notities:**
   - Rustdagen breken de trainingsconsistentie niet af; de streak weerspiegelt bewuste gezondheidsbetrokkenheid (waaronder het vastleggen van slaap/herstel of voeding op rustdagen).
 - **Volgende Stap:**
-  - **Stap 36 / Prompt 30**: Home: Universele Zoekfunctie & Activiteiten Geschiedenis Hub (universele zoekbalk over alle eerdere krachttrainingen, cardio-sessies, maaltijden en lichaamsmetingen met filters en doorklikken).
+  - **Stap 36 / Prompt 30**: Home: Universele Zoekfunctie & Activiteiten Geschiedenis Hub (Afgerond).
 
+---
 
+### Stap 36 / Prompt 30 — Home: Universele Zoekfunctie & Activiteiten Geschiedenis Hub (`[x] KLAAR`)
+- **Doel & Bereik:**
+  - Realisatie van een krachtige, universele zoekfunctie op het Home-scherm die over de volledige lokale IndexedDB geschiedenis zoekt:
+    - Krachttrainingen: zoekt in routines, individuele oefeningen, PR's en persoonlijke sessienotities.
+    - Cardio-sessies: zoekt in activiteitstypen (bijv. hardlopen, fietsen), afstanden en loopnotities.
+    - Voeding: zoekt in maaltijdtypen en alle losse ingrediënten en merknamen van gelogde maaltijden.
+    - Metingen: zoekt op gewichtstermen en notities bij de weging.
+  - Sneltoets-ondersteuning: `Ctrl+K` of `Cmd+K` opent het zoekvenster direct vanuit elk punt op het hoofdscherm; `ESC` sluit het venster.
+  - Zoektrigger-balk prominent bovenaan het Home-dashboard.
+  - Filters & Sortering:
+    - Categoriechips ("Alles", "Kracht", "Cardio", "Voeding", "Metingen").
+    - Tijdsperiode-filter ("Alle tijden", "Laatste 7 dagen", "Laatste 30 dagen", "Laatste 90 dagen", "Afgelopen jaar").
+    - Relevantiescore gecombineerd met chronologische sortering.
+  - Interactief doorklikken: aantikken van een zoekresultaat stuurt de gebruiker via de Next.js client router direct door naar de juiste modulepagina (`/training`, `/cardio`, `/voeding`, `/profiel`).
+- **Geïmplementeerde Wijzigingen:**
+  - **Domeinlogica (`src/domain/home/universalSearch.ts` & `src/domain/home/universalSearch.test.ts`):**
+    - `searchUniversalHistory`: Pure zoekfunctie met multi-token matching, case-insensitieve zoekcriteria, relevantiescoring (titels > inhoud > notities), snippet-extractie en datumperiode-begrenzing.
+    - 6 pure unit tests in `src/domain/home/universalSearch.test.ts` (100% geslaagd).
+  - **Gebruikersinterface (`src/components/modules/home/UniversalSearchDialog.tsx` & `src/app/page.tsx`):**
+    - `UniversalSearchDialog.tsx`: Toegankelijk modal-venster met invoerveld, wis-knop, categoriechips, periodefilter en resultatenlijst met pijlericonen en badges.
+    - `src/app/page.tsx`: Voorzien van een zoektrigger-balk bovenaan het scherm, `Ctrl+K` / `Cmd+K` sneltoets-luisteraar en integratie van de dialoog.
+  - **Integratietests (`tests/universalSearchIntegration.test.ts`):**
+    - Integratietest met Dexie en `fake-indexeddb` die zoekt door krachttrainingen, cardio-sessies, maaltijdlogs en gewichtsmetingen en categoriefilters valideert.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): **0 fouten**.
+  - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
+  - Vitest testsuite (`npm test`): **385 van de 385 tests geslaagd** over 51 testbestanden (100% slagingspercentage).
+  - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 8 Next.js routes statisch gegenereerd.
+  - Bestandsintegriteit: 0-byte bestandscontrole geverifieerd via Node script (**0 lege bestanden**).
+- **Beperkingen & Notities:**
+  - Zoeken gebeurt 100% client-side direct in het lokale geheugen/IndexedDB, waardoor resultaten ogenblikkelijk getoond worden zonder netwerkvertraging of privacy-risico's.
+- **Volgende Stap:**
+  - **Stap 37 / Prompt 31**: Data-soevereiniteit & Complete JSON Back-up / Import (Afgerond).
 
+---
+
+### Stap 37 / Prompt 31 — Data-soevereiniteit: Complete JSON Back-up & Import (`[x] KLAAR`)
+- **Doel & Bereik:**
+  - Volledige realisatie van 100% offline data-soevereiniteit conform Rule 3 & 5 van `AGENTS.md`:
+    - Eén-klik JSON export van alle 16 IndexedDB databasetabellen (`profiles`, `exercises`, `workoutRoutines`, `routineDays`, `scheduledSessions`, `workoutSessions`, `workoutSets`, `cardioSessions`, `goals`, `foodItems`, `recipes`, `mealLogs`, `plannedMeals`, `waterLogs`, `bodyMeasurements`, `recoveryLogs`, `appSettings`).
+    - Gestandaardiseerd metadata-formaat (`SportKompasBackupPayload`) met app-versie, schema-versie (`CURRENT_DATABASE_SCHEMA_VERSION = 7`), exporttijdstip (ISO), databasenaam en recordstatistieken per tabel.
+    - Zod-schema runtime validatie (`SportKompasBackupPayloadSchema`) met strikte controle op payloadintegriteit en comptabiliteitswaarschuwing bij nieuwere schema-versies.
+    - Veilige import in twee modi:
+      1. **Vervang alles (Restore/Clean overwrite):** Leegt bestaande tabellen atomair in één Dexie read-write transactie en herstelt de back-up exact. Vereist expliciete bevestiging met gevaarswaarschuwing.
+      2. **Samenvoegen (Merge):** Voegt ontbrekende records toe en overschrijft bestaande id's via `bulkPut` zonder data in andere tabellen te wissen.
+    - Automatische bijwerking van `lastBackupAt` in `AppSettings` na succesvolle export of import.
+  - Gebruikersinterface:
+    - `BackupRestoreSection.tsx` geïntegreerd in `/profiel` (tabblad Voorkeuren / Lokale Opslag).
+    - Duidelijke statusbadge over privacy (100% lokaal in de browser, geen verborgen cloud).
+    - Direct downloadbare JSON met leesbare bestandsnaam (`sportkompas-backup-YYYY-MM-DD-HHmm.json`).
+    - Bestandskiezer met interactieve validatie-preview: toont datum van export, aantal records per categorie en databaseversie alvorens daadwerkelijk te importeren.
+    - Keuzedialoog voor "Vervang alles" vs "Samenvoegen", inclusief waarschuwingsbanner en herlaadtrigger.
+- **Geïmplementeerde Wijzigingen:**
+  - **Domeinlogica (`src/domain/backup/backup.ts` & `src/domain/backup/backup.test.ts`):**
+    - `exportDatabaseToJson`: Verzamelt data uit alle 16 tabellen, bouwt metadata en produceert gevalideerde JSON payload + Blob grootte.
+    - `validateBackupFile`: Valideert invoer met Zod, berekent tabeloverzichten en schemaversie-compatibiliteit.
+    - `importDatabaseFromJson`: Voert de import uit binnen een geïsoleerde Dexie-transactie (`replace` of `merge`).
+    - 6 pure unit tests in `src/domain/backup/backup.test.ts` (100% geslaagd).
+  - **Gebruikersinterface (`src/components/modules/profile/BackupRestoreSection.tsx` & `src/app/profiel/page.tsx`):**
+    - `BackupRestoreSection.tsx`: Complete beheercomponent met exportknop, bestandskiezer, interactieve modal met recordoverzicht en bevestigingsstappen.
+    - `src/app/profiel/page.tsx`: Gekoppeld aan `settings.lastBackupAt` en `reloadProfile`.
+  - **Integratietests (`tests/backupRestoreIntegration.test.ts`):**
+    - Volledige end-to-end Dexie integratietest met vullen van profiel, workouts, cardio en voeding, exporteren naar JSON, wissen/muteren en succesvol herstellen in zowel `replace` als `merge` modus.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): **0 fouten**.
+  - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
+  - Vitest testsuite (`npm test`): **392 van de 392 tests geslaagd** over 53 testbestanden (100% slagingspercentage).
+  - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 8 Next.js routes statisch gegenereerd.
+  - Bestandsintegriteit: 0-byte bestandscontrole geverifieerd via Node script (**0 lege bestanden**).
+- **Beperkingen & Notities:**
+  - Geen cloud-opslag vereist of geforceerd: de gebruiker behoudt 100% eigenaarschap over al zijn data.
+- **Volgende Stap:**
+  - **Stap 38 / Prompt 32**: Data-soevereiniteit: Spreadsheet CSV Export (Workouts, Cardio, Voeding en Metingen naar heldere CSV-bestanden voor Excel, Numbers en Google Sheets).

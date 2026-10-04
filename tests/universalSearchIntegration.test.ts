@@ -164,3 +164,4 @@ describe("Universal Search Integration (Stap 36 / Prompt 30)", () => {
     expect(onlyFood[0].category).toBe("voeding");
   });
 });
+

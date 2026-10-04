@@ -28,6 +28,7 @@ import { Select } from "@/components/ui/Select";
 import { Alert } from "@/components/ui/Alert";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Badge } from "@/components/ui/Badge";
+import { BackupRestoreSection } from "@/components/modules/profile/BackupRestoreSection";
 import {
   parseLocalizedNumber,
   isValidBirthDate,
@@ -48,7 +49,7 @@ import type {
 
 export default function ProfielPage() {
   const { theme, setTheme } = useTheme();
-  const { profile, settings, saveProfile, updateUnitPreference, isLoading } =
+  const { profile, settings, saveProfile, updateUnitPreference, isLoading, reloadProfile } =
     useProfile();
   const { isDemoMode, toggleDemoMode, resetDemoData } = useDatabase();
 
@@ -734,50 +735,10 @@ export default function ProfielPage() {
           </Card>
 
           {/* Lokale Opslag & Data-soevereiniteit */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Lokale Opslag &amp; Back-up</CardTitle>
-              <CardDescription>
-                Alle data bevindt zich in IndexedDB in je browser. Geen externe tracking.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 text-xs">
-                <ShieldCheck className="w-5 h-5 text-emerald-500 shrink-0" />
-                <div className="space-y-0.5">
-                  <p className="font-semibold text-slate-900 dark:text-white">
-                    Offline-first persistentie actief
-                  </p>
-                  <p className="text-slate-500 dark:text-slate-400">
-                    Geen accounts, cookies of advertenties.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3 pt-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  leftIcon={<Download className="w-4 h-4" />}
-                  onClick={() =>
-                    alert("Volledige exportfunctie wordt aangesloten in Stap 37.")
-                  }
-                >
-                  Exporteer Back-up (JSON)
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  leftIcon={<Upload className="w-4 h-4" />}
-                  onClick={() =>
-                    alert("Importfunctie wordt aangesloten in Stap 37.")
-                  }
-                >
-                  Importeer Back-up
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <BackupRestoreSection
+            lastBackupAt={settings?.lastBackupAt}
+            onDataRestored={reloadProfile}
+          />
         </TabsContent>
 
         {/* Tab 3: Lichaamsmetingen */}

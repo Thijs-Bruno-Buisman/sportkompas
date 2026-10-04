@@ -161,3 +161,4 @@ describe("Cardio Statistics Domain", () => {
     });
   });
 });
+
