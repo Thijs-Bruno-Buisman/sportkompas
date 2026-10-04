@@ -47,7 +47,7 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 | **30 / P25** | **Voeding: Streepjescodescanner & Externe Zoekfunctie (Prompt 25)** | `[x] KLAAR` | Barcodescanner via camera met BarcodeDetector en handmatige invoer-fallback, Open Food Facts integratie met offline caching in Dexie v7 `barcode` index, universeel zoeken en 331 tests. |
 | **31 / P26** | **Voeding: Voedingsgrafieken & Wekelijkse Balans (Prompt 26)** | `[x] KLAAR` | Pure SVG calorieën staafdiagram met streefdoellijn en cardio-verbranding overlay, macronutriënten energieverdeling (eiwit/koolhydraten/vetten), daggemiddelden, wekelijkse balans & geschat gewichtseffect, vezel- & hydratatietrends en 350 tests. |
 | **32** | Voeding: Maaltijdplanning & Boodschappenlijst | `[x] KLAAR` | Geïntegreerd in stap 29 (weekplanner, prep-checklist, klembord-export en statusbeheer). |
-| **33** | Home: Centrale Cockpit & Dagsamenvatting | `[ ] OPEN` | Samenvattingswidgets voor geplande training, cardio en voeding. |
+| **33 / P27** | **Home: Centrale Cockpit & Dagsamenvatting (Prompt 27)** | `[x] KLAAR` | Geïntegreerde cockpit met datumwisselaar, holistische energie- en caloriebalans (inname vs verbranding), 1-klik snelle acties (water toevoegen, gewicht noteren via modal), 4-pijlers grid (kracht, cardio, voeding, hydratatie) en 364 tests. |
 | **34** | Home: Gecombineerde Voortgang Hub | `[ ] OPEN` | Correlaties tussen workoutvolume, calorie-inname en lichaamsgewicht. |
 | **35** | Home: Consistentie & Activity Streaks | `[ ] OPEN` | Visuele streaks en trainingsfrequentie monitoring. |
 | **36** | Algemeen: Universele Zoek- en Filterfunctie | `[ ] OPEN` | Zoeken door alle workouts, cardio-sessies en maaltijden. |
@@ -1254,4 +1254,37 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
   - Daggemiddelden worden berekend over de dagen waarop maaltijden zijn ingevoerd, zodat vergeten logdagen het dagelijkse caloriegemiddelde niet kunstmatig omlaag trekken; in het consistentiepercentage wordt de loggingfrequentie expliciet weerspiegeld.
 - **Volgende Stap:**
   - **Stap 33 / Prompt 27**: Home: Centrale Cockpit & Dagsamenvatting (dashboard met realtime widgets voor geplande workouts, actieve cardio, voedingsdoelen en dagelijkse voortgang).
+
+---
+
+### Stap 33 / Prompt 27 — Home: Centrale Cockpit & Dagsamenvatting (`[x] KLAAR`)
+- **Doel & Bereik:**
+  - Realisatie van de centrale cockpit op het Home-scherm die alle pijlers van SportKompas verenigt: krachttraining, cardio, voeding & macro's, hydratatie en lichaamsgewicht.
+  - Dynamische datumkiezer met dagwisselaar (`< Gisteren` | `Vandaag` | `Morgen >`) en één-klik "Terug naar Vandaag" knop.
+  - Holistische energie- en caloriebalans: directe berekening van netto energie (`inname - cardioverbranding`), resterend caloriebudget en dynamische statusclassificatie (`deficit`, `onderhoud`, `surplus`) met visuele progressiemeter en macro-miniatuurcards.
+  - Directe actiebalk ("Direct Vastleggen"):
+    - `+ Glas water (250 ml)` en `+ Fles water (500 ml)` met directe Dexie-persistentie en live feedbacktoast.
+    - `Gewicht noteren`: opent de nieuwe `QuickWeightModal` om direct vandaag een weging vast te leggen zonder navigatie naar Profiel.
+    - Snelknoppen naar `Maaltijd loggen`, `Workout starten` en `Cardio starten`.
+  - Vier Pijlers Grid met realtime dagsituatie per pijler (status, voltooide sets, cardio km/min/kcal, voedingsinname, vocht en herstel).
+  - Gecombineerde dagscore (`dayCompletionScore`) die voortgang op alle 4 pijlers visualiseert.
+- **Geïmplementeerde Wijzigingen:**
+  - **Domeinlogica (`src/domain/home/cockpit.ts` & `src/domain/home/cockpit.test.ts`):**
+    - `getGreeting`: Tijdgebonden Nederlandse begroeting (Goedemorgen, Goedemiddag, Goedenavond, Goedenacht).
+    - `calculateDailyCockpitSummary`: Pure domeinfunctie voor aggregatie van maaltijden, waterlogs, cardio, workouts, planning, metingen en herstel, inclusief netto calorieën, macro-percentages en dagvoltooiingsscore.
+    - 10 pure unit tests in `src/domain/home/cockpit.test.ts` (100% geslaagd).
+  - **Gebruikersinterface (`src/components/modules/home/` & `src/app/page.tsx`):**
+    - `QuickWeightModal.tsx`: Toegankelijk dialoogvenster met decimale validatie (komma/punt), notities en directe opslag via `MeasurementRepository`.
+    - `HomeCockpitDashboard.tsx`: Centrale cockpit component met interactieve datumselectie, energiebalans-visualisatie, snelle actiebalk en het 4-pijlers overzicht.
+    - `src/app/page.tsx`: Volledige orchestratie van historische en actuele dagdata met live herlaadfuncties voor water- en gewichtsupdates, met behoud van `TodayTrainingCard`, `WeeklyConsistencyWidget`, `HomeRecentPRsWidget` en modulenavigatie.
+  - **Integratietests (`tests/homeCockpitIntegration.test.ts`):**
+    - 4 integratietests met Dexie en `fake-indexeddb` die snelle water- en gewichtsinvoer, gecombineerde caloriebalans met cardio en datumscheiding valideren.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): **0 fouten**.
+  - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
+  - Vitest testsuite (`npm test`): **364 van de 364 tests geslaagd** over 45 testbestanden (100% slagingspercentage).
+  - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 8 Next.js routes statisch gegenereerd.
+  - Bestandsintegriteit: 0-byte bestandscontrole geverifieerd via Node script (**0 lege bestanden**).
+- **Volgende Stap:**
+  - **Stap 34 / Prompt 28**: Home: Gecombineerde Voortgang Hub & Holistische Analytics (correlaties tussen trainingsvolume, cardio-belasting, calorie-inname en gewichtsverloop over tijd via gecombineerde visualisaties).
 
