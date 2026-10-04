@@ -1,21 +1,22 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Utensils, BookOpen, CalendarDays } from "lucide-react";
+import { Utensils, BookOpen, CalendarDays, BarChart3 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { useDatabase } from "@/lib/db";
-import type { MealLog, WaterLog, FoodItem, Recipe, MealItemEntry, Profile, PlannedMeal } from "@/types/database";
+import type { MealLog, WaterLog, FoodItem, Recipe, MealItemEntry, Profile, PlannedMeal, CardioSession } from "@/types/database";
 import { getLocalDateString, addDaysToDateString } from "@/domain/dates/calendar";
 import { DailyNutritionView } from "@/components/modules/nutrition/DailyNutritionView";
 import { FoodDatabaseView } from "@/components/modules/nutrition/FoodDatabaseView";
 import { WeeklyMealPlannerView } from "@/components/modules/nutrition/WeeklyMealPlannerView";
+import { NutritionHistoryCharts } from "@/components/modules/nutrition/NutritionHistoryCharts";
 import type { RecentMealItemSummary } from "@/domain/nutrition/quickLog";
 import { type DailyNutritionTargets, DEFAULT_NUTRITION_TARGETS } from "@/domain/nutrition/goals";
 
 export default function VoedingPage() {
   const { repositories, isDemoMode, dataVersion } = useDatabase();
 
-  const [activeTab, setActiveTab] = useState<"logboek" | "weekplanning" | "database">("logboek");
+  const [activeTab, setActiveTab] = useState<"logboek" | "weekplanning" | "trends" | "database">("logboek");
   const [selectedDate, setSelectedDate] = useState<string>(() => getLocalDateString());
 
   const [waterMl, setWaterMl] = useState(0);
@@ -26,6 +27,11 @@ export default function VoedingPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [nutritionTargets, setNutritionTargets] = useState<DailyNutritionTargets>(DEFAULT_NUTRITION_TARGETS);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Historische data voor Trends & Balans
+  const [historyMeals, setHistoryMeals] = useState<MealLog[]>([]);
+  const [historyWater, setHistoryWater] = useState<WaterLog[]>([]);
+  const [historyCardio, setHistoryCardio] = useState<CardioSession[]>([]);
 
   // Laad voedingsdata voor de geselecteerde kalenderdag
   const loadNutritionForDate = useCallback(async (date: string) => {
@@ -59,9 +65,35 @@ export default function VoedingPage() {
     }
   }, [repositories]);
 
+  // Laad geschiedenisdata voor trends en wekelijkse balans
+  const loadHistoryData = useCallback(async () => {
+    try {
+      const startDate = addDaysToDateString(selectedDate, -90);
+      const endDate = addDaysToDateString(selectedDate, 31);
+
+      const [meals, water, cardio] = await Promise.all([
+        repositories.nutrition.getMealsForDateRange(startDate, endDate),
+        repositories.nutrition.getWaterLogsForDateRange(startDate, endDate),
+        repositories.cardio.getSessionsByDateRange(startDate, endDate),
+      ]);
+
+      setHistoryMeals(meals);
+      setHistoryWater(water);
+      setHistoryCardio(cardio);
+    } catch (err) {
+      console.error("Fout bij laden van trendsgeschiedenis:", err);
+    }
+  }, [repositories, selectedDate]);
+
   useEffect(() => {
     loadNutritionForDate(selectedDate);
   }, [loadNutritionForDate, selectedDate, isDemoMode, dataVersion]);
+
+  useEffect(() => {
+    if (activeTab === "trends") {
+      loadHistoryData();
+    }
+  }, [activeTab, loadHistoryData, dataVersion]);
 
   // Handlers voor maaltijditems
   const handleAddMealItem = async (
@@ -235,19 +267,19 @@ export default function VoedingPage() {
             Voeding &amp; Macro&apos;s
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Dagelijks voedingsdagboek, doelbalans, weekplanning en meal prep.
+            Dagelijks voedingsdagboek, weekplanning, trends &amp; macro-balans en database.
           </p>
         </div>
       </div>
 
-      {/* Hoofdtabbladen: Logboek vs Weekplanning vs Database */}
+      {/* Hoofdtabbladen: Logboek vs Weekplanning vs Trends & Balans vs Database */}
       <Tabs
         defaultValue="logboek"
         value={activeTab}
-        onValueChange={(val) => setActiveTab(val as "logboek" | "weekplanning" | "database")}
+        onValueChange={(val) => setActiveTab(val as "logboek" | "weekplanning" | "trends" | "database")}
         className="w-full space-y-6"
       >
-        <TabsList className="grid w-full grid-cols-3 max-w-xl">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 max-w-2xl">
           <TabsTrigger value="logboek" className="flex items-center gap-1.5">
             <Utensils className="w-4 h-4 text-emerald-500" />
             <span>Dagboek</span>
@@ -255,6 +287,10 @@ export default function VoedingPage() {
           <TabsTrigger value="weekplanning" className="flex items-center gap-1.5">
             <CalendarDays className="w-4 h-4 text-emerald-500" />
             <span>Weekplanning</span>
+          </TabsTrigger>
+          <TabsTrigger value="trends" className="flex items-center gap-1.5">
+            <BarChart3 className="w-4 h-4 text-emerald-500" />
+            <span>Trends &amp; Balans</span>
           </TabsTrigger>
           <TabsTrigger value="database" className="flex items-center gap-1.5">
             <BookOpen className="w-4 h-4 text-emerald-500" />
@@ -303,7 +339,22 @@ export default function VoedingPage() {
           />
         </TabsContent>
 
-        {/* Tab 3: Voedingsdatabase & Recepten */}
+        {/* Tab 3: Trends, Voedingsgrafieken & Wekelijkse Balans */}
+        <TabsContent value="trends" className="space-y-6">
+          <NutritionHistoryCharts
+            mealLogs={historyMeals}
+            waterLogs={historyWater}
+            cardioSessions={historyCardio}
+            targets={nutritionTargets}
+            referenceDate={selectedDate}
+            onNavigateToDiary={(date) => {
+              setSelectedDate(date);
+              setActiveTab("logboek");
+            }}
+          />
+        </TabsContent>
+
+        {/* Tab 4: Voedingsdatabase & Recepten */}
         <TabsContent value="database" className="space-y-6">
           <FoodDatabaseView
             foods={foods}

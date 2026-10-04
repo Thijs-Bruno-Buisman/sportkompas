@@ -45,8 +45,8 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 | **28** | Voeding: Calorie & Macro Doelen Dashboard | `[ ] OPEN` | Dynamische berekening resterende macro's vs streefwaarden. |
 | **29 / P24** | **Voeding: Maaltijdplanner & Weekplanning (Prompt 24)** | `[x] KLAAR` | 7-daagse weekplanner met maaltijdmomenten (ontbijt, lunch, diner, snacks), Dexie v6 `plannedMeals` store, recept- en productkoppeling met portieschaling, geaggregeerde boodschappen- en meal prep checklist met klembord-kopieerfunctie, automatische overzetting naar voedingsdagboek bij 'markeer als genuttigd', dag-kopieerfunctie en 314 tests. |
 | **30 / P25** | **Voeding: Streepjescodescanner & Externe Zoekfunctie (Prompt 25)** | `[x] KLAAR` | Barcodescanner via camera met BarcodeDetector en handmatige invoer-fallback, Open Food Facts integratie met offline caching in Dexie v7 `barcode` index, universeel zoeken en 331 tests. |
-| **31** | Voeding: Voedingsgrafieken & Wekelijkse Balans | `[ ] OPEN` | Visualisatie van macro-verhoudingen en dagtotalen over tijd. |
-| **32** | Voeding: Maaltijdplanning & Boodschappenlijst | `[ ] OPEN` | Basis weekplanning en genereren van ingrediëntenlijst. |
+| **31 / P26** | **Voeding: Voedingsgrafieken & Wekelijkse Balans (Prompt 26)** | `[x] KLAAR` | Pure SVG calorieën staafdiagram met streefdoellijn en cardio-verbranding overlay, macronutriënten energieverdeling (eiwit/koolhydraten/vetten), daggemiddelden, wekelijkse balans & geschat gewichtseffect, vezel- & hydratatietrends en 350 tests. |
+| **32** | Voeding: Maaltijdplanning & Boodschappenlijst | `[x] KLAAR` | Geïntegreerd in stap 29 (weekplanner, prep-checklist, klembord-export en statusbeheer). |
 | **33** | Home: Centrale Cockpit & Dagsamenvatting | `[ ] OPEN` | Samenvattingswidgets voor geplande training, cardio en voeding. |
 | **34** | Home: Gecombineerde Voortgang Hub | `[ ] OPEN` | Correlaties tussen workoutvolume, calorie-inname en lichaamsgewicht. |
 | **35** | Home: Consistentie & Activity Streaks | `[ ] OPEN` | Visuele streaks en trainingsfrequentie monitoring. |
@@ -1218,9 +1218,40 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 - **Volgende Stap:**
   - **Stap 31 / Prompt 26**: Voeding: Voedingsgrafieken & Wekelijkse Balans (visualisatie van macronutriënt-verhoudingen en calorie-inname vs. verbruik over tijd via SVG grafieken, vezel- en hydratatiestatistieken).
 
+---
 
-
-
-
-
+### Stap 31 / Prompt 26 — Voeding: Voedingsgrafieken & Wekelijkse Balans (`[x] KLAAR`)
+- **Doel & Bereik:**
+  - Diepgaande visualisatie en historische trendanalyse van voedingsinname, macronutriënt-verhoudingen en wekelijkse energiebalans.
+  - Pure SVG staafdiagrammen voor dagelijkse calorie-inname over instelbare tijdsperiodes (7 dagen, 14 dagen, 30 dagen, Deze Week, Deze Maand) met dynamische doellijn en kleurcodering (op doel binnen ±10%, boven doel, onder doel of geen data).
+  - Optionele interactieve cardio-verbranding indicator per dag (netto calorieën = inname - cardioverbranding).
+  - Macronutriënten energieverdeling over tijd via Atwater-factoren (4 kcal/g eiwit, 4 kcal/g koolhydraten, 9 kcal/g vet) met gestapelde balk, percentages en streefvergelijking.
+  - Wekelijkse caloriebalans (surplus / deficit) en wetenschappelijk geschat effect op lichaamsvet (Wishnofsky's richtlijn: ~7700 kcal/kg).
+  - Consistentie- en hydratatiestatistieken (vezelinname vs 30g norm, waterdoelverwezenlijking).
+  - Interactieve doornavigatie: direct doorklikken vanaf een grafiekstaaf naar de betreffende dag in het voedingsdagboek.
+- **Geïmplementeerde Wijzigingen:**
+  - **Domeinlogica (`src/domain/nutrition/statistics.ts` & `src/domain/nutrition/statistics.test.ts`):**
+    - `getDateRangeForNutritionPeriod`: Genereert datumreeksen en opeenvolgende dagen voor `7d`, `14d`, `30d`, `deze_week` en `deze_maand`.
+    - `calculateMacroDistribution`: Berekent zuivere macro-energieverdeling in kcal en percentages zonder afrondingsfouten of deling door nul.
+    - `determineCalorieAdherence`: Classificeert daginname ten opzichte van streefdoel met tolerantie van ±10% (minimaal 150 kcal).
+    - `calculateNutritionPeriodSummary`: Aggregeert maaltijden, waterlogs en cardiosessies; berekent daggemiddelden uitsluitend over gelogde dagen (zodat niet-gelogde dagen het gemiddelde niet vertekeken), wekelijkse balans (`dailyDifference * 7`), geschat gewichtseffect (`weeklyBalance / 7700`), consistente scores en uitersten.
+    - 16 pure unit tests in `src/domain/nutrition/statistics.test.ts` (100% geslaagd).
+  - **Repository Laag (`src/lib/db/repositories/nutrition.repository.ts`):**
+    - `getMealsForDateRange(startDate, endDate)`: Directe Dexie index-lookup via `.where("calendarDate").between(startDate, endDate, true, true)`.
+    - `getWaterLogsForDateRange(startDate, endDate)`: Directe Dexie index-lookup via `.where("calendarDate").between(startDate, endDate, true, true)`.
+  - **Gebruikersinterface (`src/components/modules/nutrition/NutritionHistoryCharts.tsx` & `src/app/voeding/page.tsx`):**
+    - `NutritionHistoryCharts.tsx`: Pure SVG responsieve grafiekcontainer met hover tooltips, KPI ribbon (Gem. Calorieën, Wekelijkse Balans, Consistentie %, Gem. Eiwit), macronutriënt breakdown blokken, vezel/water voortgang en uitvouwbare datatabel.
+    - `src/app/voeding/page.tsx`: Vierde hoofdtabblad "Trends & Balans" met `BarChart3` icoon, automatische data-lading over 90 dagen historiek en interactieve navigatie naar het dagboek bij het aantikken van een staaf.
+  - **Integratietests (`tests/nutritionStatisticsIntegration.test.ts`):**
+    - 3 integratietests met Dexie en `fake-indexeddb` die datumbereik-queries, cardiosessie-correlaties en lege datasets valideren.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): **0 fouten**.
+  - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
+  - Vitest testsuite (`npm test`): **350 van de 350 tests geslaagd** over 43 testbestanden (100% slagingspercentage).
+  - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 8 Next.js routes statisch gegenereerd.
+  - Bestandsintegriteit: 0-byte bestandscontrole geverifieerd via Node script (**0 lege bestanden**).
+- **Beperkingen & Notities:**
+  - Daggemiddelden worden berekend over de dagen waarop maaltijden zijn ingevoerd, zodat vergeten logdagen het dagelijkse caloriegemiddelde niet kunstmatig omlaag trekken; in het consistentiepercentage wordt de loggingfrequentie expliciet weerspiegeld.
+- **Volgende Stap:**
+  - **Stap 33 / Prompt 27**: Home: Centrale Cockpit & Dagsamenvatting (dashboard met realtime widgets voor geplande workouts, actieve cardio, voedingsdoelen en dagelijkse voortgang).
 

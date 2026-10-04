@@ -181,10 +181,30 @@ export class NutritionRepository {
       .toArray();
   }
 
+  async getMealsForDateRange(
+    startDate: string,
+    endDate: string
+  ): Promise<MealLog[]> {
+    return await this.meals["table"]
+      .where("calendarDate")
+      .between(startDate, endDate, true, true)
+      .toArray();
+  }
+
   async getWaterLogsByDate(calendarDate: string): Promise<WaterLog[]> {
     return await this.water["table"]
       .where("calendarDate")
       .equals(calendarDate)
+      .toArray();
+  }
+
+  async getWaterLogsForDateRange(
+    startDate: string,
+    endDate: string
+  ): Promise<WaterLog[]> {
+    return await this.water["table"]
+      .where("calendarDate")
+      .between(startDate, endDate, true, true)
       .toArray();
   }
 
