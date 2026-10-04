@@ -203,3 +203,4 @@ describe("Home Cockpit Integration (Prompt 27 / Stap 33)", () => {
     expect(summaryToday.waterConsumedMl).toBe(1000);
   });
 });
+

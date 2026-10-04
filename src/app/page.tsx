@@ -19,7 +19,8 @@ import { HomeRecentPRsWidget } from "@/components/modules/history/HomeRecentPRsW
 import { HomeFavoriteExercisesWidget } from "@/components/modules/history/HomeFavoriteExercisesWidget";
 import { WeeklyConsistencyWidget } from "@/components/modules/history/WeeklyConsistencyWidget";
 import { HomeCockpitDashboard } from "@/components/modules/home/HomeCockpitDashboard";
-import { getLocalDateString } from "@/domain/dates/calendar";
+import { CombinedProgressHub } from "@/components/modules/home/CombinedProgressHub";
+import { getLocalDateString, addDaysToDateString } from "@/domain/dates/calendar";
 import {
   calculateDailyCockpitSummary,
   type DailyCockpitSummary,
@@ -28,7 +29,14 @@ import {
   DEFAULT_NUTRITION_TARGETS,
   type DailyNutritionTargets,
 } from "@/domain/nutrition/goals";
-import type { ScheduledSession } from "@/types/database";
+import type {
+  ScheduledSession,
+  WorkoutSession,
+  WorkoutSet,
+  CardioSession,
+  MealLog,
+  BodyMeasurement,
+} from "@/types/database";
 
 export default function HomePage() {
   const { repositories, isDemoMode, dataVersion, toggleDemoMode, refreshData } =
@@ -43,15 +51,31 @@ export default function HomePage() {
     useState<ScheduledSession | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
+  // Historische datasets voor Gecombineerde Voortgang Hub
+  const [historyWorkouts, setHistoryWorkouts] = useState<WorkoutSession[]>([]);
+  const [historySets, setHistorySets] = useState<WorkoutSet[]>([]);
+  const [historyCardio, setHistoryCardio] = useState<CardioSession[]>([]);
+  const [historyMeals, setHistoryMeals] = useState<MealLog[]>([]);
+  const [historyMeasurements, setHistoryMeasurements] = useState<
+    BodyMeasurement[]
+  >([]);
+  const [nutritionTargets, setNutritionTargets] =
+    useState<DailyNutritionTargets>(DEFAULT_NUTRITION_TARGETS);
+
   const loadCockpitData = useCallback(
     async (date: string) => {
       setIsLoading(true);
       try {
+        const historyStartDate = addDaysToDateString(date, -90);
+
         const [
-          meals,
-          waterLogs,
-          cardioSessions,
+          mealsToday,
+          waterLogsToday,
+          cardioToday,
           workoutSessions,
+          workoutSets,
+          allCardio,
+          rangeMeals,
           scheduled,
           activeWorkout,
           activeRoutine,
@@ -63,6 +87,9 @@ export default function HomePage() {
           repositories.nutrition.getWaterLogsByDate(date),
           repositories.cardio.getSessionsByDate(date),
           repositories.workout.sessions.getAll(),
+          repositories.workout.sets.getAll(),
+          repositories.cardio.getAll(),
+          repositories.nutrition.getMealsForDateRange(historyStartDate, date),
           repositories.workout.getScheduledSessionForDate(date),
           repositories.workout.getActiveWorkoutSession(),
           repositories.workout.getActiveRoutine(),
@@ -72,20 +99,28 @@ export default function HomePage() {
         ]);
 
         setScheduledSession(scheduled);
+        setHistoryWorkouts(workoutSessions);
+        setHistorySets(workoutSets);
+        setHistoryCardio(allCardio);
+        setHistoryMeals(rangeMeals);
+        setHistoryMeasurements(measurements);
+
+        const safeTargets = targets || DEFAULT_NUTRITION_TARGETS;
+        setNutritionTargets(safeTargets);
 
         const calculatedSummary = calculateDailyCockpitSummary({
           calendarDate: date,
           todayDateStr: getLocalDateString(),
-          meals,
-          waterLogs,
-          cardioSessions,
+          meals: mealsToday,
+          waterLogs: waterLogsToday,
+          cardioSessions: cardioToday,
           workoutSessions,
           scheduledSession: scheduled,
           activeWorkoutSession: activeWorkout,
           activeRoutineName: activeRoutine?.routine?.name || null,
           measurements,
           recoveryLog,
-          targets: targets || DEFAULT_NUTRITION_TARGETS,
+          targets: safeTargets,
         });
 
         setSummary(calculatedSummary);
@@ -176,13 +211,26 @@ export default function HomePage() {
         <WeeklyConsistencyWidget />
       </section>
 
-      {/* 5. PERSOONLIJKE RECORDS & FAVORIETE OEFENINGEN WIDGETS */}
+      {/* 5. GECOMBINEERDE VOORTGANG HUB & HOLISTISCHE ANALYTICS */}
+      <section>
+        <CombinedProgressHub
+          workoutSessions={historyWorkouts}
+          workoutSets={historySets}
+          cardioSessions={historyCardio}
+          mealLogs={historyMeals}
+          measurements={historyMeasurements}
+          targets={nutritionTargets}
+          referenceDate={selectedDate}
+        />
+      </section>
+
+      {/* 6. PERSOONLIJKE RECORDS & FAVORIETE OEFENINGEN WIDGETS */}
       <section className="space-y-4">
         <HomeRecentPRsWidget />
         <HomeFavoriteExercisesWidget />
       </section>
 
-      {/* 6. DE VIER KERNMODULES NAVIGATIE */}
+      {/* 7. DE VIER KERNMODULES NAVIGATIE */}
       <section className="space-y-3">
         <h2 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">
           Modules

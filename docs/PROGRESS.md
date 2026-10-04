@@ -1286,5 +1286,43 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
   - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 8 Next.js routes statisch gegenereerd.
   - Bestandsintegriteit: 0-byte bestandscontrole geverifieerd via Node script (**0 lege bestanden**).
 - **Volgende Stap:**
-  - **Stap 34 / Prompt 28**: Home: Gecombineerde Voortgang Hub & Holistische Analytics (correlaties tussen trainingsvolume, cardio-belasting, calorie-inname en gewichtsverloop over tijd via gecombineerde visualisaties).
+  - **Stap 34 / Prompt 28**: Home: Gecombineerde Voortgang Hub & Holistische Analytics (Afgerond).
+
+---
+
+### Stap 34 / Prompt 28 — Home: Gecombineerde Voortgang Hub & Holistische Analytics (`[x] KLAAR`)
+- **Doel & Bereik:**
+  - Creëren van een gecombineerde Voortgang Hub en holistische analyse-interface op het Home-scherm die correlaties aantoont tussen krachttrainingsvolume, cardio-belasting, calorie-inname en het feitelijke gewichtsverloop over tijd.
+  - Multi-periode filter (14 dagen, 30 dagen, 90 dagen) voor flexibele historische inzichten.
+  - Pure SVG grafieken met 3 interactieve weergaves:
+    1. **Dubbele As Calorieën vs. Lichaamsgewicht**: Toont calorie-inname per dag (staven) en doellijn (gestreept groen) gecombineerd met de continue gewichtstrendlijn en individuele meetpunten (paars).
+    2. **Trainingsvolume & Cardio**: Krachtvolume in kg per sessie met visuele cardio-activiteit indicatoren (verbrande calorieën / kilometers).
+    3. **Trainingsdagen vs. Rustdagen**: Duidelijke vergelijking tussen de gemiddelde calorie- en eiwitinname op trainingsdagen versus rustdagen ter optimalisatie van herstel.
+  - Holistische KPI Ribbon met 4 kerncijfers: Totaal volume (kg), Cardio afstand & burn, Gewichtsontwikkeling (start → eind) en Netto dagelijkse energiebalans.
+  - Slimme feitelijke data-observaties (gewichtsverandering vs caloriebalans, innameverschillen tussen trainings- en rustdagen, cardioconsistentie en volumetrends) die transparant en zonder gefingeerde data worden gepresenteerd.
+- **Geïmplementeerde Wijzigingen:**
+  - **Domeinlogica (`src/domain/home/progressHub.ts` & `src/domain/home/progressHub.test.ts`):**
+    - `calculateProgressHubSummary`: Pure berekeningsfunctie die sets koppelt aan afgeronde workoutsessies, cardiosessies optelt, maaltijden aggregeert en gewichtsmetingen interpoleert voor een consistente trendlijn.
+    - Berekening van trainingsdagen vs rustdagen calorie- en eiwitgemiddelden.
+    - Cumulatief deficit/surplus en geschat gewichtseffect (Wishnofsky's ~7700 kcal per kg).
+    - Berekening van de gewichtscorrelatie-accuratesse (`weightCorrelationAccuracyPct`).
+    - Slimme feitelijke observatiegenerator (`ProgressObservation`) voor gewicht, voeding, cardio en volume.
+    - 4 pure unit tests in `src/domain/home/progressHub.test.ts` (100% geslaagd).
+  - **Gebruikersinterface (`src/components/modules/home/CombinedProgressHub.tsx` & `src/app/page.tsx`):**
+    - `CombinedProgressHub.tsx`: Pure responsieve SVG multi-metric visualisatie met dubbele Y-assen (calorieën links, gewicht rechts), tabbladen voor de 3 grafiekweergaves, interactieve hover-details en observatiekaarten.
+    - `src/app/page.tsx`: Historische dataverzameling over 90 dagen via `repositories.workout.sessions`, `repositories.workout.sets`, `repositories.cardio.getAll()`, `repositories.nutrition.getMealsForDateRange()` en `repositories.measurements.getAll()`.
+  - **Integratietests (`tests/combinedProgressHubIntegration.test.ts`):**
+    - 2 integratietests met Dexie en `fake-indexeddb` die multi-domein repositories bevragen, trainingsdagen vs rustdagen voeding testen, volume-aggregatie verifiëren en lege datasets robuust valideren.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): **0 fouten**.
+  - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
+  - Vitest testsuite (`npm test`): **370 van de 370 tests geslaagd** over 47 testbestanden (100% slagingspercentage).
+  - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 8 Next.js routes statisch gegenereerd.
+  - Bestandsintegriteit: 0-byte bestandscontrole geverifieerd via Node script (**0 lege bestanden**).
+- **Beperkingen & Notities:**
+  - De grafiek gebruikt pure SVG en CSS zonder externe zware dependencies, waardoor rendering razendsnel en hydration-safe is.
+  - Bij onvoldoende meetpunten (minder dan 2) toont de gewichtscorrelatie netjes een streepje ("—") in plaats van onbetrouwbare aannames.
+- **Volgende Stap:**
+  - **Stap 35 / Prompt 29**: Home: Consistentie & Activity Streaks (visuele streaks, multi-week kalender heatmaps en trainingsfrequentie monitoring).
+
 
