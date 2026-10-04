@@ -23,6 +23,7 @@ import { HomeCockpitDashboard } from "@/components/modules/home/HomeCockpitDashb
 import { CombinedProgressHub } from "@/components/modules/home/CombinedProgressHub";
 import { ActivityStreakHeatmap } from "@/components/modules/home/ActivityStreakHeatmap";
 import { AiWeeklyReviewCard } from "@/components/modules/home/AiWeeklyReviewCard";
+import { AiContextualChatDialog } from "@/components/modules/ai/AiContextualChatDialog";
 import { UniversalSearchDialog } from "@/components/modules/home/UniversalSearchDialog";
 import { getLocalDateString, addDaysToDateString } from "@/domain/dates/calendar";
 import {
@@ -71,6 +72,7 @@ export default function HomePage() {
   const [nutritionTargets, setNutritionTargets] =
     useState<DailyNutritionTargets>(DEFAULT_NUTRITION_TARGETS);
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
+  const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
 
   // Sneltoets Ctrl+K / Cmd+K voor universele zoekbalk
   useEffect(() => {
@@ -182,21 +184,30 @@ export default function HomePage() {
 
   return (
     <div className="space-y-6">
-      {/* 0. UNIVERSELE ZOEKFUNCTIE TRIGGER */}
-      <div className="flex items-center justify-between gap-3">
+      {/* 0. UNIVERSELE ZOEKFUNCTIE & AI ASSISTENT TRIGGER */}
+      <div className="flex items-center gap-2 sm:gap-3">
         <button
           onClick={() => setIsSearchOpen(true)}
-          className="w-full flex items-center justify-between px-4 py-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 hover:border-emerald-500/50 hover:text-slate-700 dark:hover:text-slate-200 transition-all shadow-2xs group cursor-pointer"
+          className="flex-1 flex items-center justify-between px-4 py-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 hover:border-emerald-500/50 hover:text-slate-700 dark:hover:text-slate-200 transition-all shadow-2xs group cursor-pointer"
         >
-          <div className="flex items-center gap-2.5">
-            <Search className="w-4 h-4 text-emerald-500" />
-            <span className="font-medium">
-              Zoeken in trainingen, gerechten, cardio en gewicht...
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Search className="w-4 h-4 text-emerald-500 shrink-0" />
+            <span className="font-medium truncate">
+              Zoeken in trainingen, gerechten, cardio...
             </span>
           </div>
-          <kbd className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-mono font-semibold bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-slate-500 dark:text-slate-400">
+          <kbd className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-mono font-semibold bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-slate-500 dark:text-slate-400 shrink-0">
             Ctrl + K
           </kbd>
+        </button>
+
+        <button
+          onClick={() => setIsChatOpen(true)}
+          className="flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-semibold transition-all shadow-2xs cursor-pointer shrink-0"
+          title="Vraag de SportKompas AI Assistent"
+        >
+          <Sparkles className="w-4 h-4 text-emerald-500" />
+          <span className="hidden sm:inline">AI Vraagbaak</span>
         </button>
       </div>
 
@@ -418,6 +429,32 @@ export default function HomePage() {
         measurements={historyMeasurements}
         referenceDate={selectedDate}
       />
+
+      {/* 9. AI CONTEXTUELE CHAT ASSISTENT */}
+      <AiContextualChatDialog
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        profile={profile}
+        workouts={historyWorkouts}
+        workoutSets={historySets}
+        cardioSessions={historyCardio}
+        mealLogs={historyMeals}
+        recoveryLogs={historyRecovery}
+        nutritionTargets={nutritionTargets}
+        referenceDate={selectedDate}
+      />
+
+      {/* FLOATING ACTION BUTTON VOOR AI ASSISTENT */}
+      <button
+        onClick={() => setIsChatOpen(true)}
+        className="fixed bottom-20 md:bottom-6 right-4 sm:right-6 z-40 p-3 sm:px-4 sm:py-3 rounded-full sm:rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/30 flex items-center gap-2 transition-all hover:scale-105 active:scale-95 cursor-pointer group"
+        title="Vraag SportKompas AI"
+      >
+        <Sparkles className="w-5 h-5 text-white animate-pulse" />
+        <span className="hidden sm:inline text-xs font-bold tracking-wide">
+          Vraag AI
+        </span>
+      </button>
     </div>
   );
 }

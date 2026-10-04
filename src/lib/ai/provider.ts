@@ -10,6 +10,10 @@ import {
   generateDeterministicWeeklyReview,
   type PreparedWeeklyReviewContext,
 } from "@/domain/ai/weeklyReview";
+import {
+  generateLocalChatResponse,
+  type PreparedChatContext,
+} from "@/domain/ai/chatAdvisor";
 
 /**
  * Genereert de basissysteemprompt met vaste SportKompas gedragsregels.
@@ -52,6 +56,11 @@ Als taak 'weekly_review' is, beantwoord dan bij voorkeur met een geldig JSON obj
   "keyHighlights": string[],
   "focusNextWeek": string
 }`;
+  } else if (task === "qa_chat") {
+    taskGuidance = `
+Als taak 'qa_chat' is, beantwoord de vraag van de sporter direct in het Nederlands als een vriendelijke, deskundige coach.
+Maak optimaal gebruik van de meegestuurde 'preparedContext' (recente trainingen, volume, werksets, cardio, voeding en rustdagen).
+Herinnering: stel NOOIT medische diagnoses, doe GEEN medische claims en label berekende/geschatte waarden altijd met '(schatting)'.`;
   }
 
   return `Je bent de ingebouwde assistent van SportKompas, een persoonlijke en rustige fitness applicatie.
@@ -224,10 +233,15 @@ export function generateLocalHeuristicResponse(
 
     case "qa_chat": {
       const question = payload.userPrompt || "Algemene vraag";
+      const prepared = payload.context?.preparedContext as PreparedChatContext | undefined;
+      const message = prepared
+        ? generateLocalChatResponse(question, prepared)
+        : `SportKompas AI adviseert om te trainen met een focus op correcte techniek en progressieve overload. Zorg voor minimaal 48 uur herstel per spiergroep (schatting).`;
+
       return {
         success: true,
         task: "qa_chat",
-        message: `Je vroeg: "${question}". SportKompas AI adviseert om altijd te trainen met een focus op correcte techniek en progressieve overload. Zorg voor minimaal 48 uur herstel per spiergroep (schatting).`,
+        message,
         disclaimer: AI_DISCLAIMER_TEXT,
         isEstimate: true,
         modelUsed: modelName,

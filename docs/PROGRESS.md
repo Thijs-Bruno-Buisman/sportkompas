@@ -59,7 +59,7 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 | **42** | AI Assistent: Progressieve Overload Suggesties | `[x] KLAAR` | Slimme gewichtsverhogingssuggesties met verplichte confirm-stap. |
 | **43** | AI Assistent: Slimme Voedingsadviezen | `[x] KLAAR` | Aanbevelingen voor maaltijdafstemming op trainingsdagen. |
 | **44** | AI Assistent: Wekelijkse Holistische Review | `[x] KLAAR` | Samenvattend herstel-, volume- en voortgangsrapportage. |
-| **45** | AI Assistent: Contextuele Q&A Chat | `[ ] OPEN` | Vragen stellen over eigen trainingsdata met context-injectie. |
+| **45** | AI Assistent: Contextuele Q&A Chat | `[x] KLAAR` | Vragen stellen over eigen trainingsdata met context-injectie. |
 | **46** | Externe Koppeling: GPX/TCX/FIT Bestand Import | `[ ] OPEN` | Handmatig cardiobestanden importeren vanaf sporthorloges. |
 | **47** | Externe Koppeling: Optionele Strava Koppeling | `[ ] OPEN` | Veilige OAuth koppeling met duidelijke 'Nog niet verbonden' fallback. |
 | **48** | Externe Koppeling: Optionele Open Food Facts Lookup | `[ ] OPEN` | Voedingsmiddelen lookup via Open Food Facts met offline cache. |
@@ -1721,7 +1721,55 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 - **Beperkingen & Notities:**
   - Volledig functioneel zowel online (via Google Gemini) als 100% offline (via lokale deterministische heuristiek).
 - **Volgende Stap:**
-  - **Stap 45 / Prompt 39**: AI Assistent: Contextuele Q&A Chat (Module 7: interactieve chatinterface waarin de gebruiker vragen kan stellen over eigen workouts, schema's, progressie en voeding met automatische injectie van lokale database-context).
+  - **Stap 45 / Prompt 39**: AI Assistent: Contextuele Q&A Chat (Afgerond).
+
+---
+
+### Stap 45 / Prompt 39 — AI Assistent: Contextuele Q&A Chat (`[x] KLAAR`)
+- **Doel & Bereik:**
+  - Implementatie van de interactieve AI Q&A Assistent met contextuele data-injectie conform **Rule 3 ("Echte Persistentie & Geen Neppe Data")**, **Rule 7 ("AI als Assistent, NOOIT autonoom")** en **Rule 8 ("Lokale fallback & privacy zonder externe accounts")**:
+    - **Contextuele Domein-Injectie (`src/domain/ai/chatAdvisor.ts`):**
+      - `buildChatContext`: Pure domeinfunctie die een gestructureerde 14-daagse samenvatting samenstelt:
+        - Profielgegevens van de sporter (naam, hoofddoel, trainingservaring).
+        - Krachttraining: Aantal afgeronde sessies, totale tonnage (kg) en prestatie-overzicht van de top-oefeningen (hoogste gewicht, recent gewicht, aantal sets).
+        - Cardio: Aantal sessies, totale kilometers en geschatte calorieverbranding.
+        - Voeding & Hydratatie: Aantal gelogde maaltijddagen, gemiddelde calorie- en eiwitinname vs ingestelde dagdoelen.
+        - Rust & Herstel: Aantal rustdagen binnen de 14 dagen en samengestelde gemiddelde herstelscore.
+      - `generateLocalChatResponse`: Slimme deterministische lokale heuristiek die offline vragen beantwoordt via contextuele analyse:
+        - *Veiligheid & Pijn:* Directe detectie van blessures of pijnsignalen met waarschuwing om de oefening te staken en professioneel medisch advies in te winnen (strikte Rule 7 guardrail: geen medische diagnoses).
+        - *Eiwit & Voeding:* Vergelijkt daadwerkelijke inname met het streefdoel en geeft gerichte suggesties (kwark, eieren, peulvruchten) met `(schatting)`.
+        - *Progressieve Overload:* Analyseert gerealiseerde piekgewichten en adviseert verantwoorde verhogingen (+1.0 tot +2.5 kg).
+        - *Herstel & Slaap:* Toetst rustdagenbalans (4-8 rustdagen per 2 weken als richtlijn) en herstelpercentages.
+        - *Cardio:* Analyseert aerobe prikkels en kilometers.
+    - **AI Server Provider Enhancement (`src/lib/ai/provider.ts`):**
+      - `buildSystemPrompt`: Taakspecifieke coach-richtlijnen voor `qa_chat` met strikte instructies voor Nederlands taalgebruik, feitelijke contextbenutting en verplichte `(schatting)` markeringen.
+      - `generateLocalHeuristicResponse`: Volledige integratie van `generateLocalChatResponse` met de meegestuurde `preparedContext`.
+    - **Gebruikersinterface (`AiContextualChatDialog.tsx` & Dashboard Integratie):**
+      - Volledig toegankelijke chatmodal (`Dialog`) met statusbanner die actuele 14-daagse statistieken toont (trainingen, kilometers, eiwit en rustdagen).
+      - Herkomstlabeling: *Gemini AI* of *Lokale Heuristiek* met knop om de gespreksgeschiedenis te wissen.
+      - 4 voorgedefinieerde snelle suggestie-chips (`QUICK_PROMPT_CHIPS`): "Trainingsvoortgang", "Eiwit- & Calorie-inname", "Herstel & Rustdagen", "Progressieve Overload".
+      - Berichtengeschiedenis met visueel onderscheid tussen sporter (emerald) en assistent (neutraal grijs met herkomst en tijdstempel).
+      - Invoerbalk met Enter-toetsverzending, laadindicator ("SportKompas assistent formuleert antwoord...") en automatische scroll naar het nieuwste bericht.
+      - Prominente trigger in de Home-header naast de zoekbalk ("AI Vraagbaak").
+      - Vaste zwevende actieknop (FAB) rechtsonder ("Vraag AI") voor directe bereikbaarheid op elk moment.
+- **Geïmplementeerde Bestanden:**
+  - `src/domain/ai/chatAdvisor.ts`: Pure domeinlogica voor contextvoorbereiding, lokale chatheuristiek, prompt-chips en disclaimers.
+  - `src/domain/ai/chatAdvisor.test.ts`: 7 gerichte unit tests voor contextaggregatie, blessurewaarschuwingen, macro-evaluatie, overload-feedback en chips.
+  - `src/components/modules/ai/AiContextualChatDialog.tsx`: Complete responsieve chatinterface met contextbanner, chips en invoer.
+  - `src/lib/ai/provider.ts`: Taakbegeleiding en contextuele `qa_chat` responsverwerking.
+  - `src/app/page.tsx`: Triggerknop in header, floating action button en chatdialoog geïntegreerd.
+  - `tests/aiChatIntegration.test.ts`: 4 integratietests over end-to-end contextinjectie, provider execution, guardrails en prompt chips.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): **0 fouten**.
+  - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
+  - Vitest testsuite: **476 van de 476 tests geslaagd** over 71 testbestanden (100% pass rate).
+  - Next.js productiebuild (`npm run build`): **Succesvol gecompileerd** (10 pagina's).
+  - Bestandsintegriteit: 0-byte bestandscontrole geverifieerd (**0 lege bestanden**).
+- **Beperkingen & Notities:**
+  - De AI assistent functioneert 100% lokaal en offline; met een geconfigureerde Gemini API-sleutel levert het systeem diepere vloeiende tekstsynthese terwijl de feiten geworteld blijven in de lokale IndexedDB data.
+- **Volgende Stap:**
+  - **Stap 46 / Prompt 40**: Externe Koppeling: GPX/TCX/FIT Bestand Import (Module 8: handmatig importeren en parseren van trainingsbestanden vanaf sporthorloges en fietscomputers conform Rule 8 fallback).
+
 
 
 
