@@ -24,6 +24,10 @@ import {
   createRecipeFromMealLog,
   duplicateMealItems,
 } from "@/domain/nutrition/quickLog";
+import {
+  convertExternalToFoodItem,
+  type ParsedExternalFood,
+} from "@/domain/nutrition/openFoodFacts";
 
 export class NutritionRepository {
   public readonly foods: BaseRepository<FoodItem>;
@@ -565,5 +569,43 @@ export class NutritionRepository {
     }
 
     return count;
+  }
+
+  // =========================================================================
+  // Streepjescodes & Externe Zoekfunctie (Prompt 25 / Stap 30)
+  // =========================================================================
+
+  /**
+   * Zoekt een lokaal voedingsmiddel op basis van een streepjescode.
+   */
+  async getFoodByBarcode(barcode: string): Promise<FoodItem | undefined> {
+    const clean = barcode.trim();
+    if (!clean) return undefined;
+    return await this.foods["table"]
+      .where("barcode")
+      .equals(clean)
+      .first();
+  }
+
+  /**
+   * Slaat een extern (Open Food Facts) product op in de lokale database.
+   * Indien het product al bestaat met dezelfde barcode, wordt het bestaande product geretourneerd.
+   */
+  async saveExternalFoodItem(external: ParsedExternalFood): Promise<FoodItem> {
+    if (external.barcode) {
+      const existing = await this.getFoodByBarcode(external.barcode);
+      if (existing) {
+        return existing;
+      }
+    }
+
+    const itemData = convertExternalToFoodItem(external);
+    const newFoodItem: FoodItem = {
+      ...itemData,
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+    };
+
+    return await this.foods.save(newFoodItem);
   }
 }

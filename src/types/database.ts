@@ -20,6 +20,8 @@ export interface Provenance {
     | "import_csv"
     | "import_gpx"
     | "strava"
+    | "openfoodfacts"
+    | "external"
     | "demo";
   isDemo?: boolean;
   externalId?: string;
@@ -319,6 +321,7 @@ export interface FoodItem {
   name: string;
   brand: string | null;
   category?: FoodCategory;
+  barcode?: string | null;
   caloriesPer100g: number;
   proteinGramsPer100g: number;
   carbsGramsPer100g: number;

@@ -11,6 +11,8 @@ import {
   Filter,
   Trash2,
   Sparkles,
+  Camera,
+  Globe,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -21,6 +23,9 @@ import { FoodItemCard } from "./FoodItemCard";
 import { RecipeCard } from "./RecipeCard";
 import { FoodItemModal } from "./FoodItemModal";
 import { RecipeModal } from "./RecipeModal";
+import { BarcodeScannerDialog } from "./BarcodeScannerDialog";
+import { ExternalFoodSearchDialog } from "./ExternalFoodSearchDialog";
+import type { ParsedExternalFood } from "@/domain/nutrition/openFoodFacts";
 import { filterFoods, filterRecipes, getCategoryMetadata } from "@/domain/nutrition/calculations";
 
 interface FoodDatabaseViewProps {
@@ -32,6 +37,8 @@ interface FoodDatabaseViewProps {
   onSaveRecipe: (recipe: Recipe) => Promise<void>;
   onDeleteRecipe: (id: string) => Promise<void>;
   onToggleFavoriteRecipe: (id: string) => Promise<void>;
+  onSaveExternalFood?: (external: ParsedExternalFood) => Promise<FoodItem>;
+  onLookupLocalBarcode?: (barcode: string) => Promise<FoodItem | undefined>;
   isDemoMode?: boolean;
 }
 
@@ -44,6 +51,8 @@ export function FoodDatabaseView({
   onSaveRecipe,
   onDeleteRecipe,
   onToggleFavoriteRecipe,
+  onSaveExternalFood,
+  onLookupLocalBarcode,
   isDemoMode = false,
 }: FoodDatabaseViewProps) {
   const [activeTab, setActiveTab] = useState<"foods" | "recipes">("foods");
@@ -59,8 +68,24 @@ export function FoodDatabaseView({
   const [isRecipeModalOpen, setIsRecipeModalOpen] = useState(false);
   const [recipeToEdit, setRecipeToEdit] = useState<Recipe | null>(null);
 
+  const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState(false);
+  const [isExternalSearchOpen, setIsExternalSearchOpen] = useState(false);
+  const [actionNotification, setActionNotification] = useState<string | null>(null);
+
   // Delete confirmation
   const [itemToDelete, setItemToDelete] = useState<{ id: string; type: "food" | "recipe"; name: string } | null>(null);
+
+  const handleExternalProductSelected = async (product: any) => {
+    try {
+      if (onSaveExternalFood) {
+        await onSaveExternalFood(product);
+        setActionNotification(`"${product.name}" succesvol toegevoegd aan je bibliotheek!`);
+        setTimeout(() => setActionNotification(null), 3500);
+      }
+    } catch (err: any) {
+      console.error("Fout bij opslaan extern product:", err);
+    }
+  };
 
   // Filtered lists
   const filteredFoods = useMemo(() => {
@@ -106,6 +131,14 @@ export function FoodDatabaseView({
 
   return (
     <div className="space-y-6">
+      {/* Notificatie banner */}
+      {actionNotification && (
+        <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-sm rounded-xl flex items-center gap-2 animate-in fade-in duration-200">
+          <Sparkles className="w-4 h-4 text-emerald-500 shrink-0" />
+          <span>{actionNotification}</span>
+        </div>
+      )}
+
       {/* Top navigatiebalk: Subtabs en Actieknoppen */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl w-fit">
@@ -142,17 +175,36 @@ export function FoodDatabaseView({
           </button>
         </div>
 
-        <div>
+        <div className="flex flex-wrap items-center gap-2">
           {activeTab === "foods" ? (
-            <Button
-              onClick={() => {
-                setFoodToEdit(null);
-                setIsFoodModalOpen(true);
-              }}
-              leftIcon={<Plus className="w-4 h-4" />}
-            >
-              Nieuw Product
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                onClick={() => setIsBarcodeScannerOpen(true)}
+                leftIcon={<Camera className="w-4 h-4 text-emerald-500" />}
+                className="h-10 text-xs"
+              >
+                Scan Barcode
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setIsExternalSearchOpen(true)}
+                leftIcon={<Sparkles className="w-4 h-4 text-emerald-500" />}
+                className="h-10 text-xs"
+              >
+                Zoek Online
+              </Button>
+              <Button
+                onClick={() => {
+                  setFoodToEdit(null);
+                  setIsFoodModalOpen(true);
+                }}
+                leftIcon={<Plus className="w-4 h-4" />}
+                className="h-10 text-xs"
+              >
+                Nieuw Product
+              </Button>
+            </>
           ) : (
             <Button
               onClick={() => {
@@ -160,6 +212,7 @@ export function FoodDatabaseView({
                 setIsRecipeModalOpen(true);
               }}
               leftIcon={<Plus className="w-4 h-4" />}
+              className="h-10 text-xs"
             >
               Nieuw Recept
             </Button>
@@ -384,6 +437,26 @@ export function FoodDatabaseView({
           </Button>
         </DialogFooter>
       </Dialog>
+
+      {/* Streepjescodescanner Dialoog */}
+      <BarcodeScannerDialog
+        isOpen={isBarcodeScannerOpen}
+        onClose={() => setIsBarcodeScannerOpen(false)}
+        onLookupLocalBarcode={onLookupLocalBarcode}
+        onSelectProduct={(prod) => {
+          handleExternalProductSelected(prod);
+        }}
+      />
+
+      {/* Online Zoeken Dialoog (Open Food Facts) */}
+      <ExternalFoodSearchDialog
+        isOpen={isExternalSearchOpen}
+        onClose={() => setIsExternalSearchOpen(false)}
+        onSelectProduct={(prod) => {
+          handleExternalProductSelected(prod);
+        }}
+        onOpenBarcodeScanner={() => setIsBarcodeScannerOpen(true)}
+      />
     </div>
   );
 }

@@ -44,7 +44,7 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 | **27** | Voeding: Maaltijdlogger & Snelle Invoer | `[ ] OPEN` | Producten selecteren, porties berekenen, favorieten markeren. |
 | **28** | Voeding: Calorie & Macro Doelen Dashboard | `[ ] OPEN` | Dynamische berekening resterende macro's vs streefwaarden. |
 | **29 / P24** | **Voeding: Maaltijdplanner & Weekplanning (Prompt 24)** | `[x] KLAAR` | 7-daagse weekplanner met maaltijdmomenten (ontbijt, lunch, diner, snacks), Dexie v6 `plannedMeals` store, recept- en productkoppeling met portieschaling, geaggregeerde boodschappen- en meal prep checklist met klembord-kopieerfunctie, automatische overzetting naar voedingsdagboek bij 'markeer als genuttigd', dag-kopieerfunctie en 314 tests. |
-| **30** | Voeding: Streepjescodescanner & Externe Zoekfunctie | `[ ] OPEN` | Barcode scanning via camera en zoekfunctie in externe open voedingsdatabase. |
+| **30 / P25** | **Voeding: Streepjescodescanner & Externe Zoekfunctie (Prompt 25)** | `[x] KLAAR` | Barcodescanner via camera met BarcodeDetector en handmatige invoer-fallback, Open Food Facts integratie met offline caching in Dexie v7 `barcode` index, universeel zoeken en 331 tests. |
 | **31** | Voeding: Voedingsgrafieken & Wekelijkse Balans | `[ ] OPEN` | Visualisatie van macro-verhoudingen en dagtotalen over tijd. |
 | **32** | Voeding: Maaltijdplanning & Boodschappenlijst | `[ ] OPEN` | Basis weekplanning en genereren van ingrediëntenlijst. |
 | **33** | Home: Centrale Cockpit & Dagsamenvatting | `[ ] OPEN` | Samenvattingswidgets voor geplande training, cardio en voeding. |
@@ -1173,6 +1173,51 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
   - Geplande maaltijden blijven persistent bewaard totdat de gebruiker ze verwijdert; genuttigde maaltijden worden visueel gemarkeerd en zijn direct terug te vinden in het dagelijkse voedingsdagboek.
 - **Volgende Stap:**
   - **Stap 30 / Prompt 25**: Voeding: Streepjescodescanner & Externe Zoekfunctie (camera barcode scanning via BarcodeDetector / Html5Qrcode, Open Food Facts integratie met offline caching en fallback).
+
+---
+
+### Stap 30 / Prompt 25 — Voeding: Streepjescodescanner & Externe Zoekfunctie (`[x] KLAAR`)
+- **Doel & Bereik:**
+  - Snelle en accurate productherkenning door streepjescodes (EAN-13, EAN-8, UPC) te scannen via de camera of handmatig in te voeren.
+  - Naadloze koppeling met de openbare Open Food Facts database met automatische extractie van Nederlandse/internationale productnamen, merken, portiegroottes, energie (kcal en kJ) en macronutriënten (eiwit, koolhydraten, vetten, vezels).
+  - Offline-first architectuur conform Regel 8: producten die eenmaal zijn opgehaald of gescand, worden persistent opgeslagen in de lokale Dexie bibliotheek (`foodItems`), waardoor ze direct en permanent offline beschikbaar zijn.
+  - Lokale lookup vóór netwerkaanroep: als een barcode al in de lokale database voorkomt, wordt deze direct geopend zonder onnodig netwerkverbruik.
+  - Veilige camerabediening met native browser `BarcodeDetector` API, animatieve richtkruisen en scanlaser, haptische feedback (`navigator.vibrate`), camera-permissie foutafhandeling en universele handmatige barcode-invoer.
+  - Uitgebreide online zoekfunctie (`ExternalFoodSearchDialog`) waarmee de gebruiker direct op merk of productnaam miljoenen producten kan doorzoeken en met één tik aan de lokale bibliotheek of maaltijd kan toevoegen.
+- **Geïmplementeerde Wijzigingen:**
+  - **Datamodel, Validatie & Migraties (`src/types/database.ts`, `src/lib/db/schema.ts`, `src/lib/db/dexie.ts`):**
+    - `FoodItem` interface en `FoodItemSchema` uitgebreid met optioneel `barcode: string | null` veld.
+    - `Provenance` en `ProvenanceSchema` uitgebreid met `"openfoodfacts"` en `"external"` bronidentificatie.
+    - Dexie Database Versie 7 migratie gedefinieerd met geïndexeerd `barcode` veld op `foodItems` voor directe `.where("barcode").equals(code)` queries.
+    - `tests/database.test.ts` bijgewerkt en geverifieerd voor versie 7.
+  - **Domeinlogica (`src/domain/nutrition/openFoodFacts.ts` & `src/domain/nutrition/openFoodFacts.test.ts`):**
+    - `mapOpenFoodFactsCategory`: Slimme mapping van meertalige categorietags (NL/EN/FR) naar canonieke `FoodCategory` (bijv. zuivel, granen_brood, dranken, snacks_zoet, vlees_vis_ei).
+    - `parseOpenFoodFactsProduct`: Robuuste parser voor Open Food Facts JSON met fallback van kJ naar kcal (`kJ / 4.184`), portiegrootte parsing (`serving_size` / `serving_quantity`), afronding en defensieve validatie.
+    - `convertExternalToFoodItem`: Vormt een extern product om naar het lokale `FoodItem` schema met `provenance: { source: "external" }`.
+    - `fetchProductByBarcode` & `searchOpenFoodFacts`: Asynchrone fetchers met timeout-bewaking (`AbortController`), browser-safe headers en graceful foutafhandeling.
+    - `openFoodFacts.test.ts`: 13 pure unit tests (100% geslaagd).
+  - **Repository Laag (`src/lib/db/repositories/nutrition.repository.ts`):**
+    - `getFoodByBarcode(barcode)`: Snelle lokale index-lookup.
+    - `saveExternalFoodItem(external)`: Slaat extern product op in IndexedDB en voorkomt duplicaten indien de barcode al lokaal aanwezig is.
+  - **Gebruikersinterface (`src/components/modules/nutrition/` & `src/app/voeding/page.tsx`):**
+    - `BarcodeScannerDialog.tsx`: Viewfinder met richtkruis en scanlijn, statusbadges, haptische trilling, handmatig invoerveld en directe productpreview met voedingswaarden per 100g.
+    - `ExternalFoodSearchDialog.tsx`: Online zoekvenster met realtime resultaten, merkvermelding, macro-overzicht en knoppen voor selectie of camera-doorverwijzing.
+    - `FoodDatabaseView.tsx`: Voorzien van "Scan Barcode" en "Zoek Online" actieknoppen in de header met visuele feedbackbanner.
+    - `AddMealItemDialog.tsx`: Voorzien van "Scan Barcode" snelknop in het zoekvak voor directe scanning tijdens het loggen van een maaltijd.
+    - `src/app/voeding/page.tsx`: Volledige orchestratie van externe zoekopdrachten, barcode-resolutie en automatische verversing van de bibliotheek.
+  - **Integratietests (`tests/nutritionBarcodeIntegration.test.ts`):**
+    - 4 integratietests met Dexie en `fake-indexeddb` die lokale barcode lookup, externe productpersistentie, ontdubbeling van identieke barcodes en directe maaltijdlogging testen.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): **0 fouten**.
+  - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
+  - Vitest testsuite (`npm test`): **331 van de 331 tests geslaagd** over 41 testbestanden (100% slagingspercentage).
+  - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 8 Next.js routes statisch gegenereerd.
+  - Bestandsintegriteit: 0-byte bestandscontrole uitgevoerd en geverifieerd (0 lege bestanden).
+- **Beperkingen & Notities:**
+  - Barcode scanning via camera werkt via de native `BarcodeDetector` API van de browser; in browsers zonder native detector of camera wordt een direct bruikbaar invoerveld getoond waarin de cijfers onder de streepjescode kunnen worden ingetoetst.
+- **Volgende Stap:**
+  - **Stap 31 / Prompt 26**: Voeding: Voedingsgrafieken & Wekelijkse Balans (visualisatie van macronutriënt-verhoudingen en calorie-inname vs. verbruik over tijd via SVG grafieken, vezel- en hydratatiestatistieken).
+
 
 
 

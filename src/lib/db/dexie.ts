@@ -258,6 +258,13 @@ export class SportKompasDatabase extends Dexie {
       recoveryLogs: "id, calendarDate, loggedAt",
       appSettings: "id",
     });
+
+    // =========================================================================
+    // VERSIE 7: Streepjescodes & Externe Zoekfunctie (Prompt 25 / Stap 30)
+    // =========================================================================
+    this.version(7).stores({
+      foodItems: "id, name, category, barcode, isCustom, isFavorite, createdAt",
+    });
   }
 }
 

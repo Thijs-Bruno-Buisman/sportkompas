@@ -9,6 +9,7 @@ import {
   Clock,
   Star,
   Check,
+  Camera,
 } from "lucide-react";
 import { Dialog, DialogFooter } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
@@ -21,6 +22,8 @@ import {
   type RecentMealItemSummary,
   getQuickPortionOptions,
 } from "@/domain/nutrition/quickLog";
+import { BarcodeScannerDialog } from "./BarcodeScannerDialog";
+import type { ParsedExternalFood } from "@/domain/nutrition/openFoodFacts";
 
 interface AddMealItemDialogProps {
   isOpen: boolean;
@@ -30,6 +33,8 @@ interface AddMealItemDialogProps {
   availableRecipes: Recipe[];
   recentItems?: RecentMealItemSummary[];
   onAddMealItem: (mealType: MealLog["mealType"], item: MealItemEntry) => Promise<void>;
+  onSaveExternalFood?: (external: ParsedExternalFood) => Promise<FoodItem>;
+  onLookupLocalBarcode?: (barcode: string) => Promise<FoodItem | undefined>;
 }
 
 type TabType = "recent" | "favorites" | "library" | "quick";
@@ -42,6 +47,8 @@ export function AddMealItemDialog({
   availableRecipes,
   recentItems = [],
   onAddMealItem,
+  onSaveExternalFood,
+  onLookupLocalBarcode,
 }: AddMealItemDialogProps) {
   // Bepaal initiële tab: Recent indien aanwezig, anders Library
   const initialTab: TabType = recentItems.length > 0 ? "recent" : "library";
@@ -64,6 +71,35 @@ export function AddMealItemDialog({
 
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isBarcodeOpen, setIsBarcodeOpen] = useState(false);
+
+  const handleProductFromBarcode = async (product: any) => {
+    try {
+      if (product.localFoodId) {
+        setSelectedFoodId(product.localFoodId);
+        setSelectedRecipeId("");
+        setPortionGrams(String(product.defaultPortionGrams || 100));
+        setActiveTab("library");
+      } else if (onSaveExternalFood) {
+        const saved = await onSaveExternalFood(product);
+        setSelectedFoodId(saved.id);
+        setSelectedRecipeId("");
+        setPortionGrams(String(saved.defaultPortionGrams || 100));
+        setActiveTab("library");
+      } else {
+        setQuickName(product.name);
+        setQuickCalories(String(product.caloriesPer100g));
+        setQuickProtein(String(product.proteinGramsPer100g));
+        setQuickCarbs(String(product.carbsGramsPer100g));
+        setQuickFat(String(product.fatGramsPer100g));
+        setQuickFiber(String(product.fiberGramsPer100g));
+        setPortionGrams(String(product.defaultPortionGrams || 100));
+        setActiveTab("quick");
+      }
+    } catch (err) {
+      console.error("Fout bij verwerken barcode product:", err);
+    }
+  };
 
   // Favorieten
   const favoriteFoods = useMemo(() => {
@@ -474,15 +510,28 @@ export function AddMealItemDialog({
         {/* Tab 3: Database & Recepten Zoeken */}
         {activeTab === "library" && (
           <div className="space-y-3">
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <Input
-                placeholder="Zoek in voedingsmiddelen en recepten..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 text-xs"
-                autoFocus
-              />
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Input
+                  placeholder="Zoek in voedingsmiddelen en recepten..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 text-xs h-10"
+                  autoFocus
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsBarcodeOpen(true)}
+                className="h-10 px-2.5 flex items-center gap-1 text-xs shrink-0 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
+                title="Scan streepjescode met camera"
+              >
+                <Camera className="w-4 h-4" />
+                <span className="hidden sm:inline">Scan Barcode</span>
+              </Button>
             </div>
 
             <div className="max-h-56 overflow-y-auto space-y-1.5 border border-slate-200 dark:border-slate-800 rounded-xl p-2 bg-slate-50/50 dark:bg-slate-950/40">
@@ -840,6 +889,13 @@ export function AddMealItemDialog({
           </Button>
         </DialogFooter>
       </form>
+
+      <BarcodeScannerDialog
+        isOpen={isBarcodeOpen}
+        onClose={() => setIsBarcodeOpen(false)}
+        onLookupLocalBarcode={onLookupLocalBarcode}
+        onSelectProduct={handleProductFromBarcode}
+      />
     </Dialog>
   );
 }

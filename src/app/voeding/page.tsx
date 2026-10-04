@@ -214,6 +214,17 @@ export default function VoedingPage() {
     setRecipes(updated);
   };
 
+  const handleSaveExternalFood = async (external: any) => {
+    const saved = await repositories.nutrition.saveExternalFoodItem(external);
+    const updated = await repositories.nutrition.getAllFoods();
+    setFoods(updated);
+    return saved;
+  };
+
+  const handleLookupLocalBarcode = async (barcode: string) => {
+    return await repositories.nutrition.getFoodByBarcode(barcode);
+  };
+
   return (
     <div className="space-y-6 max-w-full overflow-x-hidden">
       {/* Header */}
@@ -272,6 +283,8 @@ export default function VoedingPage() {
             onCopyAllMealsFromYesterday={handleCopyAllMealsFromYesterday}
             onSaveMealAsRecipe={handleSaveMealAsRecipe}
             onSaveNutritionTargets={handleSaveNutritionTargets}
+            onSaveExternalFood={handleSaveExternalFood}
+            onLookupLocalBarcode={handleLookupLocalBarcode}
           />
         </TabsContent>
 
@@ -301,6 +314,8 @@ export default function VoedingPage() {
             onSaveRecipe={handleSaveRecipe}
             onDeleteRecipe={handleDeleteRecipe}
             onToggleFavoriteRecipe={handleToggleFavoriteRecipe}
+            onSaveExternalFood={handleSaveExternalFood}
+            onLookupLocalBarcode={handleLookupLocalBarcode}
             isDemoMode={isDemoMode}
           />
         </TabsContent>

@@ -236,9 +236,9 @@ describe("IndexedDB & Repository Layer (SportKompas)", () => {
       const modernDb = new SportKompasDatabase(migrationDbName);
       await modernDb.open();
 
-      expect(modernDb.verno).toBe(6);
+      expect(modernDb.verno).toBe(7);
 
-      // Controleer dat de oude data behouden is en correct gemigreerd via v2, v3, v4, v5 en v6
+      // Controleer dat de oude data behouden is en correct gemigreerd via v2 t/m v7
       const migratedExercise = await modernDb.exercises.get(exerciseId);
       expect(migratedExercise).toBeDefined();
       expect(migratedExercise?.name).toBe("Oude Squat Oefening");
@@ -252,7 +252,7 @@ describe("IndexedDB & Repository Layer (SportKompas)", () => {
       expect(migratedSession?.provenance).toEqual({ source: "user" });
       expect(migratedSession?.snapshot).toEqual({ exercises: [] });
 
-      // Controleer dat v5 & v6 tabellen (zoals recipes en plannedMeals) bestaan en operationeel zijn
+      // Controleer dat v5, v6 & v7 tabellen (zoals recipes en plannedMeals) bestaan en operationeel zijn
       expect(modernDb.recipes).toBeDefined();
       const recipesCount = await modernDb.recipes.count();
       expect(recipesCount).toBe(0);

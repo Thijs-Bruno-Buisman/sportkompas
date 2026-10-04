@@ -42,6 +42,8 @@ interface DailyNutritionViewProps {
   onCopyAllMealsFromYesterday?: () => Promise<void>;
   onSaveMealAsRecipe?: (mealLogId: string, recipeName: string, portions: number) => Promise<void>;
   onSaveNutritionTargets?: (targets: DailyNutritionTargets) => Promise<void>;
+  onSaveExternalFood?: (external: any) => Promise<FoodItem>;
+  onLookupLocalBarcode?: (barcode: string) => Promise<FoodItem | undefined>;
 }
 
 export function DailyNutritionView({
@@ -63,6 +65,8 @@ export function DailyNutritionView({
   onCopyAllMealsFromYesterday,
   onSaveMealAsRecipe,
   onSaveNutritionTargets,
+  onSaveExternalFood,
+  onLookupLocalBarcode,
 }: DailyNutritionViewProps) {
   // Modal states
   const [activeMealForAdd, setActiveMealForAdd] = useState<MealLog["mealType"] | null>(null);
@@ -155,6 +159,8 @@ export function DailyNutritionView({
           availableRecipes={availableRecipes}
           recentItems={recentItems}
           onAddMealItem={onAddMealItem}
+          onSaveExternalFood={onSaveExternalFood}
+          onLookupLocalBarcode={onLookupLocalBarcode}
         />
       )}
 
