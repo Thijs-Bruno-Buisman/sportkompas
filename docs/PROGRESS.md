@@ -53,7 +53,7 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 | **36 / P30** | **Algemeen: Universele Zoek- en Filterfunctie (Prompt 30)** | `[x] KLAAR` | Client-side multi-token zoekdialoog (`Ctrl+K`) door alle 4 pijlers met categoriefilters en relevantiescoring. |
 | **37 / P31** | **Data-soevereiniteit: Volledige JSON Export & Import (Prompt 31)** | `[x] KLAAR` | Eén-klik JSON export van alle 16 IndexedDB tabellen, Zod-schemavalidatie, preview-dialoog met recordoverzicht, en veilige import in vervang- of samenvoegmodus. |
 | **38 / P32** | **Data-soevereiniteit: Spreadsheet CSV Export (Prompt 32)** | `[x] KLAAR` | Exporteren van krachttraining (sets, reps, volume, 1RM), cardio (km, min, tempo, kcal), voeding (dagboekitems & macro's) en metingen naar UTF-8/BOM CSV bestanden (Excel NL ';' of RFC 4180 ',') en 407 tests. |
-| **39** | Data-soevereiniteit: Databasemigraties & Integriteitscontrole | `[ ] OPEN` | Automatische integriteitscontrole en migratieverificatie. |
+| **39 / P33** | **Data-soevereiniteit: Databasemigraties & Integriteitscontrole (Prompt 33)** | `[x] KLAAR` | Diepgaande validatie van alle 16 Dexie tabellen, referentiële integriteit, wees-record herstel, v1->v7 migratieverificatie en 412 tests. |
 | **40** | PWA: Offline Werking & Installatie | `[ ] OPEN` | Web App Manifest en Service Worker caching voor volledige offline werking. |
 | **41** | AI Fundament: Veilige Server API & Rate Limits | `[ ] OPEN` | Server-side endpoints (`/api/ai`), .env beveiliging en rate limits. |
 | **42** | AI Assistent: Progressieve Overload Suggesties | `[ ] OPEN` | Slimme gewichtsverhogingssuggesties met verplichte confirm-stap. |
@@ -1472,5 +1472,43 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 - **Beperkingen & Notities:**
   - CSV exports zijn bedoeld voor externe analyse en rapportage in spreadsheets; voor een volledige restore/back-up blijft de JSON export (Stap 37) het canonieke formaat.
 - **Volgende Stap:**
-  - **Stap 39 / Prompt 33**: Data-soevereiniteit: Databasemigraties & Integriteitscontrole (Module 6: automatische integriteitscontrole van Dexie IndexedDB stores, weergave van databasegezondheid en gecontroleerde testbare schemamigraties).
+  - **Stap 39 / Prompt 33**: Data-soevereiniteit: Databasemigraties & Integriteitscontrole (Afgerond).
+
+---
+
+### Stap 39 / Prompt 33 — Data-soevereiniteit: Databasemigraties & Integriteitscontrole (`[x] KLAAR`)
+- **Doel & Bereik:**
+  - Volledige realisatie van de integriteitsbewaking en gecontroleerde databasemigraties conform Rule 5 van `AGENTS.md` ("Wis nooit gebruikersdata om een migratie te omzeilen; geef semantische betekenis aan statussen"):
+    - **Diepgaande Integriteitscontrole:** Inspectie van alle 16 IndexedDB databasetabellen op records, vereiste velden, geldige UUID's en kalenderdatumnotaties (YYYY-MM-DD en ISO-8601).
+    - **Referentiële Integriteit:** Opsporen van wees-records (*orphaned records*), zoals sets zonder bijbehorende workoutSession, schemadagen zonder routine, of sessies met verwijderde routinekoppelingen.
+    - **Gezondheidsrapportage & Scoring:** Berekening van een objectieve gezondheidsscore (0 - 100%) en indeling in `"gezond"`, `"aandacht"` of `"beschadigd"` met telling van errors, warnings en info-meldingen.
+    - **Veilige Reparatiefunctie:** Mogelijkheid om wees-sets automatisch en veilig op te schonen zonder functionele data aan te tasten (`repairOrphanedWorkoutSets`).
+    - **Migratieverificatie:** Strikte regressie- en migratietesten die de opeenvolgende overgang van Dexie schema v1 -> v2 -> v3 -> v4 -> v5 -> v6 -> v7 valideren met behoud van 100% data en automatische toekenning van defaults (`provenance`, `isArchived`, `measurementType`, `category`, `isFavorite`).
+  - Gebruikersinterface:
+    - `DatabaseIntegritySection.tsx` geïntegreerd in `/profiel` (tabblad Voorkeuren).
+    - Statusbanner met gezondheidsscore (0-100%), actieve Dexie schemaversie (v7), aantal actieve tabellen (16/16) en totaal aantal geregistreerde records.
+    - Uitklapbaar tabeloverzicht met recordtelling en status per tabel.
+    - Probleemoverzicht met duidelijke Nederlandse toelichting en een één-klik "Wees-sets Herstellen" reparatieknop indien nodig.
+- **Geïmplementeerde Wijzigingen:**
+  - **Domeinlogica (`src/domain/integrity/integrityCheck.ts` & `src/domain/integrity/integrityCheck.test.ts`):**
+    - `runDatabaseIntegrityCheck`: Pure scan- en validatiefunctie die alle 16 tabellen doorlicht en een gestructureerd `DatabaseIntegrityReport` opstelt.
+    - `repairOrphanedWorkoutSets`: Veilige atomische opruimfunctie voor wees-records.
+    - 3 unit tests in `src/domain/integrity/integrityCheck.test.ts` (100% geslaagd).
+  - **Gebruikersinterface (`src/components/modules/profile/DatabaseIntegritySection.tsx` & `src/app/profiel/page.tsx`):**
+    - `DatabaseIntegritySection.tsx`: Complete inspectie- en diagnosecomponent met interactieve scan, badges, waarschuwingenoverzicht en herstelactie.
+    - `src/app/profiel/page.tsx`: Gekoppeld aan het tabblad Voorkeuren direct onder CSV export.
+  - **Integratietests & Migratietests:**
+    - `tests/databaseIntegrityIntegration.test.ts`: End-to-end integratietest met consistente data, foutinjectie en wees-set reparatie.
+    - `tests/databaseMigration.test.ts`: Migratietest die de volledige schematransformatie van v1 naar v7 in Dexie valideert zonder dataverlies.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): **0 fouten**.
+  - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
+  - Vitest testsuite (`npm test`): **412 van de 412 tests geslaagd** over 58 testbestanden (100% slagingspercentage).
+  - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 8 Next.js routes statisch gegenereerd.
+  - Bestandsintegriteit: 0-byte bestandscontrole geverifieerd via Node script (**0 lege bestanden**).
+- **Beperkingen & Notities:**
+  - Integriteitscontroles draaien 100% lokaal in de browser en belasten noch netwerk noch externe servers.
+- **Volgende Stap:**
+  - **Stap 40 / Prompt 34**: PWA: Offline Werking & Installatie (Module 6: Web App Manifest, Service Worker caching van app-shells en statische assets voor volledige offline werking op iOS en Android).
+
 
