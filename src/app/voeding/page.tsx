@@ -1,20 +1,21 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Utensils, BookOpen } from "lucide-react";
+import { Utensils, BookOpen, CalendarDays } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { useDatabase } from "@/lib/db";
-import type { MealLog, WaterLog, FoodItem, Recipe, MealItemEntry, Profile } from "@/types/database";
+import type { MealLog, WaterLog, FoodItem, Recipe, MealItemEntry, Profile, PlannedMeal } from "@/types/database";
 import { getLocalDateString, addDaysToDateString } from "@/domain/dates/calendar";
 import { DailyNutritionView } from "@/components/modules/nutrition/DailyNutritionView";
 import { FoodDatabaseView } from "@/components/modules/nutrition/FoodDatabaseView";
+import { WeeklyMealPlannerView } from "@/components/modules/nutrition/WeeklyMealPlannerView";
 import type { RecentMealItemSummary } from "@/domain/nutrition/quickLog";
 import { type DailyNutritionTargets, DEFAULT_NUTRITION_TARGETS } from "@/domain/nutrition/goals";
 
 export default function VoedingPage() {
   const { repositories, isDemoMode, dataVersion } = useDatabase();
 
-  const [activeTab, setActiveTab] = useState<"logboek" | "database">("logboek");
+  const [activeTab, setActiveTab] = useState<"logboek" | "weekplanning" | "database">("logboek");
   const [selectedDate, setSelectedDate] = useState<string>(() => getLocalDateString());
 
   const [waterMl, setWaterMl] = useState(0);
@@ -151,6 +152,31 @@ export default function VoedingPage() {
     setNutritionTargets(newTargets);
   };
 
+  // Handlers voor Weekplanning & Maaltijdplanner (Prompt 24 / Stap 29)
+  const handleGetPlannedMealsForRange = async (start: string, end: string) => {
+    return await repositories.nutrition.getPlannedMealsForRange(start, end);
+  };
+
+  const handlePlanMeal = async (
+    mealData: Omit<PlannedMeal, "id" | "createdAt" | "provenance">
+  ) => {
+    return await repositories.nutrition.planMeal(mealData);
+  };
+
+  const handleDeletePlannedMeal = async (id: string) => {
+    await repositories.nutrition.deletePlannedMeal(id);
+  };
+
+  const handleMarkPlannedMealAsConsumed = async (id: string) => {
+    const result = await repositories.nutrition.markPlannedMealAsConsumed(id);
+    await loadNutritionForDate(selectedDate);
+    return result;
+  };
+
+  const handleCopyPlannedMealsToDate = async (source: string, target: string) => {
+    return await repositories.nutrition.copyPlannedMealsToDate(source, target);
+  };
+
   // Handlers voor Voedingsdatabase & Recepten
   const handleSaveFood = async (food: FoodItem) => {
     await repositories.nutrition.foods.save(food);
@@ -198,26 +224,30 @@ export default function VoedingPage() {
             Voeding &amp; Macro&apos;s
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Dagelijks voedingsdagboek, doelbalans, snelle maaltijdinvoer en receptenbeheer.
+            Dagelijks voedingsdagboek, doelbalans, weekplanning en meal prep.
           </p>
         </div>
       </div>
 
-      {/* Hoofdtabbladen: Logboek vs Database */}
+      {/* Hoofdtabbladen: Logboek vs Weekplanning vs Database */}
       <Tabs
         defaultValue="logboek"
         value={activeTab}
-        onValueChange={(val) => setActiveTab(val as "logboek" | "database")}
+        onValueChange={(val) => setActiveTab(val as "logboek" | "weekplanning" | "database")}
         className="w-full space-y-6"
       >
-        <TabsList className="grid w-full grid-cols-2 max-w-md">
+        <TabsList className="grid w-full grid-cols-3 max-w-xl">
           <TabsTrigger value="logboek" className="flex items-center gap-1.5">
             <Utensils className="w-4 h-4 text-emerald-500" />
-            Dagboek &amp; Loggen
+            <span>Dagboek</span>
+          </TabsTrigger>
+          <TabsTrigger value="weekplanning" className="flex items-center gap-1.5">
+            <CalendarDays className="w-4 h-4 text-emerald-500" />
+            <span>Weekplanning</span>
           </TabsTrigger>
           <TabsTrigger value="database" className="flex items-center gap-1.5">
             <BookOpen className="w-4 h-4 text-emerald-500" />
-            Voedingsdatabase &amp; Recepten
+            <span>Database</span>
           </TabsTrigger>
         </TabsList>
 
@@ -245,7 +275,22 @@ export default function VoedingPage() {
           />
         </TabsContent>
 
-        {/* Tab 2: Voedingsdatabase & Recepten */}
+        {/* Tab 2: Weekplanning & Meal Prep */}
+        <TabsContent value="weekplanning" className="space-y-6">
+          <WeeklyMealPlannerView
+            availableFoods={foods}
+            availableRecipes={recipes}
+            nutritionTargets={nutritionTargets}
+            onGetPlannedMealsForRange={handleGetPlannedMealsForRange}
+            onPlanMeal={handlePlanMeal}
+            onDeletePlannedMeal={handleDeletePlannedMeal}
+            onMarkPlannedMealAsConsumed={handleMarkPlannedMealAsConsumed}
+            onCopyPlannedMealsToDate={handleCopyPlannedMealsToDate}
+            onRefreshDiary={() => loadNutritionForDate(selectedDate)}
+          />
+        </TabsContent>
+
+        {/* Tab 3: Voedingsdatabase & Recepten */}
         <TabsContent value="database" className="space-y-6">
           <FoodDatabaseView
             foods={foods}

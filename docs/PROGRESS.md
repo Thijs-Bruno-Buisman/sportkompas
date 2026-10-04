@@ -43,8 +43,8 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 | **26** | Voeding: Dagelijks Voedingsdagboek | `[ ] OPEN` | Indeling: Ontbijt, Lunch, Diner, Snacks met datumkiezer. |
 | **27** | Voeding: Maaltijdlogger & Snelle Invoer | `[ ] OPEN` | Producten selecteren, porties berekenen, favorieten markeren. |
 | **28** | Voeding: Calorie & Macro Doelen Dashboard | `[ ] OPEN` | Dynamische berekening resterende macro's vs streefwaarden. |
-| **29** | Voeding: Hydratatie & Waterinname Tracker | `[ ] OPEN` | Snelle registratie van waterinname (+250ml, +500ml) en dagdoel. |
-| **30** | Voeding: Vezels & Micronutriënten Detail | `[ ] OPEN` | Aanvullende voedingsvezel- en micronutriëntentracking. |
+| **29 / P24** | **Voeding: Maaltijdplanner & Weekplanning (Prompt 24)** | `[x] KLAAR` | 7-daagse weekplanner met maaltijdmomenten (ontbijt, lunch, diner, snacks), Dexie v6 `plannedMeals` store, recept- en productkoppeling met portieschaling, geaggregeerde boodschappen- en meal prep checklist met klembord-kopieerfunctie, automatische overzetting naar voedingsdagboek bij 'markeer als genuttigd', dag-kopieerfunctie en 314 tests. |
+| **30** | Voeding: Streepjescodescanner & Externe Zoekfunctie | `[ ] OPEN` | Barcode scanning via camera en zoekfunctie in externe open voedingsdatabase. |
 | **31** | Voeding: Voedingsgrafieken & Wekelijkse Balans | `[ ] OPEN` | Visualisatie van macro-verhoudingen en dagtotalen over tijd. |
 | **32** | Voeding: Maaltijdplanning & Boodschappenlijst | `[ ] OPEN` | Basis weekplanning en genereren van ingrediëntenlijst. |
 | **33** | Home: Centrale Cockpit & Dagsamenvatting | `[ ] OPEN` | Samenvattingswidgets voor geplande training, cardio en voeding. |
@@ -1127,6 +1127,53 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
   - Voedingsdoelen worden bewaard in `AppSettings` en zijn direct gekoppeld aan de dagelijkse weergave; als een profiel ontbreekt, worden veilige standaardwaarden (2200 kcal) gehanteerd.
 - **Volgende Stap:**
   - **Stap 29 / Prompt 24**: Voeding: Maaltijdplanner & Weekplanning (weekkalender voor maaltijdplanning, voorbereiden/meal prep overzichten, maaltijden als genuttigd markeren en overzetten naar dagboek).
+
+---
+
+### Stap 29 / Prompt 24 — Voeding: Maaltijdplanner & Weekplanning (`[x] KLAAR`)
+- **Doel & Bereik:**
+  - Weekoverzicht met 7 kalenderdagen (maandag t/m zondag) voor het proactief inplannen van maaltijden per moment (Ontbijt, Lunch, Diner, Snacks).
+  - Volledige Dexie IndexedDB versie 6 migratie met de nieuwe store `plannedMeals` en runtime Zod validatie via `PlannedMealSchema`.
+  - Inplannen vanuit bestaande recepten (inclusief automatische ingrediënt- en macro-schaling naar aantal porties) of losse voedingsproducten met custom notities voor meal prep.
+  - Aggregatie van ingrediënten over de gehele week tot een overzichtelijke boodschappen- en meal prep checklist (`MealPrepListModal`), inclusief klembord-kopieerfunctie voor eenvoudig delen of meenemen naar de supermarkt.
+  - "Markeer als genuttigd" actie: zet de geplande maaltijdstatus op `genuttigd`, logt alle ingrediënten automatisch in het actieve voedingsdagboek (`MealLog`) en koppelt het aangemaakte log-ID.
+  - Dag-kopieerfunctionaliteit (`copyPlannedMealsToDate`): dupliceer maaltijden van een dag snel naar een andere dag in de week.
+- **Geïmplementeerde Wijzigingen:**
+  - **Datamodel & Migraties (`src/types/database.ts`, `src/lib/db/schema.ts`, `src/lib/db/dexie.ts`):**
+    - `PlannedMeal` en `PlannedMealStatus` (`"gepland" | "genuttigd" | "overgeslagen"`) gedefinieerd in `src/types/database.ts`.
+    - `PlannedMealSchema` en `PlannedMealStatusSchema` met Zod runtime-validatie in `src/lib/db/schema.ts`.
+    - Versie 6 migratie in `SportKompasDatabase` (`src/lib/db/dexie.ts`) met samengestelde indexen (`[calendarDate+status]`, `calendarDate`, `mealType`, `status`).
+  - **Domeinlogica (`src/domain/nutrition/planning.ts` & `src/domain/nutrition/planning.test.ts`):**
+    - `groupPlannedMealsByDate`: Groepeert maaltijden per datum en sorteert chronologisch op maaltijdmoment.
+    - `groupPlannedMealsByMealType`: Filtert en groepeert maaltijden per type (ontbijt, lunch, diner, snacks).
+    - `calculatePlannedDailyTotals`: Berekent de geplande dagtotalen van calorieën, eiwitten, koolhydraten, vetten en vezels.
+    - `aggregateWeeklyMealPrepIngredients`: Aggregeert ingrediënten en gewichten over alle actieve geplande maaltijden voor de week tot een unieke boodschappenlijst met geschatte calorieën en eiwitten.
+    - `calculateWeeklyPlanningSummary`: Berekent weektotalen voor geplande maaltijden, genuttigde maaltijden, calorieën en eiwit.
+    - `planning.test.ts`: 5 gerichte unit tests (100% geslaagd).
+  - **Repository Laag (`src/lib/db/repositories/nutrition.repository.ts` & `src/lib/db/index.ts`):**
+    - `plannedMeals` BaseRepository gekoppeld in `NutritionRepository`.
+    - `getPlannedMealsByDate(date)` & `getPlannedMealsForRange(startDate, endDate)`.
+    - `planMeal(mealData)` & `updatePlannedMeal(id, updates)` & `deletePlannedMeal(id)`.
+    - `markPlannedMealAsConsumed(id)`: Update status naar `genuttigd`, voegt items toe aan `MealLog` via `addItemToMeal` en slaat `consumedMealLogId` op.
+    - `copyPlannedMealsToDate(sourceDate, targetDate)`: Dupliceert alle geplande maaltijden naar de doeldag.
+  - **Gebruikersinterface (`src/components/modules/nutrition/` & `src/app/voeding/page.tsx`):**
+    - `WeeklyMealPlannerView.tsx`: 7-daagse datum carrousel/strip, weeknavigatie (`<` / `>`), statusbadges, maaltijdkaarten per slot, dagtotalen vergeleken met gebruikersdoelen, en dagkopieerdialoog.
+    - `PlanMealModal.tsx`: Dialoog met tabkeuze tussen Recepten (met automatische portieschaling) en Losse Producten (met portiecalculatie), maaltijdnaam, notities en macro-totalen.
+    - `MealPrepListModal.tsx`: Boodschappen- en meal prep overzicht met interactieve afvinkvakjes, totale grammen en één-klik klembord-kopieerfunctie.
+    - `src/app/voeding/page.tsx`: 3-tab layout geïntegreerd: Dagboek & Loggen, Weekplanning & Prep, Database & Recepten.
+  - **Integratietests (`tests/nutritionPlanningIntegration.test.ts`):**
+    - 4 integratietests met Dexie en `fake-indexeddb` die planning per datum en bereik, markeren als genuttigd met automatische `MealLog` logging, dupliceren naar andere dagen en ingrediëntenaggregatie testen.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): **0 fouten**.
+  - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
+  - Vitest testsuite (`npm test`): **314 van de 314 tests geslaagd** over 39 testbestanden (100% slagingspercentage).
+  - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 8 Next.js routes statisch gegenereerd.
+  - Bestandsintegriteit: 0-byte bestandscontrole uitgevoerd en geverifieerd (0 lege bestanden).
+- **Beperkingen & Notities:**
+  - Geplande maaltijden blijven persistent bewaard totdat de gebruiker ze verwijdert; genuttigde maaltijden worden visueel gemarkeerd en zijn direct terug te vinden in het dagelijkse voedingsdagboek.
+- **Volgende Stap:**
+  - **Stap 30 / Prompt 25**: Voeding: Streepjescodescanner & Externe Zoekfunctie (camera barcode scanning via BarcodeDetector / Html5Qrcode, Open Food Facts integratie met offline caching en fallback).
+
 
 
 

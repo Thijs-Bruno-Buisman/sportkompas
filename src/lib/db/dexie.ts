@@ -12,6 +12,7 @@ import type {
   FoodItem,
   Recipe,
   MealLog,
+  PlannedMeal,
   WaterLog,
   BodyMeasurement,
   RecoveryLog,
@@ -32,6 +33,7 @@ export class SportKompasDatabase extends Dexie {
   foodItems!: Table<FoodItem, string>;
   recipes!: Table<Recipe, string>;
   mealLogs!: Table<MealLog, string>;
+  plannedMeals!: Table<PlannedMeal, string>;
   waterLogs!: Table<WaterLog, string>;
   bodyMeasurements!: Table<BodyMeasurement, string>;
   recoveryLogs!: Table<RecoveryLog, string>;
@@ -228,6 +230,34 @@ export class SportKompasDatabase extends Dexie {
             }
           });
       });
+
+    // =========================================================================
+    // VERSIE 6: Maaltijdplanner & Weekplanning (Prompt 24 / Stap 29)
+    // =========================================================================
+    this.version(6).stores({
+      profiles: "id, name, createdAt",
+      exercises:
+        "id, name, category, primaryMuscleGroup, equipment, measurementType, isCustom, isArchived, createdAt",
+      workoutRoutines: "id, name, version, isActive, isArchived, createdAt",
+      routineDays: "id, routineId, dayIndex",
+      scheduledSessions:
+        "id, calendarDate, routineId, status, [calendarDate+status]",
+      workoutSessions:
+        "id, calendarDate, startTime, status, routineId, [calendarDate+status]",
+      workoutSets:
+        "id, sessionId, exerciseId, setNumber, [sessionId+exerciseId]",
+      cardioSessions: "id, calendarDate, startTime, activityType",
+      goals: "id, category, status, targetDate",
+      foodItems: "id, name, category, isCustom, isFavorite, createdAt",
+      recipes: "id, name, isCustom, isFavorite, createdAt",
+      mealLogs: "id, calendarDate, mealType, loggedAt",
+      plannedMeals:
+        "id, calendarDate, mealType, status, [calendarDate+status], createdAt",
+      waterLogs: "id, calendarDate, loggedAt",
+      bodyMeasurements: "id, calendarDate, measuredAt",
+      recoveryLogs: "id, calendarDate, loggedAt",
+      appSettings: "id",
+    });
   }
 }
 

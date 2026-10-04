@@ -1,6 +1,20 @@
 import { BaseRepository } from "./base.repository";
-import type { FoodItem, MealLog, WaterLog, Recipe, FoodCategory, MealItemEntry } from "@/types/database";
-import { FoodItemSchema, MealLogSchema, WaterLogSchema, RecipeSchema } from "../schema";
+import type {
+  FoodItem,
+  MealLog,
+  WaterLog,
+  Recipe,
+  PlannedMeal,
+  FoodCategory,
+  MealItemEntry,
+} from "@/types/database";
+import {
+  FoodItemSchema,
+  MealLogSchema,
+  WaterLogSchema,
+  RecipeSchema,
+  PlannedMealSchema,
+} from "../schema";
 import { type Table } from "dexie";
 import { DEFAULT_FOOD_ITEMS } from "@/domain/nutrition/defaultFoods";
 import { filterFoods, filterRecipes } from "@/domain/nutrition/calculations";
@@ -16,12 +30,14 @@ export class NutritionRepository {
   public readonly recipes: BaseRepository<Recipe>;
   public readonly meals: BaseRepository<MealLog>;
   public readonly water: BaseRepository<WaterLog>;
+  public readonly plannedMeals: BaseRepository<PlannedMeal>;
 
   constructor(
     foodsTable: Table<FoodItem, string>,
     mealsTable: Table<MealLog, string>,
     waterTable: Table<WaterLog, string>,
-    recipesTable?: Table<Recipe, string>
+    recipesTable?: Table<Recipe, string>,
+    plannedMealsTable?: Table<PlannedMeal, string>
   ) {
     this.foods = new (class extends BaseRepository<FoodItem> {})(
       foodsTable,
@@ -38,6 +54,11 @@ export class NutritionRepository {
     this.water = new (class extends BaseRepository<WaterLog> {})(
       waterTable,
       WaterLogSchema
+    );
+    this.plannedMeals = new (class extends BaseRepository<PlannedMeal> {})(
+      plannedMealsTable ||
+        (foodsTable.db.table("plannedMeals") as Table<PlannedMeal, string>),
+      PlannedMealSchema
     );
   }
 
@@ -381,5 +402,168 @@ export class NutritionRepository {
     };
 
     return await this.recipes.save(newRecipe);
+  }
+
+  // =========================================================================
+  // Weekplanning & Maaltijdplanner (Prompt 24 / Stap 29)
+  // =========================================================================
+
+  /**
+   * Haalt alle geplande maaltijden op voor een specifieke datum.
+   */
+  async getPlannedMealsByDate(calendarDate: string): Promise<PlannedMeal[]> {
+    return await this.plannedMeals["table"]
+      .where("calendarDate")
+      .equals(calendarDate)
+      .sortBy("createdAt");
+  }
+
+  /**
+   * Haalt alle geplande maaltijden op voor een datumbereik (bijv. een week van maandag t/m zondag).
+   */
+  async getPlannedMealsForRange(
+    startDate: string,
+    endDate: string
+  ): Promise<PlannedMeal[]> {
+    return await this.plannedMeals["table"]
+      .where("calendarDate")
+      .between(startDate, endDate, true, true)
+      .toArray();
+  }
+
+  /**
+   * Plant een nieuwe maaltijd in op een specifieke dag en maaltijdmoment.
+   */
+  async planMeal(
+    mealData: Omit<PlannedMeal, "id" | "createdAt" | "provenance"> & {
+      provenance?: PlannedMeal["provenance"];
+    }
+  ): Promise<PlannedMeal> {
+    const newMeal: PlannedMeal = {
+      ...mealData,
+      id: crypto.randomUUID(),
+      provenance: mealData.provenance || { source: "user" },
+      createdAt: new Date().toISOString(),
+    };
+    return await this.plannedMeals.save(newMeal);
+  }
+
+  /**
+   * Wijzigt een bestaande geplande maaltijd.
+   */
+  async updatePlannedMeal(
+    id: string,
+    updates: Partial<Omit<PlannedMeal, "id" | "createdAt">>
+  ): Promise<PlannedMeal> {
+    const existing = await this.plannedMeals.getById(id);
+    if (!existing) {
+      throw new Error(`Geplande maaltijd met id ${id} niet gevonden`);
+    }
+
+    const updated: PlannedMeal = {
+      ...existing,
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+
+    return await this.plannedMeals.save(updated);
+  }
+
+  /**
+   * Verwijdert een geplande maaltijd.
+   */
+  async deletePlannedMeal(id: string): Promise<void> {
+    await this.plannedMeals.delete(id);
+  }
+
+  /**
+   * Markeert een geplande maaltijd als 'genuttigd' en logt de items automatisch
+   * in het voedingsdagboek (MealLog) voor die datum en maaltijdmoment.
+   */
+  async markPlannedMealAsConsumed(
+    plannedMealId: string
+  ): Promise<{ plannedMeal: PlannedMeal; mealLog: MealLog }> {
+    const planned = await this.plannedMeals.getById(plannedMealId);
+    if (!planned) {
+      throw new Error(`Geplande maaltijd met id ${plannedMealId} niet gevonden`);
+    }
+
+    // Voeg items toe aan het voedingsdagboek voor die datum
+    let lastMealLog: MealLog | null = null;
+    for (const item of planned.items) {
+      lastMealLog = await this.addItemToMeal(
+        planned.calendarDate,
+        planned.mealType,
+        item
+      );
+    }
+
+    if (!lastMealLog) {
+      const emptyLog: MealLog = {
+        id: crypto.randomUUID(),
+        calendarDate: planned.calendarDate,
+        mealType: planned.mealType,
+        items: [],
+        totalCalories: planned.totalCalories,
+        totalProteinGrams: planned.totalProteinGrams,
+        totalCarbsGrams: planned.totalCarbsGrams,
+        totalFatGrams: planned.totalFatGrams,
+        totalFiberGrams: planned.totalFiberGrams || 0,
+        loggedAt: new Date().toISOString(),
+      };
+      lastMealLog = await this.meals.save(emptyLog);
+    }
+
+    const updatedPlanned: PlannedMeal = {
+      ...planned,
+      status: "genuttigd",
+      consumedMealLogId: lastMealLog.id,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const savedPlanned = await this.plannedMeals.save(updatedPlanned);
+
+    return {
+      plannedMeal: savedPlanned,
+      mealLog: lastMealLog,
+    };
+  }
+
+  /**
+   * Kopieert alle geplande maaltijden van een brondatum naar een doeldatum.
+   */
+  async copyPlannedMealsToDate(
+    sourceDate: string,
+    targetDate: string
+  ): Promise<number> {
+    const sourceMeals = await this.getPlannedMealsByDate(sourceDate);
+    let count = 0;
+
+    const now = new Date().toISOString();
+    for (const meal of sourceMeals) {
+      const clonedItems = duplicateMealItems(meal.items);
+      const clonedMeal: PlannedMeal = {
+        id: crypto.randomUUID(),
+        calendarDate: targetDate,
+        mealType: meal.mealType,
+        name: meal.name,
+        recipeId: meal.recipeId,
+        items: clonedItems,
+        totalCalories: meal.totalCalories,
+        totalProteinGrams: meal.totalProteinGrams,
+        totalCarbsGrams: meal.totalCarbsGrams,
+        totalFatGrams: meal.totalFatGrams,
+        totalFiberGrams: meal.totalFiberGrams,
+        status: "gepland",
+        notes: meal.notes,
+        provenance: { source: "user" },
+        createdAt: now,
+      };
+
+      await this.plannedMeals.save(clonedMeal);
+      count++;
+    }
+
+    return count;
   }
 }

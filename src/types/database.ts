@@ -398,6 +398,29 @@ export interface MealLog {
   loggedAt: string; // UTC ISO
 }
 
+// 11b. Geplande Maaltijden (Weekplanning & Meal Prep)
+export type PlannedMealStatus = "gepland" | "genuttigd" | "overgeslagen";
+
+export interface PlannedMeal {
+  id: EntityId;
+  calendarDate: string; // YYYY-MM-DD
+  mealType: "ontbijt" | "lunch" | "diner" | "snacks";
+  name: string;
+  recipeId?: EntityId | null;
+  items: MealItemEntry[];
+  totalCalories: number;
+  totalProteinGrams: number;
+  totalCarbsGrams: number;
+  totalFatGrams: number;
+  totalFiberGrams?: number;
+  status: PlannedMealStatus;
+  notes?: string;
+  consumedMealLogId?: EntityId | null;
+  provenance: Provenance;
+  createdAt: string; // UTC ISO
+  updatedAt?: string; // UTC ISO
+}
+
 // 12. Waterlogs
 export interface WaterLog {
   id: EntityId;

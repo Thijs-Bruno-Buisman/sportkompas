@@ -381,6 +381,29 @@ export const MealLogSchema = z.object({
   loggedAt: z.string().regex(isoDateRegex),
 });
 
+// Geplande Maaltijden (Weekplanning & Meal Prep)
+export const PlannedMealStatusSchema = z.enum(["gepland", "genuttigd", "overgeslagen"]);
+
+export const PlannedMealSchema = z.object({
+  id: z.string().uuid(),
+  calendarDate: z.string().regex(calendarDateRegex),
+  mealType: z.enum(["ontbijt", "lunch", "diner", "snacks"]),
+  name: z.string().min(1),
+  recipeId: z.string().uuid().nullable().optional(),
+  items: z.array(MealItemEntrySchema),
+  totalCalories: z.number().min(0),
+  totalProteinGrams: z.number().min(0),
+  totalCarbsGrams: z.number().min(0),
+  totalFatGrams: z.number().min(0),
+  totalFiberGrams: z.number().min(0).optional().default(0),
+  status: PlannedMealStatusSchema,
+  notes: z.string().optional(),
+  consumedMealLogId: z.string().uuid().nullable().optional(),
+  provenance: ProvenanceSchema,
+  createdAt: z.string().regex(isoDateRegex),
+  updatedAt: z.string().regex(isoDateRegex).optional(),
+});
+
 // Water & Measurements
 export const WaterLogSchema = z.object({
   id: z.string().uuid(),
