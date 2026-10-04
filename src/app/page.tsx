@@ -20,6 +20,7 @@ import { HomeFavoriteExercisesWidget } from "@/components/modules/history/HomeFa
 import { WeeklyConsistencyWidget } from "@/components/modules/history/WeeklyConsistencyWidget";
 import { HomeCockpitDashboard } from "@/components/modules/home/HomeCockpitDashboard";
 import { CombinedProgressHub } from "@/components/modules/home/CombinedProgressHub";
+import { ActivityStreakHeatmap } from "@/components/modules/home/ActivityStreakHeatmap";
 import { getLocalDateString, addDaysToDateString } from "@/domain/dates/calendar";
 import {
   calculateDailyCockpitSummary,
@@ -35,6 +36,8 @@ import type {
   WorkoutSet,
   CardioSession,
   MealLog,
+  WaterLog,
+  RecoveryLog,
   BodyMeasurement,
 } from "@/types/database";
 
@@ -51,11 +54,14 @@ export default function HomePage() {
     useState<ScheduledSession | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Historische datasets voor Gecombineerde Voortgang Hub
+  // Historische datasets voor Voortgang Hub & Activiteit Heatmap
   const [historyWorkouts, setHistoryWorkouts] = useState<WorkoutSession[]>([]);
   const [historySets, setHistorySets] = useState<WorkoutSet[]>([]);
   const [historyCardio, setHistoryCardio] = useState<CardioSession[]>([]);
   const [historyMeals, setHistoryMeals] = useState<MealLog[]>([]);
+  const [historyWater, setHistoryWater] = useState<WaterLog[]>([]);
+  const [historyRecovery, setHistoryRecovery] = useState<RecoveryLog[]>([]);
+  const [weeklyWorkoutGoal, setWeeklyWorkoutGoal] = useState<number>(3);
   const [historyMeasurements, setHistoryMeasurements] = useState<
     BodyMeasurement[]
   >([]);
@@ -76,6 +82,9 @@ export default function HomePage() {
           workoutSets,
           allCardio,
           rangeMeals,
+          rangeWater,
+          allRecovery,
+          weeklyGoal,
           scheduled,
           activeWorkout,
           activeRoutine,
@@ -90,6 +99,9 @@ export default function HomePage() {
           repositories.workout.sets.getAll(),
           repositories.cardio.getAll(),
           repositories.nutrition.getMealsForDateRange(historyStartDate, date),
+          repositories.nutrition.getWaterLogsForDateRange(historyStartDate, date),
+          repositories.recovery.getAll(),
+          repositories.settings.getWeeklyWorkoutGoal(),
           repositories.workout.getScheduledSessionForDate(date),
           repositories.workout.getActiveWorkoutSession(),
           repositories.workout.getActiveRoutine(),
@@ -103,6 +115,9 @@ export default function HomePage() {
         setHistorySets(workoutSets);
         setHistoryCardio(allCardio);
         setHistoryMeals(rangeMeals);
+        setHistoryWater(rangeWater);
+        setHistoryRecovery(allRecovery);
+        setWeeklyWorkoutGoal(weeklyGoal);
         setHistoryMeasurements(measurements);
 
         const safeTargets = targets || DEFAULT_NUTRITION_TARGETS;
@@ -206,7 +221,21 @@ export default function HomePage() {
         </Card>
       )}
 
-      {/* 4. TRAININGSCONSISTENTIE & WEEKDOEL WIDGET */}
+      {/* 4. MULTI-PIJLER CONSISTENTIE & ACTIVITEIT HEATMAP */}
+      <section>
+        <ActivityStreakHeatmap
+          workoutSessions={historyWorkouts}
+          cardioSessions={historyCardio}
+          mealLogs={historyMeals}
+          waterLogs={historyWater}
+          recoveryLogs={historyRecovery}
+          targets={nutritionTargets}
+          referenceDate={selectedDate}
+          weeklyWorkoutGoal={weeklyWorkoutGoal}
+        />
+      </section>
+
+      {/* 5. KRACHTTRAINING CONSISTENTIE & WEEKDOEL WIDGET */}
       <section>
         <WeeklyConsistencyWidget />
       </section>

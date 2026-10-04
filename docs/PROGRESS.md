@@ -1323,6 +1323,44 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
   - De grafiek gebruikt pure SVG en CSS zonder externe zware dependencies, waardoor rendering razendsnel en hydration-safe is.
   - Bij onvoldoende meetpunten (minder dan 2) toont de gewichtscorrelatie netjes een streepje ("—") in plaats van onbetrouwbare aannames.
 - **Volgende Stap:**
-  - **Stap 35 / Prompt 29**: Home: Consistentie & Activity Streaks (visuele streaks, multi-week kalender heatmaps en trainingsfrequentie monitoring).
+  - **Stap 35 / Prompt 29**: Home: Consistentie & Activity Streaks (Afgerond).
+
+---
+
+### Stap 35 / Prompt 29 — Home: Consistentie & Activity Streaks (`[x] KLAAR`)
+- **Doel & Bereik:**
+  - Realisatie van een holistische activiteits- en consistentiemonitor op het Home-scherm die álle pijlers van SportKompas eert (krachttraining, cardio, voedingsinname, hydratatiedoel en herstellogs).
+  - Opeenvolgende streak-teller (dagelijkse streak in dagen):
+    - Telt elke dag waarop ten minste één gezonde actie is vastgelegd (krachttraining, cardio, voeding, waterdoel of herstel).
+    - Streak-behoud logica: als vandaag nog geen log heeft, blijft de actieve streak van gisteren behouden ("Log vandaag voor behoud"), zodat gebruikers niet onnodig ontmoedigd raken gedurende de dag.
+    - Persoonlijk record: berekening van de langste actieve streak over de analyseperiode.
+  - Multi-week kalender heatmap (instelbaar op 8 of 12 weken):
+    - Duidelijke matrix van Maandag t/m Zondag met gekleurde activiteitsblokjes (0 = rust/geen log, 1 = lichte log / 1 pijler, 2 = actief / 2 pijlers, 3 = compleet / 3+ pijlers).
+    - Toekomstige dagen gedimd en gestippeld; huidige dag voorzien van een focusring.
+    - Interactief detailpaneel: tikken op een dag toont direct de exacte activiteiten (kracht volume, cardio minuten, calorieën, water en herstel).
+  - Pijlerstatistieken & activiteitsgraad:
+    - Percentage actieve dagen over de totale tijdsduur.
+    - Expliciete waardering voor rust en herstel: rustdagen tellen nooit als falen of schuldgevoel, maar worden gepresenteerd als essentieel onderdeel van adaptatie en groei.
+  - Rustige, schuldvrije feedbackboodschap (`ConsistencyFeedback`) met motiverende Nederlandse tekst.
+- **Geïmplementeerde Wijzigingen:**
+  - **Domeinlogica (`src/domain/home/activityStreaks.ts` & `src/domain/home/activityStreaks.test.ts`):**
+    - `calculateActivityStreaks`: Pure domeinfunctie die data indexeert, kalenderweken van Ma-Zo groepeert, intensiteitsniveaus (0..3) toekent, actieve streaks achterwaarts calculeert en de langste streak over de periode bepaalt.
+    - 6 pure unit tests in `src/domain/home/activityStreaks.test.ts` (100% geslaagd).
+  - **Gebruikersinterface (`src/components/modules/home/ActivityStreakHeatmap.tsx` & `src/app/page.tsx`):**
+    - `ActivityStreakHeatmap.tsx`: Responsieve kalender heatmap met periodeknoppen (8w / 12w), streak-ribbon (Huidige streak, Record streak, Activiteitsgraad %, Rustdagen), interactieve dagselectie en motiverende feedbackbanner.
+    - `src/app/page.tsx`: Gekoppeld aan historische water- en herstellogs over 90 dagen en opgenomen in de hoofdnavigatie van de cockpit.
+  - **Integratietests (`tests/activityStreaksIntegration.test.ts`):**
+    - 2 integratietests met Dexie en `fake-indexeddb` die multi-pijler data van kracht, cardio, voeding, water en herstel valideren.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): **0 fouten**.
+  - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
+  - Vitest testsuite (`npm test`): **378 van de 378 tests geslaagd** over 49 testbestanden (100% slagingspercentage).
+  - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 8 Next.js routes statisch gegenereerd.
+  - Bestandsintegriteit: 0-byte bestandscontrole geverifieerd via Node script (**0 lege bestanden**).
+- **Beperkingen & Notities:**
+  - Rustdagen breken de trainingsconsistentie niet af; de streak weerspiegelt bewuste gezondheidsbetrokkenheid (waaronder het vastleggen van slaap/herstel of voeding op rustdagen).
+- **Volgende Stap:**
+  - **Stap 36 / Prompt 30**: Home: Universele Zoekfunctie & Activiteiten Geschiedenis Hub (universele zoekbalk over alle eerdere krachttrainingen, cardio-sessies, maaltijden en lichaamsmetingen met filters en doorklikken).
+
 
 
