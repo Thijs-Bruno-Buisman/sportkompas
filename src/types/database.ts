@@ -394,6 +394,7 @@ export interface MealLog {
   totalProteinGrams: number;
   totalCarbsGrams: number;
   totalFatGrams: number;
+  totalFiberGrams?: number;
   loggedAt: string; // UTC ISO
 }
 

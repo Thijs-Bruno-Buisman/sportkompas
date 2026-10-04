@@ -1,5 +1,5 @@
 import { BaseRepository } from "./base.repository";
-import type { FoodItem, MealLog, WaterLog, Recipe, FoodCategory } from "@/types/database";
+import type { FoodItem, MealLog, WaterLog, Recipe, FoodCategory, MealItemEntry } from "@/types/database";
 import { FoodItemSchema, MealLogSchema, WaterLogSchema, RecipeSchema } from "../schema";
 import { type Table } from "dexie";
 import { DEFAULT_FOOD_ITEMS } from "@/domain/nutrition/defaultFoods";
@@ -170,5 +170,128 @@ export class NutritionRepository {
       loggedAt: new Date().toISOString(),
     };
     return await this.water.save(newLog);
+  }
+
+  async resetWaterByDate(calendarDate: string): Promise<void> {
+    const logs = await this.getWaterLogsByDate(calendarDate);
+    for (const log of logs) {
+      await this.water.delete(log.id);
+    }
+  }
+
+  /**
+   * Voegt een item toe aan een maaltijdmoment op een kalenderdag.
+   * Voegt samen met een bestaand maaltijdrecord van hetzelfde type indien aanwezig,
+   * of maakt een nieuw record aan.
+   */
+  async addItemToMeal(
+    calendarDate: string,
+    mealType: MealLog["mealType"],
+    item: MealItemEntry
+  ): Promise<MealLog> {
+    const existingLogs = await this.meals["table"]
+      .where("calendarDate")
+      .equals(calendarDate)
+      .filter((m) => m.mealType === mealType)
+      .toArray();
+
+    if (existingLogs.length > 0) {
+      const targetLog = existingLogs[0];
+      targetLog.items.push(item);
+      targetLog.totalCalories += item.calories;
+      targetLog.totalProteinGrams = Math.round((targetLog.totalProteinGrams + item.proteinGrams) * 10) / 10;
+      targetLog.totalCarbsGrams = Math.round((targetLog.totalCarbsGrams + item.carbsGrams) * 10) / 10;
+      targetLog.totalFatGrams = Math.round((targetLog.totalFatGrams + item.fatGrams) * 10) / 10;
+      targetLog.totalFiberGrams = Math.round(((targetLog.totalFiberGrams || 0) + item.fiberGrams) * 10) / 10;
+
+      return await this.meals.save(targetLog);
+    } else {
+      const newLog: MealLog = {
+        id: crypto.randomUUID(),
+        calendarDate,
+        mealType,
+        items: [item],
+        totalCalories: item.calories,
+        totalProteinGrams: item.proteinGrams,
+        totalCarbsGrams: item.carbsGrams,
+        totalFatGrams: item.fatGrams,
+        totalFiberGrams: item.fiberGrams,
+        loggedAt: new Date().toISOString(),
+      };
+      return await this.meals.save(newLog);
+    }
+  }
+
+  /**
+   * Werkt een specifiek item bij binnen een MealLog record.
+   */
+  async updateItemInMeal(
+    mealLogId: string,
+    itemIndex: number,
+    updatedItem: MealItemEntry
+  ): Promise<MealLog | null> {
+    const log = await this.meals.getById(mealLogId);
+    if (!log || itemIndex < 0 || itemIndex >= log.items.length) return null;
+
+    log.items[itemIndex] = updatedItem;
+
+    // Herbereken totalen
+    let cal = 0;
+    let p = 0;
+    let c = 0;
+    let f = 0;
+    let fib = 0;
+
+    for (const item of log.items) {
+      cal += item.calories;
+      p += item.proteinGrams;
+      c += item.carbsGrams;
+      f += item.fatGrams;
+      fib += item.fiberGrams || 0;
+    }
+
+    log.totalCalories = Math.round(cal);
+    log.totalProteinGrams = Math.round(p * 10) / 10;
+    log.totalCarbsGrams = Math.round(c * 10) / 10;
+    log.totalFatGrams = Math.round(f * 10) / 10;
+    log.totalFiberGrams = Math.round(fib * 10) / 10;
+
+    return await this.meals.save(log);
+  }
+
+  /**
+   * Verwijdert een item uit een MealLog. Als het maaltijdrecord leeg is geworden, wordt het gewist.
+   */
+  async deleteItemFromMeal(mealLogId: string, itemIndex: number): Promise<void> {
+    const log = await this.meals.getById(mealLogId);
+    if (!log || itemIndex < 0 || itemIndex >= log.items.length) return;
+
+    log.items.splice(itemIndex, 1);
+
+    if (log.items.length === 0) {
+      await this.meals.delete(mealLogId);
+    } else {
+      let cal = 0;
+      let p = 0;
+      let c = 0;
+      let f = 0;
+      let fib = 0;
+
+      for (const item of log.items) {
+        cal += item.calories;
+        p += item.proteinGrams;
+        c += item.carbsGrams;
+        f += item.fatGrams;
+        fib += item.fiberGrams || 0;
+      }
+
+      log.totalCalories = Math.round(cal);
+      log.totalProteinGrams = Math.round(p * 10) / 10;
+      log.totalCarbsGrams = Math.round(c * 10) / 10;
+      log.totalFatGrams = Math.round(f * 10) / 10;
+      log.totalFiberGrams = Math.round(fib * 10) / 10;
+
+      await this.meals.save(log);
+    }
   }
 }

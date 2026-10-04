@@ -1006,4 +1006,47 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 - **Volgende Stap:**
   - **Stap 26 / Prompt 21**: Voeding: Dagelijks Voedingsdagboek (geavanceerde datumkiezer, dagelijkse maaltijdindeling ontbijt/lunch/diner/snacks, dagtotalen en historische navigatie).
 
+---
+
+### Stap 26 / Prompt 21 — Voeding: Dagelijks Voedingsdagboek (`[x] KLAAR`)
+- **Doel & Bereik:**
+  - Implementatie van het dagelijks voedingsdagboek met 4 vaste maaltijdmomenten (Ontbijt, Lunch, Diner, Snacks) en waterinname.
+  - Datumkiezer met historische kalendernavigatie (vorige dag, volgende dag, vandaag, en datumkiezer via HTML5 date picker).
+  - Volledige persistentie van maaltijden (`MealLog`), individuele items (`MealItemEntry`) en waterlogs (`WaterLog`) in Dexie IndexedDB.
+  - Pure domeinlogica voor dagtotalen, macro-ratio's en subtotalen per maaltijdmoment, 100% losgekoppeld van de UI.
+  - Ergonomische dialoogvensters voor het toevoegen van producten/recepten met automatische portiecalculatie en het bewerken van porties.
+- **Geïmplementeerde Wijzigingen:**
+  - **Domeinlogica (`src/domain/nutrition/diary.ts` & `src/domain/nutrition/diary.test.ts`):**
+    - `calculateDailyTotals(mealLogs, waterLogs)`: Berekent exacte dagsommen voor calorieën, eiwitten, koolhydraten, vetten, vezels en waterinname.
+    - `groupLogsByMealType(logs)`: Groepeert en aggregeert logs en subtotalen per maaltijdtype (`ontbijt`, `lunch`, `diner`, `snacks`).
+    - `createMealLogFromItem(calendarDate, mealType, item)`: Creëert een nieuw gestructureerd maaltijdrecord.
+    - `recalculateMealLogTotals(items)`: Herrekent subtotalen van een maaltijd na wijziging of verwijdering van een item.
+    - `diary.test.ts`: 4 unit tests (100% geslaagd).
+  - **Repository Uitbreidingen (`src/lib/db/repositories/nutrition.repository.ts`):**
+    - `addItemToMeal(calendarDate, mealType, item)`: Voegt een item toe aan een bestaande maaltijdlog van die dag of creëert direct een nieuw record.
+    - `updateItemInMeal(mealLogId, itemIndex, updatedItem)`: Past een specifiek maaltijditem aan en herrekent direct de macro-totalen.
+    - `deleteItemFromMeal(mealLogId, itemIndex)`: Verwijdert een item of wist de maaltijdlog als deze leeg is.
+    - `resetWaterByDate(calendarDate)`: Wist alle waterlogs voor de geselecteerde datum.
+  - **Gebruikersinterface (`src/components/modules/nutrition/` & `src/app/voeding/page.tsx`):**
+    - `DailyNutritionHeader.tsx`: Datumkiezer met Vorige/Volgende/Vandaag navigatie, 5 overzichtskaarten (Kcal, Eiwit, Koolhydraten, Vet, Vezels) en een Atwater energieverdelingsbalk met percentage-labels.
+    - `DailyWaterWidget.tsx`: Interactieve hydratatie-kaart met progressiebalk naar dagdoel (standaard 2500 ml), sneltoetsen (+250 ml glas, +500 ml fles) en herstelknop.
+    - `MealSectionCard.tsx`: Modulaire kaart per maaltijdmoment met subtotalen, opsomming van genuttigde items met grammen en macro's, bewerk- en verwijderknoppen en toevoegknop.
+    - `AddMealItemDialog.tsx`: Modal met tabbladen voor "Zoeken in database & recepten" (met realtime portie-preview) en "Snelle handmatige invoer" voor directe calorieën/macro's.
+    - `EditMealItemDialog.tsx`: Modal om portiegrootte in grammen aan te passen met dynamische herberekening.
+    - `DailyNutritionView.tsx`: Hoofdweergave die alle dagboekcomponenten en modals met Dexie hooks integreert.
+    - `src/app/voeding/page.tsx`: Volledige integratie tussen "Dagboek & Loggen" en "Voedingsdatabase & Recepten".
+  - **Integratietests (`tests/dailyNutritionDiaryIntegration.test.ts`):**
+    - Dexie integratietests met `fake-indexeddb` die item toevoeging, maaltijdsamenvoeging, portie-updates, verwijderingen en waterregistratie per datum valideren.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): **0 fouten**.
+  - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
+  - Vitest testsuite (`npm test`): **286 van de 286 tests geslaagd** over 33 testbestanden (100% slagingspercentage).
+  - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 8 Next.js routes statisch gegenereerd.
+  - Bestandsintegriteit: 0-byte bestandscontrole uitgevoerd en geverifieerd (0 lege bestanden).
+- **Beperkingen & Notities:**
+  - Water- en maaltijdlogs zijn strikt geïsoleerd per kalenderdatum (`YYYY-MM-DD`).
+- **Volgende Stap:**
+  - **Stap 27 / Prompt 22**: Voeding: Maaltijdlogger & Snelle Invoer (snelknoppen voor favorieten, lijst met recent gelogde producten, kopiëren van maaltijden van eerdere dagen en maaltijdsjablonen).
+
+
 

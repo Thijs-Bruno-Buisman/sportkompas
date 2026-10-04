@@ -377,6 +377,7 @@ export const MealLogSchema = z.object({
   totalProteinGrams: z.number().min(0),
   totalCarbsGrams: z.number().min(0),
   totalFatGrams: z.number().min(0),
+  totalFiberGrams: z.number().min(0).optional().default(0),
   loggedAt: z.string().regex(isoDateRegex),
 });
 
