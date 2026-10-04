@@ -22,6 +22,7 @@ import { WeeklyConsistencyWidget } from "@/components/modules/history/WeeklyCons
 import { HomeCockpitDashboard } from "@/components/modules/home/HomeCockpitDashboard";
 import { CombinedProgressHub } from "@/components/modules/home/CombinedProgressHub";
 import { ActivityStreakHeatmap } from "@/components/modules/home/ActivityStreakHeatmap";
+import { AiWeeklyReviewCard } from "@/components/modules/home/AiWeeklyReviewCard";
 import { UniversalSearchDialog } from "@/components/modules/home/UniversalSearchDialog";
 import { getLocalDateString, addDaysToDateString } from "@/domain/dates/calendar";
 import {
@@ -271,6 +272,20 @@ export default function HomePage() {
       {/* 5. KRACHTTRAINING CONSISTENTIE & WEEKDOEL WIDGET */}
       <section>
         <WeeklyConsistencyWidget />
+      </section>
+
+      {/* 6. AI WEKELIJKSE & PERIODIEKE REVIEW */}
+      <section>
+        <AiWeeklyReviewCard
+          workouts={historyWorkouts}
+          workoutSets={historySets}
+          cardioSessions={historyCardio}
+          mealLogs={historyMeals}
+          waterLogs={historyWater}
+          recoveryLogs={historyRecovery}
+          weeklyWorkoutGoal={weeklyWorkoutGoal}
+          referenceDate={selectedDate}
+        />
       </section>
 
       {/* 5. GECOMBINEERDE VOORTGANG HUB & HOLISTISCHE ANALYTICS */}

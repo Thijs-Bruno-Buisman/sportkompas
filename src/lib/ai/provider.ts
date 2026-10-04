@@ -6,6 +6,10 @@ import {
   WeeklyReviewSchema,
 } from "./schemas";
 import { type AiServerConfig, AI_DISCLAIMER_TEXT } from "./config";
+import {
+  generateDeterministicWeeklyReview,
+  type PreparedWeeklyReviewContext,
+} from "@/domain/ai/weeklyReview";
 
 /**
  * Genereert de basissysteemprompt met vaste SportKompas gedragsregels.
@@ -36,6 +40,17 @@ Als taak 'nutrition_advice' is, beantwoord dan bij voorkeur met een geldig JSON 
   "carbsTargetGrams": number,
   "recommendations": string[],
   "rationale": string (inclusief '(schatting)')
+}`;
+  } else if (task === "weekly_review") {
+    taskGuidance = `
+Als taak 'weekly_review' is, beantwoord dan bij voorkeur met een geldig JSON object conform dit schema:
+{
+  "headline": string,
+  "volumeAssessment": string (inclusief '(schatting)' waar relevant),
+  "recoveryAssessment": string,
+  "nutritionAssessment": string (inclusief '(schatting)' waar relevant),
+  "keyHighlights": string[],
+  "focusNextWeek": string
 }`;
   }
 
@@ -177,17 +192,23 @@ export function generateLocalHeuristicResponse(
     }
 
     case "weekly_review": {
-      const structured = WeeklyReviewSchema.parse({
-        headline: "Wekelijkse Voortgang & Herstelbalans",
-        volumeAssessment: "Je trainingsvolume was deze week consistent verdeeld.",
-        recoveryAssessment: "Voldoende rustdagen ingebouwd voor spiergroei.",
-        nutritionAssessment: "Gemiddelde eiwitinname lag rond het streefniveau.",
-        keyHighlights: [
-          "Consistent trainingsritme vastgehouden",
-          "Goede verhouding tussen intensieve sets en herstel",
-        ],
-        focusNextWeek: "Behoud dit ritme en let op voldoende hydratatie op zware trainingsdagen.",
-      });
+      const prepared = payload.context?.preparedContext as PreparedWeeklyReviewContext | undefined;
+      let structured;
+      if (prepared) {
+        structured = generateDeterministicWeeklyReview(prepared);
+      } else {
+        structured = WeeklyReviewSchema.parse({
+          headline: "Wekelijkse Voortgang & Herstelbalans",
+          volumeAssessment: "Je trainingsvolume was deze week consistent verdeeld.",
+          recoveryAssessment: "Voldoende rustdagen ingebouwd voor spiergroei.",
+          nutritionAssessment: "Gemiddelde eiwitinname lag rond het streefniveau.",
+          keyHighlights: [
+            "Consistent trainingsritme vastgehouden",
+            "Goede verhouding tussen intensieve sets en herstel",
+          ],
+          focusNextWeek: "Behoud dit ritme en let op voldoende hydratatie op zware trainingsdagen.",
+        });
+      }
 
       return {
         success: true,
@@ -287,6 +308,17 @@ ${payload.userPrompt || "Genereer een analyse conform je taak."}`;
         if (jsonMatch) {
           const parsed = JSON.parse(jsonMatch[0]);
           structuredData = NutritionAdviceSchema.parse(parsed);
+        }
+      } catch {
+        const fallback = generateLocalHeuristicResponse(payload, config.modelName);
+        structuredData = fallback.structuredData;
+      }
+    } else if (payload.task === "weekly_review") {
+      try {
+        const jsonMatch = candidateText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          structuredData = WeeklyReviewSchema.parse(parsed);
         }
       } catch {
         const fallback = generateLocalHeuristicResponse(payload, config.modelName);

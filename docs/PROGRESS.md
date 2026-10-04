@@ -56,9 +56,9 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 | **39 / P33** | **Data-soevereiniteit: Databasemigraties & Integriteitscontrole (Prompt 33)** | `[x] KLAAR` | Diepgaande validatie van alle 16 Dexie tabellen, referentiële integriteit, wees-record herstel, v1->v7 migratieverificatie en 412 tests. |
 | **40 / P34** | **PWA: Offline Werking & Installatie (Prompt 34)** | `[x] KLAAR` | Web App Manifest route, Service Worker offline caching (stale-while-revalidate), standalone detectie, PwaInstallSection, offline statusbalk en 424 tests. |
 | **41 / P35** | **AI Fundament: Veilige Server API & Rate Limits (Prompt 35)** | `[x] KLAAR` | Server-side `/api/ai` endpoints, rate limiting, strikte .env isolatie zonder `NEXT_PUBLIC_`, Zod validatie, lokale heuristiek fallback en 435 tests. |
-| **42** | AI Assistent: Progressieve Overload Suggesties | `[ ] OPEN` | Slimme gewichtsverhogingssuggesties met verplichte confirm-stap. |
-| **43** | AI Assistent: Slimme Voedingsadviezen | `[ ] OPEN` | Aanbevelingen voor maaltijdafstemming op trainingsdagen. |
-| **44** | AI Assistent: Wekelijkse Holistische Review | `[ ] OPEN` | Samenvattend herstel-, volume- en voortgangsrapportage. |
+| **42** | AI Assistent: Progressieve Overload Suggesties | `[x] KLAAR` | Slimme gewichtsverhogingssuggesties met verplichte confirm-stap. |
+| **43** | AI Assistent: Slimme Voedingsadviezen | `[x] KLAAR` | Aanbevelingen voor maaltijdafstemming op trainingsdagen. |
+| **44** | AI Assistent: Wekelijkse Holistische Review | `[x] KLAAR` | Samenvattend herstel-, volume- en voortgangsrapportage. |
 | **45** | AI Assistent: Contextuele Q&A Chat | `[ ] OPEN` | Vragen stellen over eigen trainingsdata met context-injectie. |
 | **46** | Externe Koppeling: GPX/TCX/FIT Bestand Import | `[ ] OPEN` | Handmatig cardiobestanden importeren vanaf sporthorloges. |
 | **47** | Externe Koppeling: Optionele Strava Koppeling | `[ ] OPEN` | Veilige OAuth koppeling met duidelijke 'Nog niet verbonden' fallback. |
@@ -1681,7 +1681,48 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 - **Beperkingen & Notities:**
   - Werkt 100% offline via lokale wetenschappelijk onderbouwde formules (Mifflin-St Jeor, TDEE activiteitsfactoren en macro-balansen).
 - **Volgende Stap:**
-  - **Stap 44 / Prompt 38**: AI Wekelijkse & Periodieke Reviews (Module 7: Slimme wekelijkse terugblik op trainingsvolume, progressie, cardio- en voedingsconsistentie, met positieve highlights en concrete focuspunten voor volgende week).
+  - **Stap 44 / Prompt 38**: AI Wekelijkse & Periodieke Reviews (Afgerond).
+
+---
+
+### Stap 44 / Prompt 38 — AI Wekelijkse & Periodieke Reviews (`[x] KLAAR`)
+- **Doel & Bereik:**
+  - Implementatie van de periodieke AI Review Assistent conform **Rule 3 ("Echte Persistentie & Geen Neppe Data")**, **Rule 7 ("AI als Assistent, NOOIT autonoom")** en **Rule 8 ("Lokale fallback & privacy zonder externe accounts")**:
+    - **Holistische Domein-Aggregatie (`src/domain/ai/weeklyReview.ts`):**
+      - `buildWeeklyReviewContext`: Pure domeinfunctie die alle 4 pijlers (krachttraining werksets & tonnage, cardiotijd & kilometers, maaltijden, calorieën, eiwitten, water, rustdagen en slaap/herstelscore) over de gekozen periode (7 of 30 dagen) consolideert.
+      - `generateDeterministicWeeklyReview`: Wetenschappelijk onderbouwde deterministische analyse (voor offline/lokale modus) die constructieve feedback formuleert op volume, rustbalans en voeding.
+      - `sanitizeWeeklyReview`: Fysiologische guardrails, verplichte `(schatting)` markeringen op indicatieve waarden, selectie van maximaal 3 sterke positieve highlights en de officiële SportKompas niet-medische disclaimer (`AI_WEEKLY_REVIEW_DISCLAIMER`).
+    - **AI Server Provider Enhancement (`src/lib/ai/provider.ts`):**
+      - `buildSystemPrompt`: Gestructureerd JSON schema voor de taak `weekly_review`.
+      - `generateLocalHeuristicResponse`: Volledige integratie van `generateDeterministicWeeklyReview` via de meegeleverde `preparedContext`.
+      - `executeAiTask`: Veilige parsing van `WeeklyReviewSchema` uit Gemini JSON met naadloze fallback naar lokale heuristiek bij netwerkfouten of ontbrekende API-sleutel.
+    - **Gebruikersinterface & Dashboard Integratie (`AiWeeklyReviewCard.tsx`):**
+      - Direct geïntegreerd op het centrale Home Dashboard (`src/app/page.tsx`).
+      - Periodekeuze: "7 Dagen" vs "30 Dagen" schakelaar met verversknop (`RefreshCw`).
+      - Badge voor modelbron: "Gemini AI" of "Lokale Heuristiek".
+      - Positieve highlight badges (bv. "Weekdoel behaald", "1.780 kg volume", "80% herstelscore").
+      - 3-koloms assessment grid voor Krachttraining & Volume, Cardio & Herstel, en Voeding & Brandstof.
+      - Opvallend "Focus voor komende periode" coachingsadvies.
+      - Uitklapbaar invoerveld voor persoonlijke weekervaring ("Eigen weekgevoel toevoegen of bijsturen") waarmee de review dynamisch kan worden verfijnd.
+      - Prominente medische disclaimer conform Regel 7.
+- **Geïmplementeerde Bestanden:**
+  - `src/domain/ai/weeklyReview.ts`: Pure domeinlogica voor contextaggregatie, deterministische review en sanitizing.
+  - `src/domain/ai/weeklyReview.test.ts`: 6 gerichte unit tests voor aggregatie, goal-beoordeling, highlights en fallback.
+  - `src/components/modules/home/AiWeeklyReviewCard.tsx`: Complete dashboard component met periodewissel en gebruikersnotitie.
+  - `src/lib/ai/provider.ts`: JSON schema prompt, lokale heuristiek en Zod parsing voor `weekly_review`.
+  - `src/app/page.tsx`: Kaart toegevoegd tussen trainingconsistentie en voortgang hub.
+  - `tests/aiWeeklyReviewIntegration.test.ts`: 4 integratietests over data-aggregatie, provider fallback, disclaimer checks en 30-dagen vensters.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): **0 fouten**.
+  - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
+  - Vitest testsuite: **465 van de 465 tests geslaagd** over 69 testbestanden (100% pass rate).
+  - Next.js productiebuild (`npm run build`): **Succesvol gecompileerd** (10 pagina's).
+  - Bestandsintegriteit: 0-byte bestandscontrole geverifieerd (**0 lege bestanden**).
+- **Beperkingen & Notities:**
+  - Volledig functioneel zowel online (via Google Gemini) als 100% offline (via lokale deterministische heuristiek).
+- **Volgende Stap:**
+  - **Stap 45 / Prompt 39**: AI Assistent: Contextuele Q&A Chat (Module 7: interactieve chatinterface waarin de gebruiker vragen kan stellen over eigen workouts, schema's, progressie en voeding met automatische injectie van lokale database-context).
+
 
 
 
