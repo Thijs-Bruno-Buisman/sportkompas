@@ -55,7 +55,7 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 | **38 / P32** | **Data-soevereiniteit: Spreadsheet CSV Export (Prompt 32)** | `[x] KLAAR` | Exporteren van krachttraining (sets, reps, volume, 1RM), cardio (km, min, tempo, kcal), voeding (dagboekitems & macro's) en metingen naar UTF-8/BOM CSV bestanden (Excel NL ';' of RFC 4180 ',') en 407 tests. |
 | **39 / P33** | **Data-soevereiniteit: Databasemigraties & Integriteitscontrole (Prompt 33)** | `[x] KLAAR` | Diepgaande validatie van alle 16 Dexie tabellen, referentiële integriteit, wees-record herstel, v1->v7 migratieverificatie en 412 tests. |
 | **40 / P34** | **PWA: Offline Werking & Installatie (Prompt 34)** | `[x] KLAAR` | Web App Manifest route, Service Worker offline caching (stale-while-revalidate), standalone detectie, PwaInstallSection, offline statusbalk en 424 tests. |
-| **41** | AI Fundament: Veilige Server API & Rate Limits | `[ ] OPEN` | Server-side endpoints (`/api/ai`), .env beveiliging en rate limits. |
+| **41 / P35** | **AI Fundament: Veilige Server API & Rate Limits (Prompt 35)** | `[x] KLAAR` | Server-side `/api/ai` endpoints, rate limiting, strikte .env isolatie zonder `NEXT_PUBLIC_`, Zod validatie, lokale heuristiek fallback en 435 tests. |
 | **42** | AI Assistent: Progressieve Overload Suggesties | `[ ] OPEN` | Slimme gewichtsverhogingssuggesties met verplichte confirm-stap. |
 | **43** | AI Assistent: Slimme Voedingsadviezen | `[ ] OPEN` | Aanbevelingen voor maaltijdafstemming op trainingsdagen. |
 | **44** | AI Assistent: Wekelijkse Holistische Review | `[ ] OPEN` | Samenvattend herstel-, volume- en voortgangsrapportage. |
@@ -1555,7 +1555,54 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 - **Beperkingen & Notities:**
   - Omdat alle data lokaal in IndexedDB (Dexie) persistent is, blijft de app 100% functioneel in de sportschool of in het vliegtuig zonder netwerkverbinding.
 - **Volgende Stap:**
-  - **Stap 41 / Prompt 35**: AI Fundament: Veilige Server API & Rate Limits (Module 7: AI Assistent & Slimme Inzichten — Veilige server-side endpoints `/api/ai/...`, .env isolatie zonder `NEXT_PUBLIC_` conform Rule 6 van `AGENTS.md`, rate limiting en structured JSON streaming).
+  - **Stap 41 / Prompt 35**: AI Fundament: Veilige Server API & Rate Limits (Afgerond).
+
+---
+
+### Stap 41 / Prompt 35 — AI Fundament: Veilige Server API & Rate Limits (`[x] KLAAR`)
+> **Mijlpaal:** Start van **Module 7: AI Assistent & Slimme Inzichten (Stappen 41 t/m 45)**!
+- **Doel & Bereik:**
+  - Opzet van de veilige server-side infrastructuur voor AI-assistentie conform Rule 6 ("Geheimen uitsluitend server-side en NOOIT in Git, geen NEXT_PUBLIC_") en Rule 7 ("AI als assistent, nooit autonoom; geen medische diagnoses en schattingen altijd expliciet labelen"):
+    - **Veilige Next.js API Routes (`src/app/api/ai/route.ts`):**
+      - `GET /api/ai`: Status- en configuratiecheck (is de API sleutel ingesteld en welk model is actief?).
+      - `POST /api/ai`: Behandelt AI-taken voor overload suggesties, voedingsadviezen, wekelijkse reviews en Q&A vragen.
+    - **Geheimen & Milieubeveiliging (`src/lib/ai/config.ts`):**
+      - Leest `AI_PROVIDER_API_KEY` en `AI_MODEL_NAME` direct uit de server environment (`process.env`).
+      - Geen enkele sleutel lekt naar de client bundle.
+      - `.env.example` aanwezig met lege voorbeelden zonder actieve tokens.
+    - **Rate Limiting & Misbruikpreventie (`src/lib/ai/rateLimiter.ts`):**
+      - Server-side sliding window rate limiter (max 15 verzoeken per 60 seconden per client IP).
+      - Retourneert HTTP `429 Too Many Requests` met `Retry-After` header en heldere Nederlandse wachttijdmelding wanneer het limiet bereikt wordt.
+    - **Runtime Schema-validatie (`src/lib/ai/schemas.ts`):**
+      - Zod validatie van inkomende payloads (`task`, `context`, `userPrompt`).
+      - Gestructureerde data-schema's voor overload suggesties, voedingsaanbevelingen en periodieke reviews.
+    - **AI Provider & Lokale Heuristiek Fallback (`src/lib/ai/provider.ts`):**
+      - Google Gemini REST integratie met strikte systeemprompting.
+      - 100% Graceful Fallback (Rule 8): Zonder API-sleutel of bij netwerkfouten schakelt het systeem naadloos over naar betrouwbare, privacy-vriendelijke lokale heuristiek op basis van double progression en voedingsrichtlijnen.
+      - Verplichte disclaimer en markering met `(schatting)`.
+    - **Client Hook (`src/lib/hooks/useAi.ts`):**
+      - Typesafe React hook voor eenvoudige aanroepen vanuit de gebruikersinterface.
+- **Geïmplementeerde Wijzigingen:**
+  - **Infrastructuur & Logica:**
+    - `src/lib/ai/rateLimiter.ts` & `src/lib/ai/rateLimiter.test.ts`: In-memory sliding window rate limiter (3 tests, 100% geslaagd).
+    - `src/lib/ai/schemas.ts`: Zod validatieschema's voor request payloads en gestructureerde responses.
+    - `src/lib/ai/config.ts`: Server-side API key beheer en disclaimer definities.
+    - `src/lib/ai/provider.ts` & `src/lib/ai/provider.test.ts`: Gemini adapter en lokale heuristiek fallback (4 tests, 100% geslaagd).
+    - `src/app/api/ai/route.ts`: Next.js Route Handlers (GET & POST) met headers en rate limiting.
+    - `src/lib/hooks/useAi.ts`: Client-side React hook met loading-, status- en foutafhandeling.
+  - **Integratietests (`tests/aiServerApiIntegration.test.ts`):**
+    - 4 integratietests voor GET status, POST geldige taak, POST HTTP 422 invoervalidatie, en HTTP 429 rate limit blokkade.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): **0 fouten**.
+  - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
+  - Vitest testsuite (`npm test`): **435 van de 435 tests geslaagd** over 63 testbestanden (100% slagingspercentage).
+  - Productiebuild (`npm run build`): Succesvol gecompileerd, `/api/ai` als dynamische server route en 9 statische routes prerendered.
+  - Bestandsintegriteit: 0-byte bestandscontrole geverifieerd via Node script (**0 lege bestanden**).
+- **Beperkingen & Notities:**
+  - Als de gebruiker geen externe API key instelt in `.env.local`, blijft de complete app en alle AI functies 100% werken via de ingebouwde lokale heuristiek zonder afhankelijkheid van externe cloud accounts.
+- **Volgende Stap:**
+  - **Stap 42 / Prompt 36**: AI Assistent: Progressieve Overload Suggesties (Module 7: Slimme gewichtsverhogingssuggesties op basis van recente trainingsgeschiedenis met verplichte 'Accepteren' of 'Negeren' bevestigingsmodal conform Rule 7).
+
 
 
 
