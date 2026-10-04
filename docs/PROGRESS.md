@@ -60,7 +60,7 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 | **43** | AI Assistent: Slimme Voedingsadviezen | `[x] KLAAR` | Aanbevelingen voor maaltijdafstemming op trainingsdagen. |
 | **44** | AI Assistent: Wekelijkse Holistische Review | `[x] KLAAR` | Samenvattend herstel-, volume- en voortgangsrapportage. |
 | **45** | AI Assistent: Contextuele Q&A Chat | `[x] KLAAR` | Vragen stellen over eigen trainingsdata met context-injectie. |
-| **46** | Externe Koppeling: GPX/TCX/FIT Bestand Import | `[ ] OPEN` | Handmatig cardiobestanden importeren vanaf sporthorloges. |
+| **46** | Externe Koppeling: GPX/TCX/FIT Bestand Import | `[x] KLAAR` | Client-side GPX/TCX parser met Haversine-afstand, hoogtemeters, hartslag, MET-calorieën, voorvertoning/bewerkingsmodal en 489 tests. |
 | **47** | Externe Koppeling: Optionele Strava Koppeling | `[ ] OPEN` | Veilige OAuth koppeling met duidelijke 'Nog niet verbonden' fallback. |
 | **48** | Externe Koppeling: Optionele Open Food Facts Lookup | `[ ] OPEN` | Voedingsmiddelen lookup via Open Food Facts met offline cache. |
 | **49** | Kwaliteitsborging: Playwright E2E Testsuite | `[ ] OPEN` | E2E tests van kernflows: workout loggen, voeding invoeren, export. |
@@ -1768,7 +1768,51 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 - **Beperkingen & Notities:**
   - De AI assistent functioneert 100% lokaal en offline; met een geconfigureerde Gemini API-sleutel levert het systeem diepere vloeiende tekstsynthese terwijl de feiten geworteld blijven in de lokale IndexedDB data.
 - **Volgende Stap:**
-  - **Stap 46 / Prompt 40**: Externe Koppeling: GPX/TCX/FIT Bestand Import (Module 8: handmatig importeren en parseren van trainingsbestanden vanaf sporthorloges en fietscomputers conform Rule 8 fallback).
+  - **Stap 46 / Prompt 40**: Externe Koppeling: GPX/TCX/FIT Bestand Import (Afgerond).
+
+---
+
+### Stap 46 / Prompt 40 — Externe Koppeling: GPX/TCX/FIT Bestand Import (`[x] KLAAR`)
+- **Doel & Bereik:**
+  - Realisatie van client-side cardio bestandsimport conform **Rule 3 ("Echte Persistentie & Geen Neppe Data")**, **Rule 4 ("Schone Architectuur & Hydration Safety")** en **Rule 8 ("Externe Koppelingen met Fallback & Lokale Privacy")**:
+    - **Client-Side Domeinparser (`src/domain/cardio/importParser.ts`):**
+      - `calculateHaversineDistanceMeters`: Berekent exacte orthodromische afstanden tussen opeenvolgende GPS coördinaten met filter tegen extreme GPS-glitches (>10 km tussen opeenvolgende punten).
+      - `mapActivityType`: Robuuste mapping van activity tags / types uit GPX/TCX naar SportKompas `CardioActivityType` (Running -> hardlopen, Biking/Cycling -> fietsen, Walking/Hiking -> wandelen, Swimming -> zwemmen, Rowing -> roeien, etc.).
+      - `parseGpxString`:
+        - Extraheert trackpoints (`<trkpt lat="..." lon="...">`), timestamps (`<time>`), hoogtemeters (`<ele>`) en hartslagen (`<gpxtpx:hr>` of `<hr>`).
+        - Berekent cumulatieve afstand, netto positieve hoogtemeters, gemiddelde en maximale hartslag.
+        - Berekent realistische calorieverbranding via MET-formule (`MET * gewicht * uren`) op basis van gebruikersprofiel of default gewicht.
+      - `parseTcxString`:
+        - Extraheert laps (`<Lap>`), `TotalTimeSeconds`, `DistanceMeters`, `Calories`, en hartslagmetingen (`<HeartRateBpm>`).
+        - Extraheert hoogteprofielen uit `<AltitudeMeters>` en berekent gecumuleerde hoogtewinst.
+      - `parseCardioFile`:
+        - Formaatdetectie voor `.gpx`, `.tcx` en binaire `.fit` bestanden.
+        - Graceful fallback voor binaire FIT-bestanden met duidelijke gebruikersinstructie om te converteren naar GPX/TCX via Garmin Connect of gratis open tools, conform Rule 8.
+    - **Interactieve Import & Voorvertoning Modal (`CardioImportModal.tsx`):**
+      - Drag-and-drop zone voor `.gpx`, `.tcx` en `.fit` bestanden.
+      - Voorvertoningsbanner met herkend bestandsformaat, aantal trackpoints, berekende afstand, tijdsduur, tempo en calorieën.
+      - Bewerkbare invoervelden vóór opslag: activiteitstype, datum, starttijd, afstand (km), tijdsduur (uur, min, sec), geschatte calorieën, hoogtemeters, hartslag en trainingsnotities.
+      - Duidelijke validatiefouten en waarschuwingsberichten.
+      - Directe persistentie in de Dexie `cardioSessions` tabel via `repositories.cardio.save(cardioSession)` met `status: "afgerond"` en direct bijwerken van de cardiostatistieken.
+    - **Integratie in Cardio Module (`src/app/cardio/page.tsx`):**
+      - Knop "Bestand Importeren" (`UploadCloud` icoon) toegevoegd in de cardio-header.
+      - Volledig verbonden met state en automatische herlading van sessies en overzichtsstatistieken.
+- **Geïmplementeerde Bestanden:**
+  - `src/domain/cardio/importParser.ts`: Pure domeinlogica voor Haversine-formule, GPX/TCX parsing, MET calorieën en FIT fallback.
+  - `src/domain/cardio/importParser.test.ts`: 10 gerichte unit tests voor GPX, TCX, Haversine, corruptie-afhandeling, FIT-detectie en activiteitsmapping.
+  - `src/components/modules/cardio/CardioImportModal.tsx`: Complete importmodal met drag & drop, voorvertoning, bewerkbaarheid en opslag.
+  - `src/app/cardio/page.tsx`: Header-knop en modale integratie met live refreshes.
+  - `tests/cardioImportIntegration.test.ts`: 3 end-to-end integratietests over GPX/TCX parsing, IndexedDB persistentie en samenvattende statistieken.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): **0 fouten**.
+  - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
+  - Vitest testsuite: **489 van de 489 tests geslaagd** over 73 testbestanden (100% pass rate).
+  - Next.js productiebuild (`npm run build`): **Succesvol gecompileerd** (10 pagina's).
+  - Bestandsintegriteit: 0-byte bestandscontrole geverifieerd (**0 lege bestanden**).
+- **Beperkingen & Notities:**
+  - Alle bestandsverwerking vindt 100% lokaal in de browser plaats; er worden nooit GPS-bestanden geüpload naar externe servers (volledige privacy).
+- **Volgende Stap:**
+  - **Stap 47 / Prompt 41**: Externe Koppeling: Optionele Strava Koppeling (Module 8: OAuth authenticatie met PKCE, token refresh, webhook/poll fallback en 'Nog niet verbonden' status conform Rule 8).
 
 
 

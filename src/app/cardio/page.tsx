@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { Activity, Plus, Timer, Play } from "lucide-react";
+import { Activity, Plus, Timer, Play, UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -12,6 +12,7 @@ import type { CardioSummaryStats } from "@/lib/db/repositories/cardio.repository
 import { CardioSessionCard } from "@/components/modules/cardio/CardioSessionCard";
 import { CardioFilterBar } from "@/components/modules/cardio/CardioFilterBar";
 import { CardioSessionModal } from "@/components/modules/cardio/CardioSessionModal";
+import { CardioImportModal } from "@/components/modules/cardio/CardioImportModal";
 import { CardioStatsTab } from "@/components/modules/cardio/CardioStatsTab";
 
 // Live Tracker componenten
@@ -40,8 +41,9 @@ export default function CardioPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedActivity, setSelectedActivity] = useState<CardioActivityType | "alle">("alle");
 
-  // Handmatige Invoer Modal State
+  // Handmatige Invoer & Import Modal State
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [sessionToEdit, setSessionToEdit] = useState<CardioSession | null>(null);
 
   // Live Tracker State
@@ -136,6 +138,19 @@ export default function CardioPage() {
         `${b.calendarDate}T${b.startTime}`.localeCompare(`${a.calendarDate}T${a.startTime}`)
       );
     });
+
+    const stats = await repositories.cardio.getSummaryStats();
+    setSummaryStats(stats);
+  };
+
+  const handleImportSession = async (importedSession: CardioSession) => {
+    await repositories.cardio.save(importedSession);
+
+    setSessions((prev) =>
+      [importedSession, ...prev.filter((s) => s.id !== importedSession.id)].sort((a, b) =>
+        `${b.calendarDate}T${b.startTime}`.localeCompare(`${a.calendarDate}T${a.startTime}`)
+      )
+    );
 
     const stats = await repositories.cardio.getSummaryStats();
     setSummaryStats(stats);
@@ -266,12 +281,21 @@ export default function CardioPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setIsImportModalOpen(true)}
+            leftIcon={<UploadCloud className="w-4 h-4" />}
+            className="shadow-2xs"
+          >
+            Bestand Importeren
+          </Button>
+
           <Button
             variant="outline"
             onClick={() => setIsManualModalOpen(true)}
             leftIcon={<Plus className="w-4 h-4" />}
-            className="shadow-xs"
+            className="shadow-2xs"
           >
             Achteraf Loggen
           </Button>
@@ -449,6 +473,15 @@ export default function CardioPage() {
           onSaveAsCancelled={handleSaveAsCancelled}
         />
       )}
+
+      {/* GPX / TCX Import Modal */}
+      <CardioImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onSave={handleImportSession}
+        userWeightKg={userWeightKg}
+        isDemoMode={isDemoMode}
+      />
     </div>
   );
 }
