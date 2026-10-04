@@ -236,9 +236,9 @@ describe("IndexedDB & Repository Layer (SportKompas)", () => {
       const modernDb = new SportKompasDatabase(migrationDbName);
       await modernDb.open();
 
-      expect(modernDb.verno).toBe(4);
+      expect(modernDb.verno).toBe(5);
 
-      // Controleer dat de oude data behouden is en correct gemigreerd via v2, v3 en v4
+      // Controleer dat de oude data behouden is en correct gemigreerd via v2, v3, v4 en v5
       const migratedExercise = await modernDb.exercises.get(exerciseId);
       expect(migratedExercise).toBeDefined();
       expect(migratedExercise?.name).toBe("Oude Squat Oefening");
@@ -251,6 +251,11 @@ describe("IndexedDB & Repository Layer (SportKompas)", () => {
       expect(migratedSession?.calendarDate).toBe("2026-09-01");
       expect(migratedSession?.provenance).toEqual({ source: "user" });
       expect(migratedSession?.snapshot).toEqual({ exercises: [] });
+
+      // Controleer dat v5 tabellen (zoals recipes) bestaan en operationeel zijn
+      expect(modernDb.recipes).toBeDefined();
+      const recipesCount = await modernDb.recipes.count();
+      expect(recipesCount).toBe(0);
 
       modernDb.close();
       await Dexie.delete(migrationDbName);

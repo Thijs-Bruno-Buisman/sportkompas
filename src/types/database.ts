@@ -300,11 +300,25 @@ export interface Goal {
   createdAt: string; // UTC ISO
 }
 
-// 10. Voeding (Voedingsmiddelen)
+// 10. Voeding (Voedingsmiddelen & Categorieën)
+export type FoodCategory =
+  | "vlees_vis_ei"
+  | "zuivel"
+  | "granen_brood"
+  | "groente_fruit"
+  | "noten_zaden"
+  | "peulvruchten"
+  | "oliën_sauzen"
+  | "dranken"
+  | "supplementen"
+  | "snacks_zoet"
+  | "overig";
+
 export interface FoodItem {
   id: EntityId;
   name: string;
   brand: string | null;
+  category?: FoodCategory;
   caloriesPer100g: number;
   proteinGramsPer100g: number;
   carbsGramsPer100g: number;
@@ -312,8 +326,51 @@ export interface FoodItem {
   fiberGramsPer100g: number;
   defaultPortionGrams: number;
   isCustom: boolean;
+  isFavorite?: boolean;
   provenance: Provenance;
   createdAt: string; // UTC ISO
+  updatedAt?: string; // UTC ISO
+}
+
+// 10b. Recepten & Samengestelde Maaltijden
+export interface RecipeIngredient {
+  foodItemId: EntityId;
+  foodName: string;
+  amountGrams: number;
+  calories: number;
+  proteinGrams: number;
+  carbsGrams: number;
+  fatGrams: number;
+  fiberGrams: number;
+}
+
+export interface Recipe {
+  id: EntityId;
+  name: string;
+  description?: string;
+  portions: number;
+  ingredients: RecipeIngredient[];
+  totalGrams: number;
+  totalCalories: number;
+  totalProteinGrams: number;
+  totalCarbsGrams: number;
+  totalFatGrams: number;
+  totalFiberGrams: number;
+  caloriesPer100g: number;
+  proteinPer100g: number;
+  carbsPer100g: number;
+  fatPer100g: number;
+  fiberPer100g: number;
+  caloriesPerPortion: number;
+  proteinPerPortion: number;
+  carbsPerPortion: number;
+  fatPerPortion: number;
+  fiberPerPortion: number;
+  isCustom: boolean;
+  isFavorite?: boolean;
+  provenance: Provenance;
+  createdAt: string; // UTC ISO
+  updatedAt?: string; // UTC ISO
 }
 
 // 11. Maaltijdlogs

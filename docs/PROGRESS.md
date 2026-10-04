@@ -39,7 +39,7 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 | **19-20 / P17** | **Cardio: Activiteitstypen, Datamodel & Handmatige Logger (Prompt 17)** | `[x] KLAAR` | Ondersteuning voor 7 sporten (hardlopen, fietsen, roeien, wandelen, zwemmen, crosstrainer, overig), canonieke eenheden (m, s), sportspecifieke splits (500m split, 100m zwemtempo, min/km, km/u), MET-calorieën o.b.v. snelheid en gewicht, Gellish HR-zones (Z1-Z5), live berekeningspreview in modal, filterbalk, bewerk/verwijder flows en statistiekentab. |
 | **21-22 / P18** | **Cardio: Live Tracker, Stopwatch & Berekeningen (Prompt 18)** | `[x] KLAAR` | Timestamp-gebaseerde live stopwatch zonder tab-drift, achtergrondresistentie via localStorage, live pauzeer/hervat, ronde/split tracking met tussentijden, live tempo- en calorie-indicatoren, actieve cardio banner, finish- & discard dialogen, sportspecifieke afstands-incrementen en 9 tests. |
 | **23-24 / P19** | **Cardio: Historiek, Periode-statistieken & Grafieken (Prompt 19)** | `[x] KLAAR` | Periodefiltering (7d/30d/90d/1j/alles), bucket aggregatie (dag/week/maand), interactieve pure SVG bar chart (volume), SVG line chart (tempo & snelheid verloop met atletische omkering voor hardlopen) en hartslagzone distributie (Z1-Z5). |
-| **25** | Voeding: Voedingsmiddelen & Recepten Database | `[ ] OPEN` | Lokale database met kcal, eiwit, koolhydraat, vet, vezels per 100g. |
+| **25 / P20** | **Voeding: Voedingsmiddelen & Recepten Database (Prompt 20)** | `[x] KLAAR` | Lokale Dexie bibliotheek met standaard 40+ Nederlandse basisproducten (NEVO/USDA) en receptenbeheer. Kcal, eiwit, koolhydraten, vetten en vezels per 100g, Atwater-energieverdeling, portiecalculaties en live receptensamenvatting. |
 | **26** | Voeding: Dagelijks Voedingsdagboek | `[ ] OPEN` | Indeling: Ontbijt, Lunch, Diner, Snacks met datumkiezer. |
 | **27** | Voeding: Maaltijdlogger & Snelle Invoer | `[ ] OPEN` | Producten selecteren, porties berekenen, favorieten markeren. |
 | **28** | Voeding: Calorie & Macro Doelen Dashboard | `[ ] OPEN` | Dynamische berekening resterende macro's vs streefwaarden. |
@@ -959,4 +959,51 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
   - OneDrive bestandsintegriteit is gecontroleerd en geverifieerd (0-byte detectie en herstel).
 - **Volgende Stap:**
   - **Module 4: Voeding & Hydratatie (Stap 25 / Prompt 20)**: Voedingsmiddelen & Recepten Database (lokale database met kcal, eiwit, koolhydraat, vet, vezels per 100g, Dexie tabellen, Zod schema's en CRUD beheer).
+
+---
+
+### Stap 25 / Prompt 20 — Voeding: Voedingsmiddelen & Recepten Database (`[x] KLAAR`)
+- **Doel & Bereik:**
+  - Robuuste lokale voedingsmiddelenbibliotheek in Dexie IndexedDB met macronutriënten en vezels per 100 gram.
+  - Standaardassortiment van 40+ herkenbare Nederlandse basisvoedingsmiddelen (havermout, kwark, kipfilet, eieren, zalm, zilvervliesrijst, volkorenbrood, etc.) conform officiële NEVO/USDA voedingswaarden.
+  - Samengestelde maaltijden en recepten (`Recipe`) datamodel met ingrediëntenkoppeling, portieberekening en automatische macro-aggregaties (totaal, per portie en per 100g).
+  - Volledige CRUD-flows voor eigen producten en recepten met Zod-validatie, favoriet-toggles, categorie-filters en Atwater-energieverhoudingsbalken.
+- **Geïmplementeerde Wijzigingen:**
+  - **Datamodel & Migraties (`src/types/database.ts` & `src/lib/db/dexie.ts` & `src/lib/db/schema.ts`):**
+    - `FoodCategory`: 11 categorieën (`vlees_vis_ei`, `zuivel`, `granen_brood`, `groente_fruit`, `peulvruchten`, `noten_zaden`, `oliën_sauzen`, `dranken`, `supplementen`, `snacks_zoet`, `overig`).
+    - `FoodItem`: Uitgebreid met optionele `category` (default `overig`), `isFavorite` (default `false`), en `updatedAt`.
+    - `Recipe` & `RecipeIngredient`: Nieuwe entiteit voor samengestelde recepten met porties, ingrediëntenlijst en berekende waarden (totaal, per portie en per 100g).
+    - `SportKompasDatabase`: Versie 5 migratie toegevoegd met `recipes`-tabel en upgrade-functie voor bestaande records zonder dataverlies.
+  - **Domeinlogica (`src/domain/nutrition/`):**
+    - `defaultFoods.ts`: 40+ gevalideerde Nederlandse basisvoedingsmiddelen met standaard portiegroottes.
+    - `calculations.ts`:
+      - `calculateNutritionForPortion(foodItem, grams)`: Exacte portiecalculaties afgerond op hele calorieën en 1 decimaal voor macro's.
+      - `calculateRecipeTotals(ingredients, portions)`: Berekening van totaal gewicht, totale macro's, per portie en per 100g.
+      - `calculateMacroDistribution(protein, carbs, fat)`: Atwater-factoren (4-4-9 kcal/g) en 100% sluitende energiepercentages.
+      - `filterFoods` & `filterRecipes`: Zoeken op naam/merk/ingrediënten, categorieën en favorieten-eerst sortering.
+    - `calculations.test.ts`: 9 gerichte unit tests (100% geslaagd).
+  - **Repository Laag (`src/lib/db/repositories/nutrition.repository.ts`):**
+    - Uitgebreid met `recipes: BaseRepository<Recipe>`.
+    - `ensureDefaultFoods()`: Idempotente seeding van het standaardassortiment.
+    - `searchFoods`, `toggleFavoriteFood`, `deleteCustomFood` (met bescherming van systeembedragen), `searchRecipes`, `toggleFavoriteRecipe`, `deleteRecipe`.
+  - **Gebruikersinterface (`src/components/modules/nutrition/` & `src/app/voeding/page.tsx`):**
+    - `FoodItemCard.tsx`: Weergave van categoriebadge, herkomst (standaard vs eigen), favorietster, macro-ribbon per 100g, standaard portie en bewerk/verwijder acties.
+    - `FoodItemModal.tsx`: Dialoogvenster met invoervelden, portiekeuze en live macro-ratio previewbalk.
+    - `RecipeCard.tsx`: Weergave van recept met porties, schakelaar tussen "Per portie" en "Per 100g", uitklapbare ingrediëntenlijst en CRUD-acties.
+    - `RecipeModal.tsx`: Samensteller met ingrediëntzoeker, grammen-invoer en realtime recepttotaal.
+    - `FoodDatabaseView.tsx`: Centrale bibliotheekweergave met subtabs, zoekbalk, categoriefilters en favorietenselectie.
+    - `src/app/voeding/page.tsx`: Vernieuwd met hoofdtabbladen "Dagboek & Loggen" en "Voedingsdatabase & Recepten".
+  - **Integratietests (`tests/nutritionDatabaseIntegration.test.ts` & `tests/database.test.ts`):**
+    - 4 integratietests voor Dexie persistence, standaard seeding, custom beheer, favorieten en receptcalculaties.
+    - Databasemigratietest geactualiseerd voor Versie 5.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): **0 fouten**.
+  - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
+  - Vitest testsuite (`npm test`): **279 van de 279 tests geslaagd** over 31 testbestanden (100% slagingspercentage).
+  - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 8 Next.js routes statisch gegenereerd.
+- **Beperkingen & Notities:**
+  - Systeemvoedingsmiddelen hebben `isCustom: false` en kunnen conform de integriteitsregels niet door de gebruiker worden gewist; eigen producten kunnen wel te allen tijde worden bewerkt of gewist.
+- **Volgende Stap:**
+  - **Stap 26 / Prompt 21**: Voeding: Dagelijks Voedingsdagboek (geavanceerde datumkiezer, dagelijkse maaltijdindeling ontbijt/lunch/diner/snacks, dagtotalen en historische navigatie).
+
 

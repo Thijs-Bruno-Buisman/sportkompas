@@ -10,6 +10,7 @@ import type {
   CardioSession,
   Goal,
   FoodItem,
+  Recipe,
   MealLog,
   WaterLog,
   BodyMeasurement,
@@ -29,6 +30,7 @@ export class SportKompasDatabase extends Dexie {
   cardioSessions!: Table<CardioSession, string>;
   goals!: Table<Goal, string>;
   foodItems!: Table<FoodItem, string>;
+  recipes!: Table<Recipe, string>;
   mealLogs!: Table<MealLog, string>;
   waterLogs!: Table<WaterLog, string>;
   bodyMeasurements!: Table<BodyMeasurement, string>;
@@ -183,6 +185,46 @@ export class SportKompasDatabase extends Dexie {
           .modify((routine) => {
             if (routine.isArchived === undefined) {
               routine.isArchived = false;
+            }
+          });
+      });
+
+    // =========================================================================
+    // VERSIE 5: Voedingsmiddelen & Recepten Database (Prompt 20 / Stap 25)
+    // =========================================================================
+    this.version(5)
+      .stores({
+        profiles: "id, name, createdAt",
+        exercises:
+          "id, name, category, primaryMuscleGroup, equipment, measurementType, isCustom, isArchived, createdAt",
+        workoutRoutines: "id, name, version, isActive, isArchived, createdAt",
+        routineDays: "id, routineId, dayIndex",
+        scheduledSessions:
+          "id, calendarDate, routineId, status, [calendarDate+status]",
+        workoutSessions:
+          "id, calendarDate, startTime, status, routineId, [calendarDate+status]",
+        workoutSets:
+          "id, sessionId, exerciseId, setNumber, [sessionId+exerciseId]",
+        cardioSessions: "id, calendarDate, startTime, activityType",
+        goals: "id, category, status, targetDate",
+        foodItems: "id, name, category, isCustom, isFavorite, createdAt",
+        recipes: "id, name, isCustom, isFavorite, createdAt",
+        mealLogs: "id, calendarDate, mealType, loggedAt",
+        waterLogs: "id, calendarDate, loggedAt",
+        bodyMeasurements: "id, calendarDate, measuredAt",
+        recoveryLogs: "id, calendarDate, loggedAt",
+        appSettings: "id",
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table("foodItems")
+          .toCollection()
+          .modify((food) => {
+            if (!food.category) {
+              food.category = "overig";
+            }
+            if (food.isFavorite === undefined) {
+              food.isFavorite = false;
             }
           });
       });

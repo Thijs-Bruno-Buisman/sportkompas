@@ -23,7 +23,8 @@ export function createRepositories(database: SportKompasDatabase = db) {
     nutrition: new NutritionRepository(
       database.foodItems,
       database.mealLogs,
-      database.waterLogs
+      database.waterLogs,
+      database.recipes
     ),
     measurements: new MeasurementRepository(database.bodyMeasurements),
     recovery: new RecoveryRepository(database.recoveryLogs),

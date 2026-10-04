@@ -285,10 +285,25 @@ export const CardioSessionSchema = z.object({
 });
 
 // Food & Meal Schemas
+export const FoodCategorySchema = z.enum([
+  "vlees_vis_ei",
+  "zuivel",
+  "granen_brood",
+  "groente_fruit",
+  "noten_zaden",
+  "peulvruchten",
+  "oliën_sauzen",
+  "dranken",
+  "supplementen",
+  "snacks_zoet",
+  "overig",
+]);
+
 export const FoodItemSchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1),
   brand: z.string().nullable(),
+  category: FoodCategorySchema.optional().default("overig"),
   caloriesPer100g: z.number().min(0),
   proteinGramsPer100g: z.number().min(0),
   carbsGramsPer100g: z.number().min(0),
@@ -296,8 +311,50 @@ export const FoodItemSchema = z.object({
   fiberGramsPer100g: z.number().min(0),
   defaultPortionGrams: z.number().min(1),
   isCustom: z.boolean(),
+  isFavorite: z.boolean().optional().default(false),
   provenance: ProvenanceSchema,
   createdAt: z.string().regex(isoDateRegex),
+  updatedAt: z.string().regex(isoDateRegex).optional(),
+});
+
+export const RecipeIngredientSchema = z.object({
+  foodItemId: z.string().uuid(),
+  foodName: z.string().min(1),
+  amountGrams: z.number().min(0.1),
+  calories: z.number().min(0),
+  proteinGrams: z.number().min(0),
+  carbsGrams: z.number().min(0),
+  fatGrams: z.number().min(0),
+  fiberGrams: z.number().min(0),
+});
+
+export const RecipeSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1),
+  description: z.string().optional(),
+  portions: z.number().int().min(1),
+  ingredients: z.array(RecipeIngredientSchema),
+  totalGrams: z.number().min(0),
+  totalCalories: z.number().min(0),
+  totalProteinGrams: z.number().min(0),
+  totalCarbsGrams: z.number().min(0),
+  totalFatGrams: z.number().min(0),
+  totalFiberGrams: z.number().min(0),
+  caloriesPer100g: z.number().min(0),
+  proteinPer100g: z.number().min(0),
+  carbsPer100g: z.number().min(0),
+  fatPer100g: z.number().min(0),
+  fiberPer100g: z.number().min(0),
+  caloriesPerPortion: z.number().min(0),
+  proteinPerPortion: z.number().min(0),
+  carbsPerPortion: z.number().min(0),
+  fatPerPortion: z.number().min(0),
+  fiberPerPortion: z.number().min(0),
+  isCustom: z.boolean(),
+  isFavorite: z.boolean().optional().default(false),
+  provenance: ProvenanceSchema,
+  createdAt: z.string().regex(isoDateRegex),
+  updatedAt: z.string().regex(isoDateRegex).optional(),
 });
 
 export const MealItemEntrySchema = z.object({
