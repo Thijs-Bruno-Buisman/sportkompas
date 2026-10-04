@@ -1,7 +1,17 @@
 import { BaseRepository } from "./base.repository";
-import { type AppSettings } from "@/types/database";
+import { type AppSettings, type Profile } from "@/types/database";
 import { AppSettingsSchema } from "../schema";
 import { type Table } from "dexie";
+import {
+  calculateBmr,
+  calculateTdee,
+  calculateStrategyCalories,
+  calculateMacroTargets,
+  DEFAULT_NUTRITION_TARGETS,
+  type DailyNutritionTargets,
+  type NutritionStrategy,
+  type MacroSplit,
+} from "@/domain/nutrition/goals";
 
 const SETTINGS_ID = "app_settings" as const;
 
@@ -67,5 +77,73 @@ export class SettingsRepository extends BaseRepository<AppSettings> {
   async setWeeklyWorkoutGoal(goal: number): Promise<AppSettings> {
     const validGoal = Math.max(1, Math.min(7, Math.round(goal)));
     return await this.updateSettings({ weeklyWorkoutGoal: validGoal });
+  }
+
+  /**
+   * Haalt actuele voedingsdoelen op uit AppSettings of berekent ze dynamisch via profiel BMR/TDEE.
+   */
+  async getNutritionTargets(profile?: Profile | null): Promise<DailyNutritionTargets> {
+    const settings = await this.getSettings();
+    if (
+      settings.nutritionTargetCalories &&
+      settings.nutritionTargetProteinGrams &&
+      settings.nutritionTargetCarbsGrams &&
+      settings.nutritionTargetFatGrams
+    ) {
+      return {
+        calories: settings.nutritionTargetCalories,
+        proteinGrams: settings.nutritionTargetProteinGrams,
+        carbsGrams: settings.nutritionTargetCarbsGrams,
+        fatGrams: settings.nutritionTargetFatGrams,
+        fiberGrams: settings.nutritionTargetFiberGrams ?? 30,
+        waterMl: settings.nutritionTargetWaterMl ?? 2500,
+        strategy: (settings.nutritionGoalStrategy as NutritionStrategy) ?? "onderhoud",
+        macroSplit: (settings.nutritionMacroSplit as MacroSplit) ?? "gebalanceerd",
+      };
+    }
+
+    if (profile && profile.startWeightKg && profile.heightMeters) {
+      const birthYear = profile.birthDate ? new Date(profile.birthDate).getFullYear() : 1995;
+      const age = new Date().getFullYear() - birthYear;
+      const heightCm = profile.heightMeters * 100;
+      const bmr = calculateBmr(
+        profile.gender,
+        profile.startWeightKg,
+        heightCm,
+        age,
+        profile.formulaPreference
+      );
+      const tdee = calculateTdee(bmr, profile.activityLevel);
+
+      let strategy: NutritionStrategy = "onderhoud";
+      if (profile.primaryGoal === "afvallen") strategy = "afvallen_standaard";
+      else if (profile.primaryGoal === "spieropbouw" || profile.primaryGoal === "kracht") strategy = "aankomen_lean";
+
+      const targetCalories = calculateStrategyCalories(tdee, strategy);
+      const split: MacroSplit =
+        profile.primaryGoal === "kracht" || profile.primaryGoal === "spieropbouw"
+          ? "krachtsport_per_kg"
+          : "gebalanceerd";
+
+      return calculateMacroTargets(targetCalories, split, profile.startWeightKg);
+    }
+
+    return DEFAULT_NUTRITION_TARGETS;
+  }
+
+  /**
+   * Slaat aangepaste voedingsdoelen op in AppSettings.
+   */
+  async updateNutritionTargets(targets: DailyNutritionTargets): Promise<AppSettings> {
+    return await this.updateSettings({
+      nutritionGoalStrategy: targets.strategy,
+      nutritionTargetCalories: targets.calories,
+      nutritionTargetProteinGrams: targets.proteinGrams,
+      nutritionTargetCarbsGrams: targets.carbsGrams,
+      nutritionTargetFatGrams: targets.fatGrams,
+      nutritionTargetFiberGrams: targets.fiberGrams,
+      nutritionTargetWaterMl: targets.waterMl,
+      nutritionMacroSplit: targets.macroSplit,
+    });
   }
 }

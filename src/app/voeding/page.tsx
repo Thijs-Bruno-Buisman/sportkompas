@@ -4,11 +4,12 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Utensils, BookOpen } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { useDatabase } from "@/lib/db";
-import type { MealLog, WaterLog, FoodItem, Recipe, MealItemEntry } from "@/types/database";
+import type { MealLog, WaterLog, FoodItem, Recipe, MealItemEntry, Profile } from "@/types/database";
 import { getLocalDateString, addDaysToDateString } from "@/domain/dates/calendar";
 import { DailyNutritionView } from "@/components/modules/nutrition/DailyNutritionView";
 import { FoodDatabaseView } from "@/components/modules/nutrition/FoodDatabaseView";
 import type { RecentMealItemSummary } from "@/domain/nutrition/quickLog";
+import { type DailyNutritionTargets, DEFAULT_NUTRITION_TARGETS } from "@/domain/nutrition/goals";
 
 export default function VoedingPage() {
   const { repositories, isDemoMode, dataVersion } = useDatabase();
@@ -21,6 +22,8 @@ export default function VoedingPage() {
   const [foods, setFoods] = useState<FoodItem[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [recentItems, setRecentItems] = useState<RecentMealItemSummary[]>([]);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [nutritionTargets, setNutritionTargets] = useState<DailyNutritionTargets>(DEFAULT_NUTRITION_TARGETS);
   const [isLoading, setIsLoading] = useState(true);
 
   // Laad voedingsdata voor de geselecteerde kalenderdag
@@ -29,21 +32,25 @@ export default function VoedingPage() {
     try {
       await repositories.nutrition.ensureDefaultFoods();
 
-      const [meals, waterLogs, allFoods, allRecipes, recents] = await Promise.all([
+      const [meals, waterLogs, allFoods, allRecipes, recents, userProfile] = await Promise.all([
         repositories.nutrition.getMealsByDate(date),
         repositories.nutrition.getWaterLogsByDate(date),
         repositories.nutrition.getAllFoods(),
         repositories.nutrition.getAllRecipes(),
         repositories.nutrition.getRecentMealItems(20),
+        repositories.profile.getCurrentProfile(),
       ]);
 
       const totalWater = waterLogs.reduce((acc: number, w: WaterLog) => acc + w.amountMl, 0);
+      const targets = await repositories.settings.getNutritionTargets(userProfile);
 
       setMealLogs(meals);
       setWaterMl(totalWater);
       setFoods(allFoods);
       setRecipes(allRecipes);
       setRecentItems(recents);
+      setProfile(userProfile);
+      setNutritionTargets(targets);
     } catch (err) {
       console.error("Fout bij laden van voeding:", err);
     } finally {
@@ -138,6 +145,12 @@ export default function VoedingPage() {
     setRecipes(updatedRecipes);
   };
 
+  // Handler voor Voedingsdoelen
+  const handleSaveNutritionTargets = async (newTargets: DailyNutritionTargets) => {
+    await repositories.settings.updateNutritionTargets(newTargets);
+    setNutritionTargets(newTargets);
+  };
+
   // Handlers voor Voedingsdatabase & Recepten
   const handleSaveFood = async (food: FoodItem) => {
     await repositories.nutrition.foods.save(food);
@@ -185,7 +198,7 @@ export default function VoedingPage() {
             Voeding &amp; Macro&apos;s
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Dagelijks voedingsdagboek, snelle maaltijdinvoer, recente items en receptenbeheer.
+            Dagelijks voedingsdagboek, doelbalans, snelle maaltijdinvoer en receptenbeheer.
           </p>
         </div>
       </div>
@@ -218,6 +231,8 @@ export default function VoedingPage() {
             availableFoods={foods}
             availableRecipes={recipes}
             recentItems={recentItems}
+            nutritionTargets={nutritionTargets}
+            profile={profile}
             onAddMealItem={handleAddMealItem}
             onEditMealItem={handleEditMealItem}
             onDeleteMealItem={handleDeleteMealItem}
@@ -226,6 +241,7 @@ export default function VoedingPage() {
             onCopyMealFromYesterday={handleCopyMealFromYesterday}
             onCopyAllMealsFromYesterday={handleCopyAllMealsFromYesterday}
             onSaveMealAsRecipe={handleSaveMealAsRecipe}
+            onSaveNutritionTargets={handleSaveNutritionTargets}
           />
         </TabsContent>
 
@@ -247,4 +263,3 @@ export default function VoedingPage() {
     </div>
   );
 }
-

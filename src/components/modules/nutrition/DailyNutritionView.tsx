@@ -1,13 +1,15 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import type { FoodItem, Recipe, MealLog, MealItemEntry } from "@/types/database";
+import type { FoodItem, Recipe, MealLog, MealItemEntry, Profile } from "@/types/database";
 import { DailyNutritionHeader } from "./DailyNutritionHeader";
 import { DailyWaterWidget } from "./DailyWaterWidget";
 import { MealSectionCard } from "./MealSectionCard";
 import { AddMealItemDialog } from "./AddMealItemDialog";
 import { EditMealItemDialog } from "./EditMealItemDialog";
 import { SaveMealAsRecipeDialog } from "./SaveMealAsRecipeDialog";
+import { NutritionBudgetCard } from "./NutritionBudgetCard";
+import { NutritionGoalsModal } from "./NutritionGoalsModal";
 import {
   calculateDailyTotals,
   groupLogsByMealType,
@@ -15,6 +17,11 @@ import {
   type MealTypeSummary,
 } from "@/domain/nutrition/diary";
 import type { RecentMealItemSummary } from "@/domain/nutrition/quickLog";
+import {
+  type DailyNutritionTargets,
+  DEFAULT_NUTRITION_TARGETS,
+  calculateNutritionProgress,
+} from "@/domain/nutrition/goals";
 
 interface DailyNutritionViewProps {
   selectedDate: string;
@@ -24,6 +31,8 @@ interface DailyNutritionViewProps {
   availableFoods: FoodItem[];
   availableRecipes: Recipe[];
   recentItems?: RecentMealItemSummary[];
+  nutritionTargets?: DailyNutritionTargets;
+  profile?: Profile | null;
   onAddMealItem: (mealType: MealLog["mealType"], item: MealItemEntry) => Promise<void>;
   onEditMealItem: (logId: string, itemIndex: number, updatedItem: MealItemEntry) => Promise<void>;
   onDeleteMealItem: (logId: string, itemIndex: number) => Promise<void>;
@@ -32,6 +41,7 @@ interface DailyNutritionViewProps {
   onCopyMealFromYesterday?: (mealType: MealLog["mealType"]) => Promise<void>;
   onCopyAllMealsFromYesterday?: () => Promise<void>;
   onSaveMealAsRecipe?: (mealLogId: string, recipeName: string, portions: number) => Promise<void>;
+  onSaveNutritionTargets?: (targets: DailyNutritionTargets) => Promise<void>;
 }
 
 export function DailyNutritionView({
@@ -42,6 +52,8 @@ export function DailyNutritionView({
   availableFoods,
   availableRecipes,
   recentItems = [],
+  nutritionTargets = DEFAULT_NUTRITION_TARGETS,
+  profile,
   onAddMealItem,
   onEditMealItem,
   onDeleteMealItem,
@@ -50,6 +62,7 @@ export function DailyNutritionView({
   onCopyMealFromYesterday,
   onCopyAllMealsFromYesterday,
   onSaveMealAsRecipe,
+  onSaveNutritionTargets,
 }: DailyNutritionViewProps) {
   // Modal states
   const [activeMealForAdd, setActiveMealForAdd] = useState<MealLog["mealType"] | null>(null);
@@ -59,6 +72,7 @@ export function DailyNutritionView({
     item: MealItemEntry;
   } | null>(null);
   const [mealToSaveAsRecipe, setMealToSaveAsRecipe] = useState<MealTypeSummary | null>(null);
+  const [isGoalsModalOpen, setIsGoalsModalOpen] = useState(false);
 
   // Group logs and calculate daily totals
   const dailyTotals = useMemo(() => {
@@ -68,6 +82,11 @@ export function DailyNutritionView({
   const mealSummaries = useMemo(() => {
     return groupLogsByMealType(mealLogs);
   }, [mealLogs]);
+
+  // Calculate nutrition progress against targets
+  const progress = useMemo(() => {
+    return calculateNutritionProgress(nutritionTargets, dailyTotals, waterMl);
+  }, [nutritionTargets, dailyTotals, waterMl]);
 
   const handleOpenAddDialog = (mealType: MealLog["mealType"]) => {
     setActiveMealForAdd(mealType);
@@ -95,6 +114,13 @@ export function DailyNutritionView({
         onDateChange={onDateChange}
         totals={dailyTotals}
         onCopyYesterday={onCopyAllMealsFromYesterday}
+      />
+
+      {/* Doel- & Balans Cockpit */}
+      <NutritionBudgetCard
+        targets={nutritionTargets}
+        progress={progress}
+        onOpenGoalsModal={() => setIsGoalsModalOpen(true)}
       />
 
       {/* Waterinname Widget */}
@@ -151,6 +177,18 @@ export function DailyNutritionView({
           onSaveAsRecipe={onSaveMealAsRecipe}
         />
       )}
+
+      {/* Voedingsdoelen Modal */}
+      {isGoalsModalOpen && onSaveNutritionTargets && (
+        <NutritionGoalsModal
+          isOpen={isGoalsModalOpen}
+          onClose={() => setIsGoalsModalOpen(false)}
+          currentTargets={nutritionTargets}
+          profile={profile}
+          onSaveTargets={onSaveNutritionTargets}
+        />
+      )}
     </div>
   );
 }
+

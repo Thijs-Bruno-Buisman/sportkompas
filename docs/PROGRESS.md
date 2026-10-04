@@ -1089,6 +1089,46 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 - **Volgende Stap:**
   - **Stap 28 / Prompt 23**: Voeding: Voedingsdoelen & Caloriebalans (koppeling met gebruikersprofiel BMR/TDEE, dynamische berekening van calorie- en macro-doelen, resterend budget en visuele voortgangsindicatoren).
 
+---
+
+### Stap 28 / Prompt 23 — Voeding: Voedingsdoelen & Caloriebalans (`[x] KLAAR`)
+- **Doel & Bereik:**
+  - Dynamische berekening en instelling van dagelijkse calorie- en macronutriëntendoelen gekoppeld aan het gebruikersprofiel (BMR en TDEE).
+  - Ondersteuning voor 6 wetenschappelijk onderbouwde voedingsstrategieën (afvallen rustig/standaard/agressief, onderhoud, lean bulk, bulken) plus vrije handmatige invoer, met een veilige ondergrens van 1200 kcal om crashdiëten te voorkomen.
+  - 5 macroverdelingsprofielen: Gebalanceerd (30/40/30), Eiwitrijk (35/40/25), Koolhydraatarm (35/20/45), Krachtsport per kg (2.0g eiwit / 1.0g vet per kg lichaamsgewicht, rest koolhydraten), en Aangepast.
+  - Calorie- en macrobalans cockpit (`NutritionBudgetCard`): real-time berekening van geconsumeerd vs. doel vs. resterend budget, overschrijdingsdetectie en 4 visuele voortgangsbalken (Eiwit, Koolhydraten, Vetten, Vezels).
+  - Ergonomische instelmodal (`NutritionGoalsModal`) met live BMR/TDEE weergave, selectievakken en directe preview.
+  - Persistentie in `AppSettings` binnen Dexie IndexedDB zonder dataverlies.
+- **Geïmplementeerde Wijzigingen:**
+  - **Domeinlogica (`src/domain/nutrition/goals.ts` & `src/domain/nutrition/goals.test.ts`):**
+    - `calculateBmr(gender, weightKg, heightCm, ageYears, formulaPreference, bodyFatPercentage)`: Ondersteuning voor zowel Mifflin-St Jeor als Katch-McArdle (LBM gebaseerd).
+    - `calculateTdee(bmr, activityLevel)`: Multipliers van 1.2 (sedentair) tot 1.725 (zeer actief).
+    - `calculateStrategyCalories(tdee, strategy, customCalories)`: Calorie-aanpassingen van -750 kcal tot +500 kcal met harde minimale veiligheidsgrens (1200 kcal).
+    - `calculateMacroTargets(targetCalories, split, weightKg, custom)`: Exacte verdeling in grammen en kcal via Atwater-factoren (4-4-9), inclusief gezonde vezelnorm (~14g/1000 kcal) en waterinname (~35ml/kg).
+    - `calculateNutritionProgress(targets, consumed, waterMl)`: Berekening van percentages, resterende grammen/kcal en status (`onder`, `doel_bereikt`, `overschreden`).
+    - `goals.test.ts`: 7 gerichte unit tests (100% geslaagd).
+  - **Datamodel & Repositories (`src/types/database.ts`, `src/lib/db/schema.ts`, `src/lib/db/repositories/settings.repository.ts`):**
+    - `AppSettings` uitgebreid met optionele voedingsdoelen (`nutritionGoalStrategy`, `nutritionTargetCalories`, `nutritionTargetProteinGrams`, `nutritionTargetCarbsGrams`, `nutritionTargetFatGrams`, `nutritionTargetFiberGrams`, `nutritionTargetWaterMl`, `nutritionMacroSplit`).
+    - `SettingsRepository`: `getNutritionTargets(profile)` (met automatische fallback naar profiel BMR/TDEE of `DEFAULT_NUTRITION_TARGETS`) en `updateNutritionTargets(targets)`.
+  - **Gebruikersinterface (`src/components/modules/nutrition/` & `src/app/voeding/page.tsx`):**
+    - `NutritionBudgetCard.tsx`: Cockpitkaart met caloriebalans (doel, inname, resterend met dynamische kleurcodering) en afzonderlijke voortgangsbalken voor Eiwit, Koolhydraten, Vetten en Vezels.
+    - `NutritionGoalsModal.tsx`: Dialoog met actuele BMR/TDEE metabolisme-indicatie, keuzemenu voor doelstrategie en macro-split, optionele vrije invoervelden en realtime berekende doelpreview.
+    - `DailyNutritionView.tsx`: Volledige integratie van `NutritionBudgetCard` en `NutritionGoalsModal` met reactieve macro-calculaties.
+    - `src/app/voeding/page.tsx`: Laden van profiel en instellingen, en live opslag van aangepaste doelstellingen.
+  - **Integratietests (`tests/nutritionGoalsIntegration.test.ts`):**
+    - 4 integratietests met Dexie en `fake-indexeddb` die standaarddoelen, profielgebaseerde BMR/TDEE calculaties, custom target persistentie en budget/resterend berekeningen valideren.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): **0 fouten**.
+  - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
+  - Vitest testsuite (`npm test`): **305 van de 305 tests geslaagd** over 37 testbestanden (100% slagingspercentage).
+  - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 8 Next.js routes statisch gegenereerd.
+  - Bestandsintegriteit: 0-byte bestandscontrole uitgevoerd en geverifieerd (0 lege bestanden).
+- **Beperkingen & Notities:**
+  - Voedingsdoelen worden bewaard in `AppSettings` en zijn direct gekoppeld aan de dagelijkse weergave; als een profiel ontbreekt, worden veilige standaardwaarden (2200 kcal) gehanteerd.
+- **Volgende Stap:**
+  - **Stap 29 / Prompt 24**: Voeding: Maaltijdplanner & Weekplanning (weekkalender voor maaltijdplanning, voorbereiden/meal prep overzichten, maaltijden als genuttigd markeren en overzetten naar dagboek).
+
+
 
 
 

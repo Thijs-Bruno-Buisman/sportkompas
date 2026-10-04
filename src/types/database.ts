@@ -449,6 +449,14 @@ export interface AppSettings {
   weekStartsOn?: "maandag" | "zondag";
   weeklyWorkoutGoal?: number; // Ingesteld weekdoel (bv. 3, 4 of 5 trainingen per week)
   favoriteExerciseIds?: EntityId[];
+  nutritionGoalStrategy?: string;
+  nutritionTargetCalories?: number;
+  nutritionTargetProteinGrams?: number;
+  nutritionTargetCarbsGrams?: number;
+  nutritionTargetFatGrams?: number;
+  nutritionTargetFiberGrams?: number;
+  nutritionTargetWaterMl?: number;
+  nutritionMacroSplit?: string;
   lastBackupAt: string | null; // UTC ISO
   updatedAt: string; // UTC ISO
 }
