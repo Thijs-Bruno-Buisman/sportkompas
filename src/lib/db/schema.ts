@@ -463,6 +463,10 @@ export const AppSettingsSchema = z.object({
   nutritionTargetFiberGrams: z.number().min(0).max(200).optional(),
   nutritionTargetWaterMl: z.number().min(500).max(10000).optional(),
   nutritionMacroSplit: z.string().optional(),
+  stravaConnected: z.boolean().default(false).optional(),
+  stravaAthleteId: z.number().nullable().optional(),
+  stravaAthleteName: z.string().nullable().optional(),
+  stravaLastSyncAt: z.string().regex(isoDateRegex).nullable().optional(),
   lastBackupAt: z.string().regex(isoDateRegex).nullable(),
   updatedAt: z.string().regex(isoDateRegex),
 });

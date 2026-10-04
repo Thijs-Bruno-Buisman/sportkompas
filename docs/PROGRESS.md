@@ -61,7 +61,7 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 | **44** | AI Assistent: Wekelijkse Holistische Review | `[x] KLAAR` | Samenvattend herstel-, volume- en voortgangsrapportage. |
 | **45** | AI Assistent: Contextuele Q&A Chat | `[x] KLAAR` | Vragen stellen over eigen trainingsdata met context-injectie. |
 | **46** | Externe Koppeling: GPX/TCX/FIT Bestand Import | `[x] KLAAR` | Client-side GPX/TCX parser met Haversine-afstand, hoogtemeters, hartslag, MET-calorieën, voorvertoning/bewerkingsmodal en 489 tests. |
-| **47** | Externe Koppeling: Optionele Strava Koppeling | `[ ] OPEN` | Veilige OAuth koppeling met duidelijke 'Nog niet verbonden' fallback. |
+| **47** | Externe Koppeling: Optionele Strava Koppeling | `[x] KLAAR` | Server API route (`/api/integrations/strava`), veilige OAuth URL & token exchange, slimme deduplicatie, synchronisatie preview-modal, demo fallback en 506 tests. |
 | **48** | Externe Koppeling: Optionele Open Food Facts Lookup | `[ ] OPEN` | Voedingsmiddelen lookup via Open Food Facts met offline cache. |
 | **49** | Kwaliteitsborging: Playwright E2E Testsuite | `[ ] OPEN` | E2E tests van kernflows: workout loggen, voeding invoeren, export. |
 | **50** | Afronding: Performance Audit & Release Review | `[ ] OPEN` | Lighthouse audits, bundlegrootte, finaal verificatierapport. |
@@ -1812,7 +1812,55 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 - **Beperkingen & Notities:**
   - Alle bestandsverwerking vindt 100% lokaal in de browser plaats; er worden nooit GPS-bestanden geüpload naar externe servers (volledige privacy).
 - **Volgende Stap:**
-  - **Stap 47 / Prompt 41**: Externe Koppeling: Optionele Strava Koppeling (Module 8: OAuth authenticatie met PKCE, token refresh, webhook/poll fallback en 'Nog niet verbonden' status conform Rule 8).
+  - **Stap 47 / Prompt 41**: Externe Koppeling: Optionele Strava Koppeling (Afgerond).
+
+---
+
+### Stap 47 / Prompt 41 — Externe Koppeling: Optionele Strava Koppeling (`[x] KLAAR`)
+- **Doel & Bereik:**
+  - Realisatie van de optionele Strava koppeling conform **Rule 3 ("Echte Persistentie & Geen Neppe Data")**, **Rule 6 ("Geheimen & Veiligheid uitsluitend server-side")** en **Rule 8 ("Externe Koppelingen met Fallback & 'Nog niet verbonden' status")**:
+    - **Domeinlogica & Activiteiten Mapping (`src/domain/integrations/strava.ts`):**
+      - `mapStravaSportTypeToCardio`: Mapt Strava sport types (Run, TrailRun, Ride, GravelRide, Walk, Hike, Swim, Rowing, Elliptical) nauwkeurig naar `CardioActivityType`.
+      - `convertStravaActivityToCardioSession`: Vertaalt Strava JSON payloads naar canonieke `CardioSession` objecten inclusief ISO tijden, kilometers, calorieën (uit Strava of berekend via MET formule op basis van gebruikersgewicht), hartslag (gem/max), hoogtemeters, cadans en herkomstmarkering (`provenance.source: "strava"`).
+      - `isStravaActivityAlreadyImported`: Intelligente deduplicatie via expliciete `(Strava #${id})` tags in notities én fuzzy duplicate matching op datum, type, afstand (+/- 50m) en tijdsduur (+/- 60s).
+      - `filterNewStravaActivities`: Scheidt inkomende activiteiten direct in nieuwe te importeren sessies en reeds aanwezige duplicaten.
+      - `buildStravaAuthorizeUrl`: Construeert veilige OAuth URL met client_id, scopes (`read,activity:read_all`) en state parameter.
+      - `getMockStravaAthlete` & `getMockStravaActivities`: Hoogwaardige Nederlandse testactiviteiten (o.a. Singelloop, Heuvelrug gravelrit, baaninterval) voor veilige 100% offline tests en demo-gebruik.
+    - **Veilige Server-Side API Route (`src/app/api/integrations/strava/route.ts`):**
+      - `GET ?action=status`: Inspecteert aanwezigheid van `STRAVA_CLIENT_ID` en `STRAVA_CLIENT_SECRET` zonder de secret ooit aan de browser te exposen (Rule 6).
+      - `GET ?action=auth-url`: Genereert autorisatie URL indien geconfigureerd, of retourneert nette 400 foutmelding met instructies.
+      - `POST action: "exchange_token"`: Wisselt de autorisatiecode server-side uit tegen access- en refreshtokens via `https://www.strava.com/oauth/token`.
+      - `POST action: "sync"`: Haalt recente activiteiten op van de Strava v3 API met automatische token headers en statusafhandeling.
+      - `POST action: "demo_sync"`: Direct beschikbare fallback om Strava-functionaliteiten direct uit te proberen zonder externe credentials.
+    - **App Settings & Database Integratie (`src/types/database.ts`, `schema.ts`, `settings.repository.ts`):**
+      - `AppSettings` uitgebreid met optionele velden: `stravaConnected`, `stravaAthleteId`, `stravaAthleteName`, `stravaLastSyncAt`.
+      - `SettingsRepository` uitgebreid met `updateStravaConnection()` en `updateStravaLastSync()`.
+    - **Gebruikersinterface (`StravaIntegrationSection.tsx` & Profiel Integratie):**
+      - Geïntegreerd in het Profielscherm (`src/app/profiel/page.tsx`).
+      - Rustige "Nog niet verbonden" statusbadge conform Rule 8.
+      - Uitklapbare stap-voor-stap handleiding voor het lokaal aanmaken van een Strava API app en het instellen van `.env.local`.
+      - "Koppel met Strava" OAuth knop voor live koppeling.
+      - "Test met Demodata" actie voor directe verificatie.
+      - Voorvertoningsdialoog (`Dialog`) bij synchronisatie: toont gevonden activiteiten, type-badges, afstanden, tijden, selectievakjes en visuele markering van reeds geïmporteerde sessies ("Al in Cardio").
+      - Verbonden weergave met atleetnaam, atleet-ID, laatste synchronisatietijd, directe "Synchroniseren" knop en veilige "Ontkoppelen" knop.
+- **Geïmplementeerde Bestanden:**
+  - `src/domain/integrations/strava.ts`: Pure domeinlogica voor Strava mapping, conversie, deduplicatie en mock helpers.
+  - `src/domain/integrations/strava.test.ts`: 11 gerichte unit tests voor types, conversies, duplicaten, calorieën en OAuth URL's.
+  - `src/app/api/integrations/strava/route.ts`: Server-side API route voor status, auth-url, token exchange, sync en demo.
+  - `src/components/modules/profile/StravaIntegrationSection.tsx`: Complete UI component met status, instructies, preview dialoog en persistentie.
+  - `src/types/database.ts` & `src/lib/db/schema.ts` & `settings.repository.ts`: Datamodel uitbreidingen voor Strava status.
+  - `src/app/profiel/page.tsx`: Integratie van de Strava sectie.
+  - `tests/stravaIntegration.test.ts`: 6 end-to-end integratietests over status-fallback, auth URL, demo sync, IndexedDB persistentie en settings.
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): **0 fouten**.
+  - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
+  - Vitest testsuite: **506 van de 506 tests geslaagd** over 75 testbestanden (100% pass rate).
+  - Next.js productiebuild (`npm run build`): **Succesvol gecompileerd** (11 pagina's/routes inclusief `/api/integrations/strava`).
+  - Bestandsintegriteit: 0-byte bestandscontrole geverifieerd (**0 lege bestanden**).
+- **Beperkingen & Notities:**
+  - Werkt 100% offline en lokaal; zonder Strava API keys blijft alle functionaliteit intact en kan via demo-sync het hele importproces worden getest.
+- **Volgende Stap:**
+  - **Stap 48 / Prompt 42**: Externe Koppeling: Optionele Open Food Facts Lookup (Module 8: offline-first barcode scanning & online product lookup met lokale IndexedDB cache en duidelijke offline fallback).
 
 
 

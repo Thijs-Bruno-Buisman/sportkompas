@@ -483,6 +483,10 @@ export interface AppSettings {
   nutritionTargetFiberGrams?: number;
   nutritionTargetWaterMl?: number;
   nutritionMacroSplit?: string;
+  stravaConnected?: boolean;
+  stravaAthleteId?: number | null;
+  stravaAthleteName?: string | null;
+  stravaLastSyncAt?: string | null; // UTC ISO
   lastBackupAt: string | null; // UTC ISO
   updatedAt: string; // UTC ISO
 }

@@ -146,4 +146,29 @@ export class SettingsRepository extends BaseRepository<AppSettings> {
       nutritionMacroSplit: targets.macroSplit,
     });
   }
+
+  /**
+   * Werkt de Strava koppelingsstatus en atleetgegevens bij.
+   */
+  async updateStravaConnection(
+    connected: boolean,
+    athleteId?: number | null,
+    athleteName?: string | null
+  ): Promise<AppSettings> {
+    return await this.updateSettings({
+      stravaConnected: connected,
+      stravaAthleteId: athleteId ?? null,
+      stravaAthleteName: athleteName ?? null,
+      ...(connected ? {} : { stravaLastSyncAt: null }),
+    });
+  }
+
+  /**
+   * Werkt het tijdstip van de laatste geslaagde Strava-synchronisatie bij.
+   */
+  async updateStravaLastSync(lastSyncIso: string): Promise<AppSettings> {
+    return await this.updateSettings({
+      stravaLastSyncAt: lastSyncIso,
+    });
+  }
 }

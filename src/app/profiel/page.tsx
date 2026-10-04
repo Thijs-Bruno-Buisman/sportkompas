@@ -32,6 +32,7 @@ import { BackupRestoreSection } from "@/components/modules/profile/BackupRestore
 import { CsvExportSection } from "@/components/modules/profile/CsvExportSection";
 import { DatabaseIntegritySection } from "@/components/modules/profile/DatabaseIntegritySection";
 import { PwaInstallSection } from "@/components/modules/profile/PwaInstallSection";
+import { StravaIntegrationSection } from "@/components/modules/profile/StravaIntegrationSection";
 import {
   parseLocalizedNumber,
   isValidBirthDate,
@@ -736,6 +737,12 @@ export default function ProfielPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Externe Integraties: Strava Koppeling */}
+          <StravaIntegrationSection
+            settings={settings}
+            onSettingsUpdated={reloadProfile}
+          />
 
           {/* Lokale Opslag & Data-soevereiniteit */}
           <BackupRestoreSection
