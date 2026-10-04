@@ -47,6 +47,7 @@ import {
   loadTimerStateFromStorage,
 } from "@/domain/strength/restTimer";
 import { ProgressiveOverloadCard } from "./ProgressiveOverloadCard";
+import { AiOverloadAdvisorModal } from "../training/AiOverloadAdvisorModal";
 import type { ProgressiveOverloadSuggestion } from "@/domain/strength/progressiveOverload";
 import { formatFriendlyDate } from "@/domain/dates/calendar";
 
@@ -105,6 +106,7 @@ export function ActiveWorkoutTracker({
   const [isExitDialogOpen, setIsExitDialogOpen] = useState(false);
   const [isFinishDialogOpen, setIsFinishDialogOpen] = useState(false);
   const [isAddExerciseOpen, setIsAddExerciseOpen] = useState(false);
+  const [isAiAdvisorOpen, setIsAiAdvisorOpen] = useState(false);
 
   // Feedback banner
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -975,14 +977,33 @@ export function ActiveWorkoutTracker({
           </div>
 
           {/* ------------------------------------------------------------------- */}
-          {/* PROGRESSIEVE OVERLOAD SUGGESTIE (DUBBELE PROGRESSIE - PROMPT 15) */}
+          {/* PROGRESSIEVE OVERLOAD SUGGESTIE (DUBBELE PROGRESSIE - PROMPT 15 & STAP 42) */}
           {/* ------------------------------------------------------------------- */}
-          {progressionSuggestion && (
-            <ProgressiveOverloadCard
-              suggestion={progressionSuggestion}
-              onApplySuggestion={handleApplyProgressionSuggestion}
-            />
-          )}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+                Overload &amp; Dubbele Progressie
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsAiAdvisorOpen(true)}
+                leftIcon={<Sparkles className="w-3.5 h-3.5 text-emerald-500" />}
+                className="h-8 text-xs font-semibold text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
+                title="Vraag AI assistent om progressieve overload suggestie op basis van recente sets"
+              >
+                AI Overload Assistent
+              </Button>
+            </div>
+
+            {progressionSuggestion && (
+              <ProgressiveOverloadCard
+                suggestion={progressionSuggestion}
+                onApplySuggestion={handleApplyProgressionSuggestion}
+              />
+            )}
+          </div>
 
           {/* ------------------------------------------------------------------- */}
           {/* ASSISTED OEFENING NOTIFICATIE */}
@@ -1136,6 +1157,45 @@ export function ActiveWorkoutTracker({
         onSelect={handleAddExerciseToWorkout}
         title="Oefening toevoegen aan training"
         description="Selecteer een oefening uit de bibliotheek. Deze wordt direct toegevoegd aan je actieve sessie."
+      />
+
+      <AiOverloadAdvisorModal
+        isOpen={isAiAdvisorOpen}
+        onClose={() => setIsAiAdvisorOpen(false)}
+        exercise={
+          currentExercise
+            ? {
+                id: currentExercise.exerciseId,
+                name: currentExercise.exerciseName,
+                category: "kracht",
+                primaryMuscleGroup: (currentExercise.primaryMuscleGroup as any) || "borst",
+                secondaryMuscleGroups: [],
+                equipment: exerciseLibraryItem?.equipment || "barbell",
+                measurementType: currentExercise.measurementType || "gewicht_herhalingen",
+                isCustom: false,
+                isArchived: false,
+                instructions: "",
+                provenance: { source: "user" },
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              }
+            : null
+        }
+        previousWorksets={sets}
+        currentTargetWeightKg={
+          sets.length > 0 && sets[0].weightKg !== null
+            ? sets[0].weightKg
+            : currentExercise?.targetWeightKg ?? null
+        }
+        targetRepsMin={currentExercise?.targetRepsMin || 8}
+        targetRepsMax={currentExercise?.targetRepsMax || 12}
+        targetSets={currentExercise?.targetSets || 3}
+        onAccept={(proposal) => {
+          handleApplyProgressionSuggestion(
+            proposal.suggestedWeightKg,
+            proposal.targetReps
+          );
+        }}
       />
     </div>
   );

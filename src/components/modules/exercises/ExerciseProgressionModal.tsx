@@ -22,8 +22,10 @@ import {
   Flame,
   Table as TableIcon,
   LineChart as ChartIcon,
+  Sparkles,
 } from "lucide-react";
 import { ProgressiveOverloadCard } from "../tracker/ProgressiveOverloadCard";
+import { AiOverloadAdvisorModal } from "../training/AiOverloadAdvisorModal";
 import type { ProgressiveOverloadSuggestion } from "@/domain/strength/progressiveOverload";
 
 interface ExerciseProgressionModalProps {
@@ -48,6 +50,8 @@ export function ExerciseProgressionModal({
   const [viewMode, setViewMode] = useState<"chart" | "table">("chart");
   const [hoveredPointIndex, setHoveredPointIndex] = useState<number | null>(null);
   const [suggestion, setSuggestion] = useState<ProgressiveOverloadSuggestion | null>(null);
+  const [isAiAdvisorOpen, setIsAiAdvisorOpen] = useState(false);
+  const [advisorSuccessMsg, setAdvisorSuccessMsg] = useState<string | null>(null);
 
   // Laad progressie datapunten en voorstel
   const loadProgression = useCallback(async () => {
@@ -301,12 +305,35 @@ export function ExerciseProgressionModal({
           </div>
         )}
 
-        {/* PROGRESSIEVE OVERLOAD SUGGESTIE (DUBBELE PROGRESSIE - PROMPT 15) */}
-        {suggestion && (
-          <div className="pt-1">
-            <ProgressiveOverloadCard suggestion={suggestion} />
+        {/* PROGRESSIEVE OVERLOAD SUGGESTIE (DUBBELE PROGRESSIE - PROMPT 15 & STAP 42) */}
+        <div className="pt-1 space-y-2">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+              Overload &amp; Dubbele Progressie
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsAiAdvisorOpen(true)}
+              leftIcon={<Sparkles className="w-3.5 h-3.5 text-emerald-500" />}
+              className="h-8 text-xs font-semibold text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
+              title="Vraag AI assistent om progressieve overload analyse"
+            >
+              AI Overload Assistent
+            </Button>
           </div>
-        )}
+
+          {advisorSuccessMsg && (
+            <Alert variant="success" className="text-xs">
+              {advisorSuccessMsg}
+            </Alert>
+          )}
+
+          {suggestion && (
+            <ProgressiveOverloadCard suggestion={suggestion} />
+          )}
+        </div>
 
         {/* METRIC KEUZE & GRAFIEK/TABEL TOGGLE */}
         <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
@@ -476,6 +503,22 @@ export function ExerciseProgressionModal({
           Sluiten
         </Button>
       </DialogFooter>
+
+      <AiOverloadAdvisorModal
+        isOpen={isAiAdvisorOpen}
+        onClose={() => setIsAiAdvisorOpen(false)}
+        exercise={exercise}
+        currentTargetWeightKg={suggestion?.suggestedWeightKg ?? null}
+        targetRepsMin={suggestion?.suggestedRepsMin ?? 8}
+        targetRepsMax={suggestion?.suggestedRepsMax ?? 12}
+        targetSets={suggestion?.suggestedSets ?? 3}
+        onAccept={(proposal) => {
+          setAdvisorSuccessMsg(
+            `AI Voorstel geaccepteerd: ${proposal.suggestedWeightKg} kg × ${proposal.targetReps} reps voor je volgende sessie.`
+          );
+          setTimeout(() => setAdvisorSuccessMsg(null), 5000);
+        }}
+      />
     </Dialog>
   );
 }

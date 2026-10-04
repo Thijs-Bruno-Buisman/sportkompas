@@ -1601,7 +1601,48 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 - **Beperkingen & Notities:**
   - Als de gebruiker geen externe API key instelt in `.env.local`, blijft de complete app en alle AI functies 100% werken via de ingebouwde lokale heuristiek zonder afhankelijkheid van externe cloud accounts.
 - **Volgende Stap:**
-  - **Stap 42 / Prompt 36**: AI Assistent: Progressieve Overload Suggesties (Module 7: Slimme gewichtsverhogingssuggesties op basis van recente trainingsgeschiedenis met verplichte 'Accepteren' of 'Negeren' bevestigingsmodal conform Rule 7).
+  - **Stap 42 / Prompt 36**: AI Assistent: Progressieve Overload Suggesties (Afgerond).
+
+---
+
+### Stap 42 / Prompt 36 — AI Assistent: Progressieve Overload Suggesties (`[x] KLAAR`)
+- **Doel & Bereik:**
+  - Implementatie van de AI Overload Assistent conform **Rule 7 ("AI als Assistent, NOOIT autonoom")** en **Rule 8 ("Lokale fallback zonder credentials")**:
+    - **Domeinlogica & Veiligheidsbegrenzing (`src/domain/ai/overloadAdvisor.ts`):**
+      - `buildOverloadContext`: Bundelt eerdere werksets, reps, gewichten, RPE en berekent de deterministische dubbele progressie baseline.
+      - `sanitizeOverloadSuggestion`: Fysiologische guardrails tegen extreme sprongen (clamping op maximaal 10% / 2x equipment step), afronding op 0.5 kg, afhandeling van assisted machines (minder tegengewicht is beter), en verplichte markering met `(schatting)`.
+      - `applyOverloadProposalToWorkoutSets`: Past het voorstel uitsluitend toe op niet-voltooide sets in de actieve tracker; reeds voltooide sets blijven 100% onaangetast.
+      - `applyOverloadProposalToRoutineDay`: Werkt het doelschema in een routinedag bij met deugdelijke provenance (`source: "ai"`, `acceptedAt`).
+    - **Gebruikersinterface (`AiOverloadAdvisorModal.tsx`):**
+      - Volledig toegankelijke dialoog met visuele vergelijkingskaart (Huidig vs Aanbevolen doel).
+      - Prominente `(schatting)` badge naast alle voorgestelde getallen.
+      - Betrouwbaarheidslabel (`hoog`, `gemiddeld`, `laag`) en modelbron (`Google Gemini` vs `Lokale Heuristiek`).
+      - AI Coaching Rationale met rustige en heldere onderbouwing.
+      - Gebruikersinvoer / toelichting ("Persoonlijk gevoel toevoegen") om het advies bij te sturen op basis van dagvorm of pijntjes.
+      - Uitklapbare medische disclaimer ("SportKompas AI geeft indicatieve adviezen. Raadpleeg bij blessures of twijfel altijd een professional").
+      - **Strikte bevestigingsknoppen:** "Accepteren & Toepassen" (groene primaire knop) vs "Negeren" (outline knop). Geen enkele autonome wijziging zonder gebruikersactie.
+    - **Integratie in de App:**
+      - **Actieve Tracker (`ActiveWorkoutTracker.tsx`):** Knop "AI Overload Assistent" direct toegankelijk bij elke oefening; bij acceptatie worden resterende sets direct bijgewerkt en opgeslagen.
+      - **Oefenprogressie Modal (`ExerciseProgressionModal.tsx`):** Mogelijkheid om AI overload analyse te raadplegen tijdens het bekijken van historische grafieken en sets.
+- **Geïmplementeerde Wijzigingen:**
+  - `src/domain/ai/overloadAdvisor.ts`: Pure domeinlogica voor contextvoorbereiding, guardrails en set-updaters.
+  - `src/domain/ai/overloadAdvisor.test.ts`: 5 gerichte unit tests (100% geslaagd).
+  - `src/components/modules/training/AiOverloadAdvisorModal.tsx`: Complete interactieve modal component.
+  - `src/components/modules/tracker/ActiveWorkoutTracker.tsx`: Gekoppeld aan de actieve workout tracker.
+  - `src/components/modules/exercises/ExerciseProgressionModal.tsx`: Gekoppeld aan de oefenprogressie modal.
+  - `src/lib/ai/provider.ts`: Verfijnde heuristiek en gestructureerde JSON extractie voor overload taken.
+  - `tests/aiOverloadIntegration.test.ts`: 5 integratietests voor dubbele progressie, guardrails, non-autonome bevestiging en routine-upgrades (100% geslaagd).
+- **Uitgevoerde Controles:**
+  - TypeScript type-check (`npm run type-check`): **0 fouten**.
+  - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
+  - Vitest testsuite (`npm test`): **445 van de 445 tests geslaagd** over 65 testbestanden (100% slagingspercentage).
+  - Productiebuild (`npm run build`): Succesvol gecompileerd, alle 10 routes (inclusief `/training` en `/api/ai`) correct gebouwd.
+  - Bestandsintegriteit: 0-byte bestandscontrole geverifieerd (**0 lege bestanden**).
+- **Beperkingen & Notities:**
+  - Zowel online (met Gemini API-sleutel) als 100% offline (lokale dubbele progressie heuristiek) gegarandeerd identieke UX en veilige guardrails conform Regel 7 en 8.
+- **Volgende Stap:**
+  - **Stap 43 / Prompt 37**: AI Voedingsadviezen & Macro-Balans (Module 7: Slimme voedingssuggesties op trainings- vs rustdagen, macro-verdeling advies met expliciete 'Accepteren'/'Negeren' keuzes).
+
 
 
 

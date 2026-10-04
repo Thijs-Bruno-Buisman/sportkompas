@@ -11,13 +11,29 @@ import { type AiServerConfig, AI_DISCLAIMER_TEXT } from "./config";
  * Genereert de basissysteemprompt met vaste SportKompas gedragsregels.
  */
 export function buildSystemPrompt(task: string): string {
+  let taskGuidance = "";
+  if (task === "overload_suggestions") {
+    taskGuidance = `
+Als taak 'overload_suggestions' is, beantwoord dan bij voorkeur met een geldig JSON object conform dit schema:
+{
+  "exerciseId": string,
+  "exerciseName": string,
+  "currentWeightKg": number,
+  "suggestedWeightKg": number,
+  "targetReps": number,
+  "rationale": string (inclusief '(schatting)'),
+  "confidence": "hoog" | "gemiddeld" | "laag",
+  "requiresConfirmation": true
+}`;
+  }
+
   return `Je bent de ingebouwde assistent van SportKompas, een persoonlijke en rustige fitness applicatie.
 Belangrijke regels:
 1. Reageer altijd in het Nederlands.
 2. Geef uitsluitend onderbouwde fitness- en voedingssuggesties; stel NOOIT medische diagnoses en doe GEEN medische claims.
 3. Label elke berekende of geschatte waarde expliciet met '(schatting)'.
 4. Adviezen zijn altijd voorstellen die de gebruiker zelf handmatig moet bevestigen.
-Taak: ${task}`;
+Taak: ${task}${taskGuidance}`;
 }
 
 /**
@@ -43,27 +59,56 @@ export function generateLocalHeuristicResponse(
       };
 
     case "overload_suggestions": {
-      // Heuristiek op basis van de meegestuurde context
-      const exerciseName = (payload.context?.exerciseName as string) || "Geselecteerde oefening";
-      const exerciseId = (payload.context?.exerciseId as string) || "ex-1";
-      const currentWeight = Number(payload.context?.currentWeightKg) || 60;
-      const suggestedWeight = Math.round((currentWeight + 2.5) * 10) / 10;
+      // Heuristiek op basis van de meegestuurde context en eventuele deterministische baseline
+      const baseline = payload.context?.deterministicBaseline as Record<string, unknown> | undefined;
+      const exerciseName =
+        (payload.context?.exerciseName as string) ||
+        (baseline?.exerciseName as string) ||
+        "Geselecteerde oefening";
+      const exerciseId =
+        (payload.context?.exerciseId as string) ||
+        (baseline?.exerciseId as string) ||
+        "ex-1";
+      const currentWeight =
+        Number(payload.context?.currentWeightKg) ||
+        Number(baseline?.currentWeightKg) ||
+        60;
+      const suggestedWeight =
+        typeof baseline?.suggestedWeightKg === "number"
+          ? baseline.suggestedWeightKg
+          : Math.round((currentWeight + 2.5) * 10) / 10;
+      const targetReps =
+        typeof baseline?.suggestedRepsMin === "number"
+          ? baseline.suggestedRepsMin
+          : Number(payload.context?.targetRepsMin) || 8;
+
+      let rationale =
+        (baseline?.rationale as string) ||
+        `Op basis van je recente prestaties en dubbele progressie is een aanpassing naar ${suggestedWeight} kg passend om progressieve overload te behouden.`;
+      if (!rationale.includes("(schatting)")) {
+        rationale = `${rationale} (schatting)`;
+      }
+
+      const confidence =
+        baseline?.confidence === "hoog" || baseline?.confidence === "laag"
+          ? baseline.confidence
+          : "gemiddeld";
 
       const structured = OverloadSuggestionSchema.parse({
         exerciseId,
         exerciseName,
         currentWeightKg: currentWeight,
         suggestedWeightKg: suggestedWeight,
-        targetReps: 8,
-        rationale: `Op basis van je recente succesvolle werksets is een voorzichtige verhoging van 2,5 kg (schatting) passend om progressieve overload te behouden.`,
-        confidence: "gemiddeld",
+        targetReps,
+        rationale,
+        confidence,
         requiresConfirmation: true,
       });
 
       return {
         success: true,
         task: "overload_suggestions",
-        message: `Voorstel voor ${exerciseName}: verhoog het werkgewicht naar ${suggestedWeight} kg (schatting).`,
+        message: `Voorstel voor ${exerciseName}: streef naar ${suggestedWeight} kg (schatting) bij ${targetReps} herhalingen.`,
         structuredData: structured,
         disclaimer: AI_DISCLAIMER_TEXT,
         isEstimate: true,
@@ -195,10 +240,26 @@ ${payload.userPrompt || "Genereer een analyse conform je taak."}`;
     const candidateText =
       data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
+    let structuredData: unknown = undefined;
+    if (payload.task === "overload_suggestions") {
+      try {
+        const jsonMatch = candidateText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          structuredData = OverloadSuggestionSchema.parse(parsed);
+        }
+      } catch {
+        // Fallback naar gestructureerde data via lokale heuristiek als Gemini vrije tekst retourneerde
+        const fallback = generateLocalHeuristicResponse(payload, config.modelName);
+        structuredData = fallback.structuredData;
+      }
+    }
+
     return {
       success: true,
       task: payload.task,
-      message: candidateText.trim(),
+      message: candidateText.trim() || `Advies voor ${payload.task} gegenereerd.`,
+      structuredData,
       disclaimer: AI_DISCLAIMER_TEXT,
       isEstimate: true,
       modelUsed: config.modelName,
