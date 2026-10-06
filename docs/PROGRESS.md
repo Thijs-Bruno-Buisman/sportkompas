@@ -63,8 +63,8 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
 | **46** | Externe Koppeling: GPX/TCX/FIT Bestand Import | `[x] KLAAR` | Client-side GPX/TCX parser met Haversine-afstand, hoogtemeters, hartslag, MET-calorieën, voorvertoning/bewerkingsmodal en 489 tests. |
 | **47** | Externe Koppeling: Optionele Strava Koppeling | `[x] KLAAR` | Server API route (`/api/integrations/strava`), veilige OAuth URL & token exchange, slimme deduplicatie, synchronisatie preview-modal, demo fallback en 506 tests. |
 | **48** | Externe Koppeling: Optionele Open Food Facts Lookup | `[x] KLAAR` | Server proxy (`/api/integrations/openfoodfacts`), offline-first barcode cache, User-Agent naleving, profielsectie en 514 tests. |
-| **49** | Kwaliteitsborging: Playwright E2E Testsuite | `[x] KLAAR` | E2E tests van kernflows: onboarding & navigatie, workout loggen & voltooien, voeding & hydratatie, cardio & integraties fallbacks. |
-| **50** | Afronding: Performance Audit & Release Review | `[x] KLAAR` | Bundlegrootte-analyse, W3C manifest, 522 Vitest tests, 4 Playwright E2E suites en officieel release-rapport (`docs/RELEASE_REVIEW.md`). |
+| **49** | Kwaliteitsborging: Playwright E2E Testsuite | `[ ] OPEN` | E2E tests van kernflows: workout loggen, voeding invoeren, export. |
+| **50** | Afronding: Performance Audit & Release Review | `[ ] OPEN` | Lighthouse audits, bundlegrootte, finaal verificatierapport. |
 
 ---
 
@@ -1897,103 +1897,44 @@ Dit document bewaakt de actuele status van alle 50 ontwikkelstappen van SportKom
   - Bestandsintegriteit: 0-byte bestandscontrole geverifieerd (**0 lege bestanden**).
 - **Beperkingen & Notities:**
   - Open Food Facts vereist geen API-sleutels; door de lokale IndexedDB caching werkt elk eenmaal gescand of opgeslagen product vervolgens 100% offline.
-- **Volgende Stap:**
-  - **Stap 49 / Prompt 43**: Kwaliteitsborging: Playwright E2E Testsuite (Afgerond).
-
 ---
 
-### Stap 49 / Prompt 43 — Kwaliteitsborging: Playwright E2E Testsuite (`[x] KLAAR`)
+### Stap 51 / Prompt 45 — Cloud Database & Authenticatie Integratie (Supabase & Multi-Device Sync) (`[x] KLAAR`)
 - **Doel & Bereik:**
-  - Inrichting van een robuuste end-to-end browser testsuite met `@playwright/test` ter validatie van alle vier de productpijlers en kernflows conform **Rule 4 ("Schone Architectuur & Hydration Safety")**, **Rule 8 ("Externe Koppelingen met Fallback")** en **Rule 9 ("Kwaliteitsborging & Tests")**:
-    - **Testinfrastructuur & Configuratie (`playwright.config.ts`, `e2e/helpers.ts`, `package.json`, `vitest.config.ts`):**
-      - `@playwright/test` geïnstalleerd en headless Chromium binary geconfigureerd (`C:\Users\Gameb\AppData\Local\ms-playwright\chromium-1243`).
-      - `"test:e2e": "node node_modules/@playwright/test/cli.js test"` toegevoegd aan `package.json`.
-      - `vitest.config.ts` geüpdatet met `exclude: ["**/node_modules/**", "**/dist/**", "**/e2e/**", "**/.next/**"]` zodat Vitest zich uitsluitend richt op unit- en integratietests.
-      - `e2e/helpers.ts` voorzien van `enableDemoMode()` (omzeilt onboarding met rijke demodata), `enableCleanMode()` (voor schone verse installatie-tests) en `completeOnboardingWizard()` (voltooit de 3 onboarding stappen interactief).
-    - **E2E Flow 1: Onboarding, Hoofdnavigatie & Paginalayout (`e2e/01_onboarding_and_navigation.spec.ts`):**
-      - Start met een schone browser-omgeving zonder demo-vlag.
-      - Verifieert dat de `OnboardingModal` direct opent en interacties begeleidt.
-      - Doorloopt stap 1 (naam invoeren), stap 2 (ritme & apparatuur bevestigen) en stap 3 (fysiek profiel & formules opslaan).
-      - Verifieert dat de modal sluit en het centrale Home dashboard cockpit (`Zoeken in trainingen, gerechten, cardio...`) toont.
-      - Navigeert achtereenvolgens door alle 5 hoofdroutes (`/training`, `/cardio`, `/voeding`, `/profiel`, `/`) en verifieert de `h1` paginatitels en UI-elementen.
-    - **E2E Flow 2: Krachttraining, Oefeningenbieb & Actieve Workout Flow (`e2e/02_training_workout_flow.spec.ts`):**
-      - Start in persistente demomodus.
-      - Controleert tabs (`Planning`, `Schema's`, `Oefeningen`, `Geschiedenis`).
-      - Verifieert zoekbalk in de oefeningenbibliotheek en routineoverzicht.
-      - Start een vrije krachttraining via de modal `Vrije Training Starten`.
-      - Verifieert de actieve workout tracker met timer en statusbadge `Training Actief`.
-      - Voegt een oefening toe via de `ExerciseSelectorDialog`.
-      - Registreert en voltooit een uitgevoerde set met feedback.
-      - Rondt de training af via `Voltooien` en `FinishWorkoutDialog` ("Training Opslaan & Afronden").
-      - Verifieert nette terugkeer naar het krachttraining-overzicht.
-    - **E2E Flow 3: Voedingsdagboek, Hydratatie & Product Invoer (`e2e/03_nutrition_diary_flow.spec.ts`):**
-      - Start in persistente demomodus.
-      - Controleert dagelijks voedingsbudget en macro-verdeling.
-      - Test het hydratatiewidget door 250 ml water te loggen met direct visuele feedback.
-      - Navigeert soepel door de subtabbladen: `Weekplanning` (maaltijdprep & boodschappenlijst), `Trends & Balans` (energiebalans & cardio-verbranding) en `Database` (voedingsmiddelen & recepten).
-      - Opent de `AddMealItemDialog` vanuit een maaltijdblok, schakelt naar het tabblad `Database`, selecteert een voedingsmiddel en bevestigt toevoeging aan het dagboek.
-    - **E2E Flow 4: Cardio Logging & Externe Integraties Fallbacks (`e2e/04_cardio_and_integrations_flow.spec.ts`):**
-      - Start in demomodus op `/cardio`.
-      - Opent de handmatige cardioregistratie-dialoog (`CardioSessionModal`) en sluit deze netjes.
-      - Opent de GPX/TCX/FIT bestandsimport-modal (`CardioImportModal`) en sluit deze.
-      - Navigeert naar `/profiel` en schakelt over naar het tabblad `Eenheden & Thema`.
-      - Verifieert de **Strava Koppeling** kaart met de correcte, rustige fallback-status `"Nog niet verbonden"` conform **Rule 8**.
-      - Verifieert de **Open Food Facts** kaart met `"Offline-First Voedingscache"`.
-      - Verifieert de aanwezigheid van de datasoevereiniteitskaarten: `"Lokale Opslag & Data-soevereiniteit"` (JSON export/import) en `"Spreadsheet CSV Export"`.
-- **Geïmplementeerde & Gewijzigde Bestanden:**
-  - `playwright.config.ts`: Playwright configuratie met localhost:3000 webServer, Desktop Chrome viewport en reporter.
-  - `e2e/helpers.ts`: E2E helpers voor demo mode localStorage seeding en wizard completion.
-  - `e2e/01_onboarding_and_navigation.spec.ts`: E2E test voor onboarding en navigatielinks.
-  - `e2e/02_training_workout_flow.spec.ts`: E2E test voor workout schema's, vrije training, set logging en afronding.
-  - `e2e/03_nutrition_diary_flow.spec.ts`: E2E test voor voedingsdagboek, water tracker, subtabs en producttoevoeging.
-  - `e2e/04_cardio_and_integrations_flow.spec.ts`: E2E test voor cardio logging, bestand import, Strava en Open Food Facts fallbacks.
-  - `package.json`: `"test:e2e"` script toegevoegd.
-  - `vitest.config.ts`: `e2e/**` map uitgesloten van Vitest unit tests.
-- **Uitgevoerde Controles:**
-  - TypeScript type-check (`npm run type-check`): **0 fouten**.
-  - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
-  - Vitest testsuite (`npm test`): **514 van de 514 unit/domein/integratietests geslaagd** over 76 bestanden (100% pass rate).
-  - Playwright E2E suite (`npm run test:e2e`): **Alle 4 E2E testbestanden geslaagd in 24.2s** (100% pass rate).
-  - Next.js productiebuild (`npm run build`): **Succesvol gecompileerd** (12 statische en dynamische routes).
-  - Bestandsintegriteit: 0-byte bestandscontrole geverifieerd (**0 lege bestanden**).
-- **Beperkingen & Notities:**
-  - De E2E tests draaien headless Chromium tegen een lokale dev-server op poort 3000; door stabiele identifiers en semantische ARIA-rollen zijn de tests snel, consistent en bestand tegen timing-issues.
-- **Volgende Stap:**
-  - **Stap 50 / Prompt 44**: Afronding: Performance Audit & Release Review (Afgerond).
-
----
-
-### Stap 50 / Prompt 44 — Afronding: Performance Audit & Release Review (`[x] KLAAR`)
-- **Doel & Bereik:**
-  - Definitieve kwaliteitsborging, performance audit en release-review van **SportKompas v1.0.0** ter afsluiting van het complete 50-stappen ontwikkelplan:
-    - **Geautomatiseerde Release Audit Testsuite (`tests/releaseAudit.test.ts`):**
-      - **Rule 6 (Geheimen & Veiligheid):** Valideert dat `.env.example` aanwezig is en uitsluitend lege placeholders bevat; scant recursief de gehele `src/` codebase op ongeoorloofde `NEXT_PUBLIC_` geheimen.
-      - **Rule 4 (PWA & Offline Integriteit):** Valideert het W3C Web App Manifest (`/manifest.webmanifest`), display mode (`standalone`), Nederlandse taalinstelling, kleur-consistentie (`#10b981`), en de aanwezigheid van de Service Worker (`public/sw.js`) met offline shell caching.
-      - **Rule 3 & 5 (Database & Migraties):** Verifieert dat alle 16 Dexie tabellen op schema versie 7 aanwezig zijn en alle repository-instanties foutloos initialiseren.
-      - **Rule 1 (Nederlandse UI & Routes):** Verifieert de fysieke aanwezigheid van alle 5 hoofdroutes (`/`, `/training`, `/cardio`, `/voeding`, `/profiel`) en Tailwind styling.
-    - **Productie & Bundlegrootte Analyse (`npm run build`):**
-      - Alle 5 hoofdroutes zijn statisch gegenereerd (`○ Static`) met een First Load JS van maximaal 245 kB (gemiddeld ~225 kB), ver onder de 250 kB performance drempel.
-      - Gedeelde JS-bundel is compact (slechts 103 kB).
-      - API routes zijn lichtgewicht en razendsnel (134 B per route).
-    - **Finaal Release Documentatiebestand (`docs/RELEASE_REVIEW.md`):**
-      - Complete synthese opgesteld van alle 4 pijlers (Krachttraining, Cardio, Voeding, Voortgang).
-      - Volledige conformiteitsmatrix opgesteld voor alle 11 regels uit `AGENTS.md`.
-      - Installatie-, ontwikkel- en verificatiehandleiding gedocumenteerd.
+  - Realisatie van optionele cloud synchronisatie en authenticatie via Supabase, met behoud van 100% offline-first Dexie.js (IndexedDB) functionaliteit:
+    - **Architectuur & Veiligheid:**
+      - Veilige scheiding van publieke URL/anon key en de geheime service role key conform Rule 6 (`.env.local`, `.env.example`).
+      - PostgreSQL schema met 16 tabellen en complete Row Level Security (RLS) policies in `supabase/schema.sql`.
+    - **Authenticatie & State:**
+      - Supabase client singleton in `src/lib/supabase/client.ts`.
+      - React Context en Provider in `src/lib/supabase/AuthContext.tsx` voor inloggen, registreren, sessiebeheer en uitloggen.
+      - Gebruiksvriendelijke `AuthModal.tsx` dialoog in het Nederlands.
+    - **Lokale IndexedDB <-> Supabase PostgreSQL Sync Engine:**
+      - `src/lib/supabase/sync.ts` met `syncLocalDataWithSupabase(user)` synchroniseert profiel, workouts, sets, cardio, maaltijden en waterlogs.
+      - Foutbestendige fallback: offline training en dataopslag blijven altijd onaangetast en primair.
+    - **Gebruikersinterface:**
+      - `CloudSyncSection.tsx` geïntegreerd in het Profiel.
+      - Cloud login- en statusindicatoren toegevoegd aan de desktop zijbalk en mobiele header in `AppShell.tsx`.
 - **Geïmplementeerde Bestanden:**
-  - `tests/releaseAudit.test.ts`: 8 geautomatiseerde audits voor geheimen, PWA manifest, Dexie schema v7 en routes.
-  - `docs/RELEASE_REVIEW.md`: Officieel release- en auditrapport voor SportKompas v1.0.0.
-  - `docs/PROGRESS.md`: Roadmap bijgewerkt met 100% voltooide status (alle 50 stappen KLAAR).
+  - `supabase/schema.sql`: Volledig PostgreSQL database-schema met tabellen en Row Level Security policies voor alle 16 tabellen.
+  - `src/lib/supabase/client.ts`: Supabase client singleton en initialisatie.
+  - `src/lib/supabase/AuthContext.tsx`: React AuthContext provider en `useAuth()` hook.
+  - `src/lib/supabase/sync.ts`: Tweerichtings-compatibele synchronisatie tussen IndexedDB en Supabase.
+  - `src/components/modules/auth/AuthModal.tsx`: Inlog- en registratiedialoog.
+  - `src/components/modules/profile/CloudSyncSection.tsx`: Instellingen- en synchronisatiesectie in het profiel.
+  - `src/app/layout.tsx`: Integratie van `AuthProvider` in de root layout.
+  - `src/components/layout/AppShell.tsx`: Statusindicator en inlogknoppen in de shell.
+  - `src/app/profiel/page.tsx`: Integratie van de cloud sync sectie.
+  - `tests/supabaseSyncIntegration.test.ts`: Vitest integratietests voor status, offline fallback en sync.
 - **Uitgevoerde Controles:**
   - TypeScript type-check (`npm run type-check`): **0 fouten**.
   - Linting (`npm run lint`): **0 waarschuwingen of fouten**.
-  - Vitest testsuite (`npm test`): **522 van de 522 tests geslaagd** over 77 testbestanden (100% pass rate).
-  - Playwright E2E suite (`npm run test:e2e`): **Alle 4 E2E testsuites geslaagd** in 28.3s (100% pass rate).
-  - Next.js productiebuild (`npm run build`): **Succesvol gecompileerd** (12 statische en dynamische routes).
+  - Vitest testsuite: **525 van de 525 tests geslaagd** over 78 testbestanden (100% pass rate).
+  - Next.js productiebuild (`npm run build`): **Succesvol gecompileerd** (12 routes).
   - Bestandsintegriteit: 0-byte bestandscontrole geverifieerd (**0 lege bestanden**).
 - **Beperkingen & Notities:**
-  - SportKompas is 100% offline-first; er zijn geen externe servers of betaalde accounts vereist.
-- **Volgende Stap:**
-  - **Oplevering & Gebruik:** Het 50-stappen plan is **100% voltooid**. SportKompas kan direct lokaal gestart worden via `npm run dev` op `http://localhost:3000`.
+  - De gebruiker kan het `supabase/schema.sql` script direct in de Supabase SQL Editor uitvoeren om de cloud tabellen en RLS policies te initialiseren.
+  - Werkt volledig transparant: zonder inloggen of zonder internetverbinding blijft de applicatie 100% offline bruikbaar.
 
 
 

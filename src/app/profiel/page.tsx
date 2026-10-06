@@ -28,6 +28,7 @@ import { Select } from "@/components/ui/Select";
 import { Alert } from "@/components/ui/Alert";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Badge } from "@/components/ui/Badge";
+import { CloudSyncSection } from "@/components/modules/profile/CloudSyncSection";
 import { BackupRestoreSection } from "@/components/modules/profile/BackupRestoreSection";
 import { CsvExportSection } from "@/components/modules/profile/CsvExportSection";
 import { DatabaseIntegritySection } from "@/components/modules/profile/DatabaseIntegritySection";
@@ -738,6 +739,9 @@ export default function ProfielPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Cloud Synchronisatie & Account */}
+          <CloudSyncSection />
 
           {/* Externe Integraties: Strava Koppeling */}
           <StravaIntegrationSection

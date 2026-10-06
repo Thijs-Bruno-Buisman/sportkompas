@@ -1,13 +1,15 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Dumbbell, Activity, Utensils, User, ShieldCheck } from "lucide-react";
+import { Home, Dumbbell, Activity, Utensils, User, ShieldCheck, Cloud } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { useProfile } from "@/lib/hooks/useProfile";
 import { useDatabase } from "@/lib/db";
+import { useAuth } from "@/lib/supabase/AuthContext";
 import { OnboardingModal } from "@/components/modules/onboarding/OnboardingModal";
+import { AuthModal } from "@/components/modules/auth/AuthModal";
 
 interface NavItem {
   name: string;
@@ -27,6 +29,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { needsOnboarding, saveProfile } = useProfile();
   const { isDemoMode, toggleDemoMode, resetDemoData } = useDatabase();
+  const { user } = useAuth();
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
 
   const isRouteActive = (href: string) => {
     return href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -136,9 +140,38 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-2 px-2 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400">
-              <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
-              <span className="truncate">Lokale IndexedDB &bull; Echte data</span>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 px-2 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400">
+                <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span className="truncate">Lokale IndexedDB &bull; Echte data</span>
+              </div>
+
+              {/* Cloud Sync Status / Button */}
+              {user ? (
+                <Link
+                  href="/profiel"
+                  className="flex items-center justify-between px-2.5 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-800 dark:text-emerald-300 hover:bg-emerald-500/15 transition-colors"
+                  title={`Ingelogd als ${user.email}`}
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                    <Cloud className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
+                    <span className="truncate font-medium">{user.email}</span>
+                  </div>
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsAuthOpen(true)}
+                  className="w-full flex items-center justify-between px-2.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:border-slate-300 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <Cloud className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Cloud Sync</span>
+                  </div>
+                  <span className="text-[10px] bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 rounded font-medium">Inloggen</span>
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -158,6 +191,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </Link>
 
         <div className="flex items-center gap-2">
+          {/* Cloud Auth Icon Mobile */}
+          {user ? (
+            <Link
+              href="/profiel"
+              className="p-2 rounded-xl text-emerald-600 dark:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors relative"
+              title={`Ingelogd als ${user.email}`}
+            >
+              <Cloud className="w-4 h-4" />
+              <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-950" />
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsAuthOpen(true)}
+              className="p-2 rounded-xl text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              title="Inloggen voor Cloud Sync"
+            >
+              <Cloud className="w-4 h-4" />
+            </button>
+          )}
+
           {isDemoMode && (
             <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500 text-slate-950">
               DEMO
@@ -247,6 +301,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           })}
         </div>
       </nav>
+
+      {/* Cloud Auth Dialog */}
+      <AuthModal
+        isOpen={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
+      />
     </div>
   );
 }
